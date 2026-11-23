@@ -1,6 +1,13 @@
 export type HapticKind = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
 export type AppLifecycleEvent = 'resign' | 'active' | 'audio_began' | 'audio_ended';
 
+export interface RewardedAdResult {
+  ok: boolean;
+  rewarded: boolean;
+  preview?: boolean;
+  reason?: string;
+}
+
 declare global {
   interface Window {
     webkit?: {
@@ -8,6 +15,7 @@ declare global {
         haptics?: { postMessage: (msg: string) => void };
         storage?: { postMessage: (msg: { action: string; key: string; value?: string }) => void };
         gameCenter?: { postMessage: (msg: Record<string, unknown>) => void };
+        ads?: { postMessage: (msg: Record<string, unknown>) => void };
       };
     };
     __STILLPOINT_NATIVE__?: boolean;
@@ -15,9 +23,13 @@ declare global {
     __STILLPOINT_NATIVE_SAVE__?: string;
     __STILLPOINT_CLOUD_SAVE__?: string;
     __STILLPOINT_GC_READY__?: boolean;
+    __STILLPOINT_ADS_NATIVE__?: boolean;
+    __STILLPOINT_AD_READY__?: boolean;
     __stillpointOnAppLifecycle?: (ev: AppLifecycleEvent) => void;
     __stillpointOnCloudSave?: (json: string) => void;
     __stillpointOnGameCenterReady?: (ready: boolean) => void;
+    __stillpointOnAdReady?: (ready: boolean) => void;
+    __stillpointOnAdResult?: (res: RewardedAdResult) => void;
   }
 }
 
@@ -33,13 +45,17 @@ class NativeBridge {
   private hapticsEnabled = true;
   private lastLightAt = 0;
   private gcReady = false;
+  private adReady = false;
+  private pendingAdResolve: ((res: RewardedAdResult) => void) | null = null;
   private lifecycleListeners = new Set<(ev: AppLifecycleEvent) => void>();
   private cloudSaveListeners = new Set<(json: string) => void>();
   private gcListeners = new Set<(ready: boolean) => void>();
+  private adListeners = new Set<(ready: boolean) => void>();
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.gcReady = Boolean(window.__STILLPOINT_GC_READY__);
+      this.adReady = Boolean(window.__STILLPOINT_AD_READY__);
       window.__stillpointOnAppLifecycle = (ev: AppLifecycleEvent) => {
         for (const fn of this.lifecycleListeners) fn(ev);
       };
@@ -49,6 +65,15 @@ class NativeBridge {
       window.__stillpointOnGameCenterReady = (ready: boolean) => {
         this.gcReady = Boolean(ready);
         for (const fn of this.gcListeners) fn(this.gcReady);
+      };
+      window.__stillpointOnAdReady = (ready: boolean) => {
+        this.adReady = Boolean(ready);
+        for (const fn of this.adListeners) fn(this.adReady);
+      };
+      window.__stillpointOnAdResult = (res: RewardedAdResult) => {
+        const resolve = this.pendingAdResolve;
+        this.pendingAdResolve = null;
+        resolve?.(res);
       };
     }
   }
@@ -185,6 +210,54 @@ class NativeBridge {
     } catch {
       // Ignore outside native Game Center builds
     }
+  }
+
+  isNativeAdsEnabled(): boolean {
+    return Boolean(window.__STILLPOINT_ADS_NATIVE__ && window.webkit?.messageHandlers?.ads);
+  }
+
+  isRewardedAdReady(): boolean {
+    return !this.isNativeAdsEnabled() || this.adReady || Boolean(window.__STILLPOINT_AD_READY__);
+  }
+
+  onAdReadyChange(fn: (ready: boolean) => void): () => void {
+    this.adListeners.add(fn);
+    return () => this.adListeners.delete(fn);
+  }
+
+  requestRewardedAd(): Promise<RewardedAdResult> {
+    if (this.pendingAdResolve) {
+      return Promise.resolve({ ok: false, rewarded: false, reason: 'busy' });
+    }
+    if (!this.isNativeAdsEnabled()) {
+      // Sideloadly / web preview mode: simulate a short calibration pass so UI & boost flow can be tested cleanly
+      return new Promise((resolve) => {
+        window.setTimeout(() => {
+          resolve({ ok: true, rewarded: true, preview: true });
+        }, 900);
+      });
+    }
+    return new Promise((resolve) => {
+      this.pendingAdResolve = resolve;
+      const safetyTimer = window.setTimeout(() => {
+        if (this.pendingAdResolve === resolve) {
+          this.pendingAdResolve = null;
+          resolve({ ok: false, rewarded: false, reason: 'Ad timed out' });
+        }
+      }, 65000);
+      const orig = resolve;
+      this.pendingAdResolve = (res) => {
+        window.clearTimeout(safetyTimer);
+        orig(res);
+      };
+      try {
+        window.webkit?.messageHandlers?.ads?.postMessage({ action: 'showRewarded' });
+      } catch {
+        window.clearTimeout(safetyTimer);
+        this.pendingAdResolve = null;
+        orig({ ok: false, rewarded: false, reason: 'Unavailable' });
+      }
+    });
   }
 }
 

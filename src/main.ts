@@ -2,6 +2,7 @@ import './styles.css';
 import { sound } from './audio';
 import { bridge } from './bridge';
 import { loadMetaSave, parseMetaSaveJson, persistMetaSave, pickBetterSave } from './data/meta';
+import { fetchLiveNews } from './data/news';
 import { StillpointGame } from './engine/game';
 import { HudView } from './ui/hud';
 import { OverlayController } from './ui/menus';
@@ -93,6 +94,14 @@ function bootstrap(): void {
   });
 
   bridge.onGameCenterChange(() => {
+    overlays.refreshExternalState();
+  });
+
+  bridge.onAdReadyChange(() => {
+    overlays.refreshExternalState();
+  });
+
+  fetchLiveNews(() => {
     overlays.refreshExternalState();
   });
 

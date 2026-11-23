@@ -27,6 +27,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         configureAmbientAudioSession()
         application.isIdleTimerDisabled = true
         gameController?.notifyLifecycle("active")
+        gameController?.onAppBecameActive()
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

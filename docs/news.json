@@ -1,0 +1,33 @@
+{
+  "entries": [
+    {
+      "id": "dev_1_0_roadmap",
+      "date": "2026-11-23",
+      "kind": "announcement",
+      "title": "Welcome to STILLPOINT 1.0 & Road to 1.1",
+      "summary": "STILLPOINT is launching free on iPhone with zero forced ads. Here is what is coming next in our first major post-launch update.",
+      "bullets": [
+        "3 Wasteland Factions with weekly shared kill objectives and faction emblem rewards.",
+        "Weekly Developer 1-of-1 Vault Auctions where veterans bid Shards on handcrafted unique coatings.",
+        "Player Skin Marketplace built on server-verified accounts so rare pattern seeds and low-float FN drops can be traded for Shards.",
+        "Weekly Seeded Challenge Runs with exclusive serialized leaderboard trophies."
+      ]
+    },
+    {
+      "id": "patch_1_0_0",
+      "date": "2026-11-23",
+      "kind": "patch",
+      "version": "1.0.0",
+      "title": "v1.0.0 Launch Release",
+      "summary": "Full 1.0 release featuring Active-Reload Stillpoint Sync, Direct Drag controls, per-sector synth soundtracks, and App Store iOS integration.",
+      "bullets": [
+        "Active-Reload Sync: touch back down in the golden sweep arc above your ship to refund Focus, trigger Sync Overdrive, chain streaks up to 5x, and amplify all 9 Cores.",
+        "Added Hairline Sync and Purge Cadence Pick-10 Loadout modules.",
+        "Added Direct 1:1 Drag alongside Floating Stick in Settings and Pause.",
+        "Added Pause Build Inspector with live stats and weapon Evolution pair hints, plus Run-End Damage Breakdown bars.",
+        "Composed 4 distinct synth soundtracks for Ash Flats, Sunken Metro, Slag Foundry, and The Monolith.",
+        "Added optional Armory Scanner Boost (+50% crate odds for 3 runs, max 2/day), iCloud save sync, and Game Center leaderboards."
+      ]
+    }
+  ]
+}

@@ -71,7 +71,12 @@ jobs:
 
       - name: Archive signed iOS app (App Store Services enabled)
         working-directory: ios
+        env:
+          ADMOB_IOS_APP_ID: ${{ secrets.ADMOB_IOS_APP_ID }}
+          ADMOB_REWARDED_UNIT_ID: ${{ secrets.ADMOB_REWARDED_UNIT_ID }}
         run: |
+          APP_ID="${ADMOB_IOS_APP_ID:-ca-app-pub-3940256099942544~1458002511}"
+          UNIT_ID="${ADMOB_REWARDED_UNIT_ID:-ca-app-pub-3940256099942544/1712485313}"
           xcodebuild archive \
             -project Stillpoint.xcodeproj \
             -scheme Stillpoint \
@@ -81,6 +86,8 @@ jobs:
             MARKETING_VERSION="${{ inputs.marketing_version }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             STILLPOINT_APP_STORE_SERVICES=YES \
+            ADMOB_APP_ID="$APP_ID" \
+            ADMOB_REWARDED_UNIT_ID="$UNIT_ID" \
             CODE_SIGN_ENTITLEMENTS=Stillpoint/Stillpoint.entitlements \
             CODE_SIGNING_ALLOWED=YES \
             CODE_SIGNING_REQUIRED=YES \

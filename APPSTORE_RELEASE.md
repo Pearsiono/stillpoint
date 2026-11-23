@@ -21,8 +21,12 @@ Everything in the codebase is now configured for both **Sideloadly testing** (au
 3. Create an **App Store Connect API Key** (Users and Access -> Integrations -> App Store Connect API -> Role: App Manager) and download the `.p8` file.
 4. Create the app **STILLPOINT** in App Store Connect:
    - Bundle ID: `com.pearsiono.stillpoint`
-   - App Privacy: **Data Not Collected** (matches `ios/Stillpoint/PrivacyInfo.xcprivacy`)
+   - App Privacy: Declare **Data Not Linked to You** -> Advertising Data, Device ID, Diagnostics, Product Interaction (for Google AdMob optional rewarded ads) and enable **Tracking** if using ATT personalized ads. (GoogleMobileAds v12 bundles its own `PrivacyInfo.xcprivacy` alongside our app manifest.)
    - Export Compliance: `ITSAppUsesNonExemptEncryption` is already set to `NO` in `Info.plist`.
+
+### Posting Live Dev Announcements (No App Update Needed!)
+Once GitHub Pages is enabled on `/docs`, simply edit `docs/news.json` on `main` and push! Every installed copy of STILLPOINT fetches `https://pearsiono.github.io/stillpoint/news.json` in the background and lights up the gold Dispatch dot whenever a new entry `id` appears.
+Public changelog URL: `https://pearsiono.github.io/stillpoint/changelog.html`
 
 ### Game Center IDs (wired in `src/bridge.ts` & `src/data/meta.ts`)
 Create these in App Store Connect -> Services -> Game Center (optional; uncreated IDs are safely ignored):
@@ -60,6 +64,8 @@ In GitHub Repo **Settings -> Secrets and variables -> Actions**, add:
 - `APP_STORE_CONNECT_API_KEY_ID`: Key ID from App Store Connect
 - `APP_STORE_CONNECT_ISSUER_ID`: Issuer UUID from App Store Connect
 - `APP_STORE_CONNECT_PRIVATE_KEY`: full contents of your `AuthKey_XXXXXX.p8` file
+- `ADMOB_IOS_APP_ID` *(optional for TestFlight; defaults to Google's official test App ID until you set your live AdMob App ID)*
+- `ADMOB_REWARDED_UNIT_ID` *(optional for TestFlight; defaults to Google's official test Rewarded Unit ID until you set your live Rewarded Unit ID)*
 
 Then open **Actions -> Release to TestFlight / App Store -> Run workflow**!
 That workflow compiles with `STILLPOINT_APP_STORE_SERVICES=YES` and `ios/Stillpoint/Stillpoint.entitlements`, enabling iCloud KVS and Game Center automatically, while regular pushes keep generating unsigned Sideloadly IPAs with `STILLPOINT_APP_STORE_SERVICES=NO`.

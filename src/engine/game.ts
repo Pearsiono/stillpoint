@@ -4,6 +4,8 @@ import { CORES, HEAT_MODS, RELICS } from '../data/builds';
 import { FINISHES, getEffectVisualParams } from '../data/finishes';
 import { getActiveLoadout } from '../data/loadout';
 import {
+  AD_BOOST_CRATE_MULT,
+  consumeCrateBoostRun,
   evaluateMilestones,
   getEquippedAuraItem,
   getEquippedCoating,
@@ -157,6 +159,8 @@ export class StillpointGame {
   private lastDpr = 0;
   private scrapHarvestCounter = 0;
   private bonusHealDmg = 0;
+  private crateBoostActive = false;
+  private crateBoostConsumed = false;
   private metaCommitted = {
     shards: 0,
     kills: 0,
@@ -682,6 +686,8 @@ export class StillpointGame {
     this.meteorSpawnTimer = 0;
     this.scrapHarvestCounter = 0;
     this.bonusHealDmg = 0;
+    this.crateBoostActive = this.save.crateBoostRunsLeft > 0;
+    this.crateBoostConsumed = false;
     this.metaCommitted = {
       shards: 0,
       kills: 0,
@@ -3612,7 +3618,8 @@ export class StillpointGame {
     if (enemy.kind === 'hauler') {
       // Treasure Hauler: Relic Cache Chest + Shards + rare 6% Salvage Crate jackpot
       sound.playBossDefeat();
-      if (Math.random() < 0.06) {
+      const haulerChance = 0.06 * (this.crateBoostActive ? AD_BOOST_CRATE_MULT : 1);
+      if (Math.random() < haulerChance) {
         this.save.standardCrates++;
         this.stats.cratesEarned++;
         persistMetaSave(this.save);
@@ -3714,11 +3721,14 @@ export class StillpointGame {
       boss.kind === (this.sectorId === 'singularity' ? 'boss_leviathan' : 'boss_archon');
     const heat = this.save.activeHeat.length;
     const noHit = !this.enclosure.playerHitDuringBoss;
+    const boostMult = this.crateBoostActive ? AD_BOOST_CRATE_MULT : 1;
     if (isFinalBoss) {
-      const classifiedChance =
+      const rawClassified =
         heat >= 3 ? (noHit ? 0.75 : 0.45) : heat >= 1 ? (noHit ? 0.4 : 0.2) : noHit ? 0.15 : 0;
-      const salvageChance =
+      const rawSalvage =
         heat >= 3 ? (noHit ? 0.25 : 0.4) : heat >= 1 ? 0.35 : noHit ? 0.5 : 0.35;
+      const classifiedChance = Math.min(0.92, rawClassified * boostMult);
+      const salvageChance = Math.min(0.95 - classifiedChance, rawSalvage * boostMult);
       const roll = Math.random();
       if (roll < classifiedChance) {
         this.save.relicCrates++;
@@ -3730,11 +3740,11 @@ export class StillpointGame {
         this.callbacks.onUnlockNotice('Salvage crate dropped');
       }
     } else if (bossIndexCleared === 1) {
-      if (heat >= 2 && Math.random() < 0.06) {
+      if (heat >= 2 && Math.random() < Math.min(0.25, 0.06 * boostMult)) {
         this.save.relicCrates++;
         this.stats.relicCratesEarned++;
         this.callbacks.onUnlockNotice('Classified crate dropped');
-      } else if (Math.random() < 0.12) {
+      } else if (Math.random() < Math.min(0.4, 0.12 * boostMult)) {
         this.save.standardCrates++;
         this.stats.cratesEarned++;
         this.callbacks.onUnlockNotice('Salvage crate dropped');
@@ -3945,6 +3955,15 @@ export class StillpointGame {
     const prevSecTime = this.save.bestTimeBySector[this.sectorId] ?? 0;
     if (Math.floor(this.stats.elapsed) > prevSecTime) {
       this.save.bestTimeBySector[this.sectorId] = Math.floor(this.stats.elapsed);
+    }
+
+    if (
+      this.crateBoostActive &&
+      !this.crateBoostConsumed &&
+      (this.stats.elapsed >= 15 || this.stats.cratesEarned > 0 || this.stats.relicCratesEarned > 0)
+    ) {
+      this.crateBoostConsumed = true;
+      consumeCrateBoostRun(this.save);
     }
 
     persistMetaSave(this.save);

@@ -56,7 +56,9 @@ const PATHS: Record<string, string> = {
   parry: '<circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" />',
   skull: '<circle cx="12" cy="10" r="6" /><path d="M9 16v4h6v-4M9.5 10h.5M14 10h.5" />',
   timer: '<circle cx="12" cy="13" r="8" /><polyline points="12 9 12 13 15 15" /><line x1="9" y1="2" x2="15" y2="2" />',
-  info: '<circle cx="12" cy="12" r="9" /><line x1="12" y1="11" x2="12" y2="16.5" /><line x1="12" y1="7.4" x2="12" y2="7.7" />'
+  info: '<circle cx="12" cy="12" r="9" /><line x1="12" y1="11" x2="12" y2="16.5" /><line x1="12" y1="7.4" x2="12" y2="7.7" />',
+  dispatch: '<rect x="4" y="3" width="16" height="18" rx="1" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="12.5" y2="16" />',
+  radar: '<circle cx="12" cy="12" r="8" stroke-opacity="0.45" /><circle cx="12" cy="12" r="4" /><line x1="12" y1="12" x2="18" y2="6" />'
 };
 
 export function svgIcon(key: string, size = 18, color = 'currentColor'): string {

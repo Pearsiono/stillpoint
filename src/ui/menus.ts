@@ -23,6 +23,7 @@ import {
   MODULES
 } from '../data/loadout';
 import {
+  AD_BOOST_RUN_COUNT,
   applyCrateDrop,
   buyCrateKey,
   clearActivePreset,
@@ -34,7 +35,10 @@ import {
   getEquippedAuraItem,
   getEquippedCoating,
   getEquippedTrailItem,
+  getRemainingAdBoostsToday,
+  grantCrateBoost,
   importSaveCode,
+  MAX_AD_BOOSTS_PER_DAY,
   MILESTONES,
   persistMetaSave,
   resetMetaSave,
@@ -44,6 +48,7 @@ import {
   toggleLoadoutModule,
   unlockLoadoutModule
 } from '../data/meta';
+import { escapeHtml, getLatestNewsId, getNewsEntries, hasUnreadNews } from '../data/news';
 import { SECTOR_ORDER, SECTORS } from '../data/sectors';
 import { PASSIVES, WEAPONS } from '../data/upgrades';
 import { VESSEL_ORDER, VESSELS } from '../data/vessels';
@@ -148,6 +153,9 @@ export class OverlayController {
   private fxDemoMode: FxDemoMode = 'auto';
   private browsingSectorIdx = 0;
   private settingsOpen = false;
+  private newsOpen = false;
+  private newsFilter: 'all' | 'announcement' | 'patch' = 'all';
+  private adBusy = false;
   private manualOpen = false;
   private manualPage = 0;
   private privacyOpen = false;
@@ -248,6 +256,7 @@ export class OverlayController {
 
     if (phase === 'playing') {
       this.settingsOpen = false;
+      this.newsOpen = false;
       this.manualOpen = false;
       this.privacyOpen = false;
       this.saveModalMode = 'none';
@@ -338,13 +347,17 @@ export class OverlayController {
               ? this.buildSaveTransferModal()
               : this.privacyOpen
                 ? this.buildPrivacyModal()
-                : this.manualOpen
-                  ? this.buildFieldManualModal()
-                  : this.settingsOpen
-                    ? this.buildSettingsModal()
-                    : this.heatOpen
-                      ? this.buildHeatModal()
-                      : '';
+                : this.newsOpen
+                  ? this.buildNewsModal()
+                  : this.manualOpen
+                    ? this.buildFieldManualModal()
+                    : this.settingsOpen
+                      ? this.buildSettingsModal()
+                      : this.heatOpen
+                        ? this.buildHeatModal()
+                        : '';
+
+    const unreadNews = hasUnreadNews(this.save);
 
     this.container.innerHTML = `
       <div class="hub-shell">
@@ -365,6 +378,10 @@ export class OverlayController {
             }
           </div>
           <div class="topbar-actions">
+            <button class="icon-square" id="btn-news" aria-label="Dev dispatch and patch notes">
+              ${svgIcon('dispatch', 15)}
+              ${unreadNews ? '<span class="icon-dot"></span>' : ''}
+            </button>
             <button class="icon-square ${this.save.settings.music ? '' : 'muted'}" id="btn-quick-mute" aria-label="Toggle music">
               ${svgIcon('music', 15)}
             </button>
@@ -450,9 +467,16 @@ export class OverlayController {
               <div class="chapter-grad"></div>
               <div class="chapter-top-badges">
                 <span class="ch-code" style="color:${sector.accent};border-color:${sector.accent}">${sector.code}</span>
-                <span class="ch-code" style="color:var(--gold)">
-                  ${secCleared ? '★ ' : ''}${totalMult.toFixed(1)}×
-                </span>
+                <div style="display:flex;align-items:center;gap:5px">
+                  ${
+                    this.save.crateBoostRunsLeft > 0
+                      ? `<span class="ch-code" style="color:var(--gold);border-color:rgba(226,169,59,0.55)">SCAN +50% · ${this.save.crateBoostRunsLeft}</span>`
+                      : ''
+                  }
+                  <span class="ch-code" style="color:var(--gold)">
+                    ${secCleared ? '★ ' : ''}${totalMult.toFixed(1)}×
+                  </span>
+                </div>
               </div>
             </div>
             <div class="chapter-footer">
@@ -669,6 +693,65 @@ export class OverlayController {
           ? `${svgIcon('key', 14, '#1a0904')}<span>Open</span>`
           : 'Need 1 key';
 
+    const boostRuns = this.save.crateBoostRunsLeft;
+    const boostsLeftToday = getRemainingAdBoostsToday(this.save);
+    const nativeAds = bridge.isNativeAdsEnabled();
+    const adReady = bridge.isRewardedAdReady();
+
+    let boostHtml = '';
+    if (boostRuns > 0) {
+      boostHtml = `
+        <div class="boost-card active">
+          <div class="boost-left">
+            <div class="boost-icon-box">${svgIcon('radar', 17, 'var(--gold)')}</div>
+            <div style="min-width:0">
+              <div class="boost-title-row" style="color:var(--gold)">Scanner boost active</div>
+              <div class="boost-sub">+50% crate drop chance on haulers, late bosses, and clears.</div>
+            </div>
+          </div>
+          <span class="boost-active-pill">${boostRuns} ${boostRuns === 1 ? 'run' : 'runs'}</span>
+        </div>
+      `;
+    } else if (boostsLeftToday > 0) {
+      const btnText = this.adBusy
+        ? 'Loading...'
+        : nativeAds && !adReady
+          ? 'Buffering...'
+          : 'Watch ad';
+      const btnDisabled = this.adBusy || (nativeAds && !adReady);
+      boostHtml = `
+        <div class="boost-card">
+          <div class="boost-left">
+            <div class="boost-icon-box">${svgIcon('radar', 17, 'var(--accent)')}</div>
+            <div style="min-width:0">
+              <div class="boost-title-row">
+                <span>Scanner boost</span>
+                <span class="boost-meta-tag">${boostsLeftToday}/${MAX_AD_BOOSTS_PER_DAY} today</span>
+                ${!nativeAds ? '<span class="boost-meta-tag">Preview</span>' : ''}
+              </div>
+              <div class="boost-sub">Optional · +50% crate odds for next ${AD_BOOST_RUN_COUNT} runs.</div>
+            </div>
+          </div>
+          <button class="buy-pill ready" id="btn-watch-ad" ${btnDisabled ? 'disabled' : ''}>
+            ${svgIcon('play', 11, '#161108')}
+            <span>${btnText}</span>
+          </button>
+        </div>
+      `;
+    } else {
+      boostHtml = `
+        <div class="boost-card spent">
+          <div class="boost-left">
+            <div class="boost-icon-box">${svgIcon('radar', 16, 'var(--muted)')}</div>
+            <div style="min-width:0">
+              <div class="boost-title-row">Scanner boost</div>
+              <div class="boost-sub">Daily limit reached (0/${MAX_AD_BOOSTS_PER_DAY} left today). Resets tomorrow.</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     return `
       <div class="key-bar">
         <div class="key-bar-info">
@@ -728,6 +811,8 @@ export class OverlayController {
             ${relicLabel}
           </button>
         </div>
+
+        ${boostHtml}
       </div>
     `;
   }
@@ -1395,6 +1480,49 @@ export class OverlayController {
     `;
   }
 
+  private buildNewsModal(): string {
+    const entries = getNewsEntries().filter(
+      (e) => this.newsFilter === 'all' || e.kind === this.newsFilter
+    );
+    const cardsHtml = entries
+      .map((e) => {
+        const badge = e.kind === 'announcement' ? 'Dev note' : `Patch ${e.version ? `v${escapeHtml(e.version)}` : ''}`;
+        const bulletsHtml = e.bullets
+          .map((b) => `<li>${escapeHtml(b)}</li>`)
+          .join('');
+        return `
+          <div class="news-card ${e.kind}">
+            <div class="news-card-meta">
+              <span class="news-kind-pill">${badge}</span>
+              <span>${escapeHtml(e.date)}</span>
+            </div>
+            <div class="news-title">${escapeHtml(e.title)}</div>
+            <div class="news-summary">${escapeHtml(e.summary)}</div>
+            ${bulletsHtml ? `<ul class="news-bullets">${bulletsHtml}</ul>` : ''}
+          </div>
+        `;
+      })
+      .join('');
+
+    return `
+      <div class="modal-backdrop" id="news-bg">
+        <div class="modal-box scrollable" style="border-top-color:var(--gold)">
+          <div class="modal-head">
+            <div class="modal-title" style="color:var(--gold)">Dispatch &amp; Changes</div>
+            <span class="mono" style="font-size:10.5px;color:var(--muted)">${APP_VERSION_LABEL}</span>
+          </div>
+          <div class="manual-steps">
+            <button class="manual-step-pill ${this.newsFilter === 'all' ? 'active' : ''}" data-nfilter="all">All</button>
+            <button class="manual-step-pill ${this.newsFilter === 'announcement' ? 'active' : ''}" data-nfilter="announcement">Dev notes</button>
+            <button class="manual-step-pill ${this.newsFilter === 'patch' ? 'active' : ''}" data-nfilter="patch">Changes</button>
+          </div>
+          <div class="news-list">${cardsHtml}</div>
+          <button class="ghost-btn" id="btn-close-news">Done</button>
+        </div>
+      </div>
+    `;
+  }
+
   private buildPrivacyModal(): string {
     return `
       <div class="modal-backdrop" id="privacy-bg">
@@ -1402,7 +1530,7 @@ export class OverlayController {
           <div class="modal-head"><div class="modal-title">Privacy</div></div>
           <div class="manual-card">
             <div class="manual-points">
-              <div class="manual-point"><strong>No tracking or ads.</strong> STILLPOINT collects zero personal analytics, ad IDs, or behavioral telemetry.</div>
+              <div class="manual-point"><strong>Optional rewarded ads only.</strong> STILLPOINT never shows banner or forced ads. If you tap Watch ad for a Scanner Boost, Google AdMob serves a rewarded video. You can decline Apple's tracking prompt and still play and earn rewards.</div>
               <div class="manual-point"><strong>Local &amp; iCloud saves.</strong> Your progress is stored on your device. On App Store builds signed into iCloud, Apple iCloud Key-Value Storage keeps your save synced privately across your own devices.</div>
               <div class="manual-point"><strong>Game Center (optional).</strong> When signed into Apple Game Center, high scores and trial achievements sync directly with Apple's Game Center service.</div>
             </div>
@@ -1807,6 +1935,61 @@ export class OverlayController {
       persistMetaSave(this.save);
       bridge.haptic('light');
       this.renderHub(true);
+    });
+
+    this.container.querySelector('#btn-news')?.addEventListener('click', () => {
+      this.newsOpen = true;
+      const latest = getLatestNewsId();
+      if (latest && this.save.lastSeenNewsId !== latest) {
+        this.save.lastSeenNewsId = latest;
+        persistMetaSave(this.save);
+      }
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+    this.container.querySelector('#btn-close-news')?.addEventListener('click', () => {
+      this.newsOpen = false;
+      this.renderHub(true);
+    });
+    this.container.querySelector('#news-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'news-bg') {
+        this.newsOpen = false;
+        this.renderHub(true);
+      }
+    });
+    this.container.querySelectorAll<HTMLButtonElement>('[data-nfilter]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this.newsFilter = (b.dataset.nfilter as 'all' | 'announcement' | 'patch') ?? 'all';
+        bridge.haptic('light');
+        this.renderHub(true);
+      });
+    });
+
+    this.container.querySelector('#btn-watch-ad')?.addEventListener('click', () => {
+      if (this.adBusy || this.save.crateBoostRunsLeft > 0 || getRemainingAdBoostsToday(this.save) <= 0) {
+        return;
+      }
+      this.adBusy = true;
+      bridge.haptic('light');
+      this.renderHub(true);
+      bridge.requestRewardedAd().then((res) => {
+        this.adBusy = false;
+        if (res.ok && res.rewarded) {
+          if (grantCrateBoost(this.save)) {
+            sound.playLevelUp();
+            bridge.haptic('success');
+            this.showToast(
+              res.preview
+                ? `Preview boost: +50% crates (${AD_BOOST_RUN_COUNT} runs)`
+                : `Scanner boost active (${AD_BOOST_RUN_COUNT} runs)`
+            );
+          }
+        } else if (res.reason && res.reason !== 'dismissed') {
+          bridge.haptic('warning');
+          this.showToast(res.reason);
+        }
+        if (this.currentPhase === 'menu') this.renderHub(true);
+      });
     });
 
     this.container.querySelector('#btn-settings')?.addEventListener('click', () => {

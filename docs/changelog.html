@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STILLPOINT — Dev Dispatch &amp; Patch Notes</title>
+  <style>
+    :root { --bg: #141418; --card: #1c1c22; --line: #2d2c34; --ink: #ece3d3; --muted: #a89f91; --gold: #e2a93b; --accent: #4cb5ab; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.6; padding: 32px 16px; }
+    main { max-width: 680px; margin: 0 auto; background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--gold); padding: 28px 24px; }
+    h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: 0.06em; color: var(--gold); }
+    .meta { font-size: 12.5px; color: var(--muted); margin-bottom: 20px; }
+    .entry { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: #141418; padding: 14px 16px; margin-bottom: 14px; }
+    .entry.announcement { border-left-color: var(--gold); }
+    .entry-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .entry-kind { color: var(--accent); font-weight: 700; }
+    .entry.announcement .entry-kind { color: var(--gold); }
+    .entry h2 { margin: 0 0 6px; font-size: 16.5px; color: var(--ink); }
+    .entry p { margin: 0 0 8px; font-size: 13.5px; color: #d5ccbc; }
+    .entry ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+    .entry li { margin-bottom: 4px; }
+    a { color: var(--accent); }
+    nav { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; display: flex; gap: 16px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>STILLPOINT</h1>
+    <div class="meta">Dev Dispatch &amp; Patch Notes</div>
+    <div id="feed">Loading dispatch...</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="support.html">Support</a>
+      <a href="privacy.html">Privacy Policy</a>
+    </nav>
+  </main>
+  <script>
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    fetch('news.json')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var entries = data.entries || [];
+        document.getElementById('feed').innerHTML = entries.map(function (e) {
+          var badge = e.kind === 'announcement' ? 'Dev note' : ('Patch v' + esc(e.version || ''));
+          var bullets = (e.bullets || []).map(function (b) { return '<li>' + esc(b) + '</li>'; }).join('');
+          return '<article class="entry ' + esc(e.kind) + '">' +
+            '<div class="entry-head"><span class="entry-kind">' + badge + '</span><span>' + esc(e.date) + '</span></div>' +
+            '<h2>' + esc(e.title) + '</h2>' +
+            '<p>' + esc(e.summary) + '</p>' +
+            (bullets ? '<ul>' + bullets + '</ul>' : '') +
+            '</article>';
+        }).join('');
+      })
+      .catch(function () {
+        document.getElementById('feed').textContent = 'Could not load dispatch notes.';
+      });
+  </script>
+</body>
+</html>

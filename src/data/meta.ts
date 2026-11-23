@@ -44,6 +44,41 @@ import {
 } from '../types';
 
 export const SAVE_STORAGE_KEY = 'stillpoint_save_v1';
+export const MAX_AD_BOOSTS_PER_DAY = 2;
+export const AD_BOOST_RUN_COUNT = 3;
+export const AD_BOOST_CRATE_MULT = 1.5;
+
+export function getLocalDayKey(now = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function getRemainingAdBoostsToday(save: MetaSave): number {
+  const today = getLocalDayKey();
+  const used = save.adBoostDayKey === today ? save.adBoostsUsedToday : 0;
+  return Math.max(0, MAX_AD_BOOSTS_PER_DAY - used);
+}
+
+export function grantCrateBoost(save: MetaSave): boolean {
+  const today = getLocalDayKey();
+  if (save.adBoostDayKey !== today) {
+    save.adBoostDayKey = today;
+    save.adBoostsUsedToday = 0;
+  }
+  if (save.adBoostsUsedToday >= MAX_AD_BOOSTS_PER_DAY) return false;
+  save.adBoostsUsedToday += 1;
+  save.crateBoostRunsLeft = Math.min(AD_BOOST_RUN_COUNT, save.crateBoostRunsLeft + AD_BOOST_RUN_COUNT);
+  persistMetaSave(save);
+  return true;
+}
+
+export function consumeCrateBoostRun(save: MetaSave): void {
+  if (save.crateBoostRunsLeft <= 0) return;
+  save.crateBoostRunsLeft = Math.max(0, save.crateBoostRunsLeft - 1);
+  persistMetaSave(save);
+}
 
 export const META_UPGRADES: MetaUpgradeDef[] = [
   { id: 'hull_integrity', name: 'Hull Frame', maxLevel: 5, baseCost: 35, costStep: 35, perLevelShort: '+14 max HP' },
@@ -298,6 +333,10 @@ export function createDefaultSave(): MetaSave {
     migratedToLoadout: true,
     migratedToTheoryLoadout: true,
     tutorialSeen: false,
+    lastSeenNewsId: '',
+    crateBoostRunsLeft: 0,
+    adBoostsUsedToday: 0,
+    adBoostDayKey: getLocalDayKey(),
     savedAt: Date.now(),
     settings: {
       music: true,
@@ -417,6 +456,19 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
         typeof parsed.tutorialSeen === 'boolean'
           ? parsed.tutorialSeen
           : Boolean(parsed.totalRuns && parsed.totalRuns > 0),
+      lastSeenNewsId: typeof parsed.lastSeenNewsId === 'string' ? parsed.lastSeenNewsId : '',
+      crateBoostRunsLeft:
+        typeof parsed.crateBoostRunsLeft === 'number' && Number.isFinite(parsed.crateBoostRunsLeft)
+          ? Math.max(0, Math.min(AD_BOOST_RUN_COUNT, Math.floor(parsed.crateBoostRunsLeft)))
+          : 0,
+      adBoostsUsedToday:
+        typeof parsed.adBoostsUsedToday === 'number' && Number.isFinite(parsed.adBoostsUsedToday)
+          ? Math.max(0, Math.min(MAX_AD_BOOSTS_PER_DAY, Math.floor(parsed.adBoostsUsedToday)))
+          : 0,
+      adBoostDayKey:
+        typeof parsed.adBoostDayKey === 'string' && parsed.adBoostDayKey.length >= 8
+          ? parsed.adBoostDayKey
+          : getLocalDayKey(),
       savedAt:
         typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt)
           ? parsed.savedAt

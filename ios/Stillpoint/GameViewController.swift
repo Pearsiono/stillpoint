@@ -1,4 +1,6 @@
+import AppTrackingTransparency
 import GameKit
+import GoogleMobileAds
 import UIKit
 import WebKit
 
@@ -77,7 +79,7 @@ private final class StillpointSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 }
 
-final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, GKGameCenterControllerDelegate {
+final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, GKGameCenterControllerDelegate, FullScreenContentDelegate {
     private var webView: WKWebView!
     private let lightImpact = UIImpactFeedbackGenerator(style: .light)
     private let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
@@ -85,8 +87,21 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
     private let notifFeedback = UINotificationFeedbackGenerator()
     private let nativeSaveKey = "stillpoint_save_v1"
 
+    private var adsBootStarted = false
+    private var rewardedAd: RewardedAd?
+    private var isLoadingAd = false
+    private var pendingRewardEarned = false
+
     private var appStoreServicesEnabled: Bool {
         (Bundle.main.object(forInfoDictionaryKey: "STILLPOINTAppStoreServices") as? String)?.uppercased() == "YES"
+    }
+
+    private var rewardedAdUnitId: String {
+        let configured = Bundle.main.object(forInfoDictionaryKey: "STILLPOINTRewardedAdUnitId") as? String
+        if let id = configured, !id.isEmpty, !id.contains("$(") {
+            return id
+        }
+        return "ca-app-pub-3940256099942544/1712485313"
     }
 
     override var prefersStatusBarHidden: Bool { true }
@@ -111,6 +126,7 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         contentController.add(self, name: "haptics")
         contentController.add(self, name: "storage")
         contentController.add(self, name: "gameCenter")
+        contentController.add(self, name: "ads")
         injectBootstrapScript(into: contentController)
 
         let config = WKWebViewConfiguration()
@@ -156,6 +172,109 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
     }
 
+    func onAppBecameActive() {
+        guard appStoreServicesEnabled, !adsBootStarted else { return }
+        adsBootStarted = true
+        // Apple Guideline 5.1.2: request ATT only after app is active & rendered
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self = self else { return }
+            if ATTrackingManager.trackingAuthorizationStatus == .notDetermined {
+                ATTrackingManager.requestTrackingAuthorization { _ in
+                    DispatchQueue.main.async {
+                        self.startAdsSdk()
+                    }
+                }
+            } else {
+                self.startAdsSdk()
+            }
+        }
+    }
+
+    private func startAdsSdk() {
+        MobileAds.shared.start { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.loadRewardedAd()
+            }
+        }
+    }
+
+    private func loadRewardedAd() {
+        guard appStoreServicesEnabled, !isLoadingAd, rewardedAd == nil else { return }
+        isLoadingAd = true
+        let unitId = rewardedAdUnitId
+        Task { [weak self] in
+            do {
+                let loaded = try await RewardedAd.load(with: unitId, request: Request())
+                await MainActor.run {
+                    guard let self = self else { return }
+                    self.isLoadingAd = false
+                    self.rewardedAd = loaded
+                    self.rewardedAd?.fullScreenContentDelegate = self
+                    self.notifyAdReady(true)
+                }
+            } catch {
+                await MainActor.run {
+                    guard let self = self else { return }
+                    self.isLoadingAd = false
+                    self.rewardedAd = nil
+                    self.notifyAdReady(false)
+                }
+            }
+        }
+    }
+
+    private func presentRewardedAd() {
+        guard appStoreServicesEnabled else {
+            deliverAdResult(ok: false, rewarded: false, reason: "Ads disabled")
+            return
+        }
+        guard let ad = rewardedAd else {
+            loadRewardedAd()
+            deliverAdResult(ok: false, rewarded: false, reason: "No ad ready yet — try again in a moment")
+            return
+        }
+        pendingRewardEarned = false
+        notifyLifecycle("audio_began")
+        ad.present(from: self) { [weak self] in
+            self?.pendingRewardEarned = true
+        }
+    }
+
+    func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
+        let earned = pendingRewardEarned
+        pendingRewardEarned = false
+        rewardedAd = nil
+        notifyAdReady(false)
+        notifyLifecycle("audio_ended")
+        deliverAdResult(ok: true, rewarded: earned, reason: earned ? nil : "dismissed")
+        loadRewardedAd()
+    }
+
+    func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        pendingRewardEarned = false
+        rewardedAd = nil
+        notifyAdReady(false)
+        notifyLifecycle("audio_ended")
+        deliverAdResult(ok: false, rewarded: false, reason: "Ad could not load")
+        loadRewardedAd()
+    }
+
+    private func notifyAdReady(_ ready: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            let js = "window.__STILLPOINT_AD_READY__ = \(ready ? "true" : "false"); window.__stillpointOnAdReady && window.__stillpointOnAdReady(\(ready ? "true" : "false"));"
+            self?.webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
+    private func deliverAdResult(ok: Bool, rewarded: Bool, reason: String?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let reasonJS = reason.map { self.escapeJSString($0) } ?? "undefined"
+            let js = "window.__stillpointOnAdResult && window.__stillpointOnAdResult({ok:\(ok ? "true" : "false"),rewarded:\(rewarded ? "true" : "false"),reason:\(reasonJS)});"
+            self.webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
     func notifyLifecycle(_ event: String) {
         DispatchQueue.main.async { [weak self] in
             guard let wv = self?.webView else { return }
@@ -170,11 +289,15 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
             ? (NSUbiquitousKeyValueStore.default.string(forKey: nativeSaveKey) ?? "")
             : ""
         let gcReady = appStoreServicesEnabled && GKLocalPlayer.local.isAuthenticated
+        let adsNative = appStoreServicesEnabled
+        let adReady = rewardedAd != nil
         let bootstrapSource = """
         window.__STILLPOINT_NATIVE__ = true;
         window.__STILLPOINT_NATIVE_SAVE__ = \(escapeJSString(savedJson));
         window.__STILLPOINT_CLOUD_SAVE__ = \(escapeJSString(cloudJson));
         window.__STILLPOINT_GC_READY__ = \(gcReady ? "true" : "false");
+        window.__STILLPOINT_ADS_NATIVE__ = \(adsNative ? "true" : "false");
+        window.__STILLPOINT_AD_READY__ = \(adReady ? "true" : "false");
         """
         controller.addUserScript(WKUserScript(
             source: bootstrapSource,
@@ -264,6 +387,16 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
             if appStoreServicesEnabled {
                 NSUbiquitousKeyValueStore.default.set(value, forKey: key)
                 NSUbiquitousKeyValueStore.default.synchronize()
+            }
+            return
+        }
+
+        if message.name == "ads",
+           let dict = message.body as? [String: Any],
+           let action = dict["action"] as? String,
+           action == "showRewarded" {
+            DispatchQueue.main.async { [weak self] in
+                self?.presentRewardedAd()
             }
             return
         }

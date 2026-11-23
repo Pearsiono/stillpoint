@@ -5,6 +5,11 @@ options:
     iOS: "15.0"
   xcodeVersion: "16.0"
 
+packages:
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    from: 12.0.0
+
 targets:
   Stillpoint:
     type: application
@@ -22,6 +27,9 @@ targets:
         buildPhase: resources
     dependencies:
       - sdk: GameKit.framework
+      - sdk: AppTrackingTransparency.framework
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.pearsiono.stillpoint
@@ -30,6 +38,9 @@ targets:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         STILLPOINT_APP_STORE_SERVICES: "NO"
+        ADMOB_APP_ID: "ca-app-pub-3940256099942544~1458002511"
+        ADMOB_REWARDED_UNIT_ID: "ca-app-pub-3940256099942544/1712485313"
+        OTHER_LDFLAGS: "$(inherited) -ObjC"
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

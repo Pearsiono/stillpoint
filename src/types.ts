@@ -393,6 +393,10 @@ export interface MetaSave {
   migratedToLoadout?: boolean;
   migratedToTheoryLoadout?: boolean;
   tutorialSeen: boolean;
+  lastSeenNewsId: string;
+  crateBoostRunsLeft: number;
+  adBoostsUsedToday: number;
+  adBoostDayKey: string;
   savedAt: number;
   settings: {
     music: boolean;
