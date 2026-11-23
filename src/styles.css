@@ -430,6 +430,20 @@ button:focus-visible,
   color: var(--ink);
 }
 
+.key-readout {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
 .crate-trigger {
   display: inline-flex;
   align-items: center;
@@ -647,6 +661,14 @@ button:focus-visible,
   color: var(--ink);
 }
 
+.rig-class-tag {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 .rig-icons {
   display: flex;
   gap: 5px;
@@ -712,6 +734,13 @@ button:focus-visible,
   filter: grayscale(0.75);
 }
 
+.battle-btn.need-key {
+  background: var(--surface-2);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 2px solid var(--line);
+  color: var(--muted);
+}
+
 /* ---------- SUB-TABS & OPEN HANGAR STAGE ---------- */
 .subtab-row {
   display: flex;
@@ -758,6 +787,19 @@ button:focus-visible,
   flex-shrink: 0;
   animation: floatShip 3s ease-in-out infinite;
   filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.8));
+}
+
+.locked-stage-art {
+  filter: grayscale(0.45) brightness(0.75) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.8));
+}
+
+.crate-lock-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .stat-bars {
@@ -813,8 +855,16 @@ button:focus-visible,
   box-shadow: inset 0 0 0 1.5px var(--gold);
 }
 
+.equip-card.previewing {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
 .equip-card.locked .equip-thumb {
   filter: grayscale(0.95) brightness(0.4);
+}
+
+.equip-card.previewing .equip-thumb {
+  filter: grayscale(0.3) brightness(0.8);
 }
 
 .equip-thumb {
@@ -839,7 +889,36 @@ button:focus-visible,
   min-height: 14px;
 }
 
-/* ---------- ARMORY: CRATES, LOCKER, INSPECT & LIVE FX ---------- */
+/* ---------- ARMORY: KEYS, CRATES, LOCKER, INSPECT & LIVE FX ---------- */
+.key-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.key-bar-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.key-bar-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.key-bar-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
 .crate-stack {
   display: flex;
   flex-direction: column;
@@ -882,7 +961,7 @@ button:focus-visible,
 }
 
 .crate-mini-swatch {
-  height: 28px;
+  height: 30px;
   border-bottom: 2px solid var(--line-strong);
   overflow: hidden;
   background: #100f0d;
@@ -893,6 +972,31 @@ button:focus-visible,
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.crate-mini-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crate-mini-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.mini-plume {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.mini-aura {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2.5px solid;
 }
 
 .odds-bar {
@@ -1060,6 +1164,42 @@ button:focus-visible,
   object-fit: cover;
 }
 
+.reel-gold-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #261d0e;
+  color: var(--gold);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.reel-art-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #14120f;
+}
+
+.reel-art-tile img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.reel-plume {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.reel-aura {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid;
+}
+
 .reel-label {
   font-size: 9.5px;
   font-weight: 700;
@@ -1164,8 +1304,10 @@ button:focus-visible,
 /* Live FX Ship Preview Stage */
 .fx-stage {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   padding: 4px 0 12px;
   margin-bottom: 10px;
   border-bottom: 1px solid var(--line);
@@ -1175,6 +1317,15 @@ button:focus-visible,
   width: 144px;
   height: 144px;
   display: block;
+}
+
+.fx-preview-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
 }
 
 .fx-section-title {
@@ -1206,11 +1357,143 @@ button:focus-visible,
   background: #262116;
 }
 
+.fx-card.previewing {
+  border-color: var(--accent);
+  background: #172321;
+}
+
 .fx-dot {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+/* ---------- PICK-10 LOADOUT BUILDER ---------- */
+.loadout-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0 12px;
+  border-bottom: 1px solid var(--line-strong);
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.preset-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.preset-group {
+  display: flex;
+  gap: 5px;
+  flex: 1;
+}
+
+.preset-pill {
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.preset-pill.active {
+  border-color: var(--gold);
+  background: #262014;
+  color: var(--gold);
+}
+
+.cap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cap-pips {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+
+.cap-pip {
+  flex: 1;
+  height: 100%;
+  background: rgba(236, 227, 211, 0.12);
+  border: 1px solid var(--line);
+}
+
+.cap-pip.filled {
+  background: var(--gold);
+  border-color: #ffe49c;
+}
+
+.cap-pip.bonus {
+  border-color: rgba(207, 81, 42, 0.65);
+  background: rgba(207, 81, 42, 0.14);
+}
+
+.cap-pip.bonus.filled {
+  background: var(--rust);
+  border-color: #ffbd96;
+}
+
+.cap-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+  min-width: 38px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.loadout-cat-head {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 12px 2px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mod-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.pt-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.pt-chip.risk {
+  color: #f49b6c;
+}
+
+.mod-row.mod-over {
+  opacity: 0.45;
+}
+
+.ledger-row.risk-mark {
+  padding-left: 8px;
+  border-left: 2px solid var(--rust);
+}
+
+.buy-pill.risk-on {
+  background: linear-gradient(180deg, #e06a34, #b53f16);
+  border-color: #ffbd96;
+  color: #ffe4d6;
 }
 
 /* ---------- FLUSH HAIRLINE LEDGER LISTS (CORES, UPGRADES, TRIALS, MODIFIERS) ---------- */
@@ -1612,7 +1895,7 @@ button:focus-visible,
 
 .toast {
   position: fixed;
-  top: calc(var(--safe-top) + 52px);
+  bottom: calc(var(--safe-bottom) + 66px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;

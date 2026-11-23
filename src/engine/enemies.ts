@@ -29,10 +29,10 @@ export interface EnemyWorldContext {
 }
 
 export const BOSS_SCHEDULE = [
-  { time: 105, kind: 'boss_weaver' as EnemyKind, name: 'VORTEX WEAVER' },
-  { time: 225, kind: 'boss_seraph' as EnemyKind, name: 'PRISM SERAPH' },
-  { time: 345, kind: 'boss_archon' as EnemyKind, name: 'CHRONO ARCHON' },
-  { time: 450, kind: 'boss_leviathan' as EnemyKind, name: 'VOID LEVIATHAN' }
+  { time: 105, kind: 'boss_weaver' as EnemyKind, name: 'Vortex Weaver' },
+  { time: 225, kind: 'boss_seraph' as EnemyKind, name: 'Prism Seraph' },
+  { time: 345, kind: 'boss_archon' as EnemyKind, name: 'Chrono Archon' },
+  { time: 450, kind: 'boss_leviathan' as EnemyKind, name: 'Void Leviathan' }
 ];
 
 export function spawnEnemy(
@@ -46,12 +46,12 @@ export function spawnEnemy(
   const sector = SECTORS[ctx.sectorId];
   const bloodlustSpeed = ctx.player.pacts.includes('bloodlust') ? 1.22 : 1.0;
   const ironcladMult = ctx.activeHeat.includes('ironclad') && (isElite || kind.startsWith('boss_')) ? 1.35 : 1.0;
-  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * 1.28 * (isElite ? 3.4 : 1);
+  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * 1.58 * (isElite ? 3.8 : 1);
 
   let radius = 13;
   let hp = 26;
   let speed = 82;
-  let xpValue = 8;
+  let xpValue = 6;
   let scoreValue = 25;
   let accent = '#ff4d6d';
   let isBoss = false;
@@ -61,163 +61,163 @@ export function spawnEnemy(
   switch (kind) {
     case 'swarmer':
       radius = isElite ? 16 : 11;
-      hp = 22 * hpMult;
-      speed = 98 + Math.random() * 18;
-      xpValue = isElite ? 28 : 7;
+      hp = 24 * hpMult;
+      speed = 104 + Math.random() * 20;
+      xpValue = isElite ? 20 : 5;
       scoreValue = isElite ? 120 : 20;
       accent = '#ff5470';
       break;
     case 'dart':
       radius = isElite ? 16 : 12;
-      hp = 34 * hpMult;
-      speed = 116;
-      xpValue = isElite ? 36 : 11;
+      hp = 38 * hpMult;
+      speed = 122;
+      xpValue = isElite ? 26 : 7;
       scoreValue = isElite ? 150 : 35;
       accent = '#ffb703';
       break;
     case 'turret':
       radius = isElite ? 20 : 15;
-      hp = 54 * hpMult;
-      speed = 54;
-      xpValue = isElite ? 45 : 15;
+      hp = 60 * hpMult;
+      speed = 58;
+      xpValue = isElite ? 32 : 10;
       scoreValue = isElite ? 200 : 50;
       accent = '#ff3864';
       break;
     case 'splitter':
       radius = isElite ? 21 : 16;
-      hp = 68 * hpMult;
-      speed = 62;
-      xpValue = isElite ? 50 : 16;
+      hp = 74 * hpMult;
+      speed = 66;
+      xpValue = isElite ? 34 : 11;
       scoreValue = isElite ? 220 : 55;
       accent = '#ff7b00';
       break;
     case 'ring_caster':
       radius = isElite ? 22 : 17;
-      hp = 78 * hpMult;
-      speed = 52;
-      xpValue = isElite ? 58 : 20;
+      hp = 88 * hpMult;
+      speed = 56;
+      xpValue = isElite ? 40 : 13;
       scoreValue = isElite ? 260 : 75;
       accent = '#ff2a85';
       break;
     case 'sniper':
       radius = isElite ? 19 : 14;
-      hp = 52 * hpMult;
-      speed = 64;
-      xpValue = isElite ? 52 : 18;
+      hp = 58 * hpMult;
+      speed = 68;
+      xpValue = isElite ? 36 : 12;
       scoreValue = isElite ? 240 : 70;
       accent = '#e040fb';
       break;
     case 'bulwark':
       radius = isElite ? 28 : 22;
-      hp = 160 * hpMult;
-      speed = 42;
-      xpValue = isElite ? 75 : 32;
+      hp = 185 * hpMult;
+      speed = 46;
+      xpValue = isElite ? 50 : 20;
       scoreValue = isElite ? 350 : 110;
       accent = '#ff4d94';
       break;
     case 'spinner':
       radius = isElite ? 23 : 18;
-      hp = 96 * hpMult;
-      speed = 48;
-      xpValue = isElite ? 64 : 24;
+      hp = 108 * hpMult;
+      speed = 52;
+      xpValue = isElite ? 44 : 16;
       scoreValue = isElite ? 300 : 90;
       accent = '#ff5e5b';
       break;
     case 'reflector':
       radius = isElite ? 22 : 16;
-      hp = 84 * hpMult;
-      speed = 66;
-      xpValue = isElite ? 60 : 22;
+      hp = 94 * hpMult;
+      speed = 70;
+      xpValue = isElite ? 42 : 15;
       scoreValue = isElite ? 280 : 85;
       accent = '#ff66f5';
       break;
     case 'mine':
       radius = isElite ? 20 : 15;
-      hp = 44 * hpMult;
-      speed = 76;
-      xpValue = isElite ? 48 : 17;
+      hp = 48 * hpMult;
+      speed = 82;
+      xpValue = isElite ? 32 : 11;
       scoreValue = isElite ? 210 : 65;
       accent = '#ff9f1c';
       break;
     case 'leech':
       radius = isElite ? 20 : 15;
-      hp = 64 * hpMult;
-      speed = 86;
-      xpValue = isElite ? 55 : 22;
+      hp = 72 * hpMult;
+      speed = 92;
+      xpValue = isElite ? 38 : 15;
       scoreValue = isElite ? 240 : 85;
       accent = '#d946ef';
       break;
     case 'bomber':
       radius = isElite ? 24 : 18;
-      hp = 104 * hpMult;
-      speed = 74;
-      xpValue = isElite ? 66 : 26;
+      hp = 116 * hpMult;
+      speed = 78;
+      xpValue = isElite ? 44 : 17;
       scoreValue = isElite ? 290 : 95;
       accent = '#f59e0b';
       break;
     case 'aegis_bot':
       radius = isElite ? 26 : 20;
-      hp = 138 * hpMult;
-      speed = 56;
-      xpValue = isElite ? 72 : 28;
+      hp = 156 * hpMult;
+      speed = 60;
+      xpValue = isElite ? 48 : 19;
       scoreValue = isElite ? 320 : 105;
       accent = '#60a5fa';
       break;
     case 'carrier':
       radius = isElite ? 30 : 24;
-      hp = 195 * hpMult;
-      speed = 40;
-      xpValue = isElite ? 95 : 42;
+      hp = 225 * hpMult;
+      speed = 44;
+      xpValue = isElite ? 62 : 26;
       scoreValue = isElite ? 420 : 150;
       accent = '#fb923c';
       break;
     case 'hauler':
       radius = 23;
-      hp = 155 * difficultyScale * sector.difficultyMult;
-      speed = 112;
-      xpValue = 80;
+      hp = 260 * difficultyScale * sector.difficultyMult;
+      speed = 118;
+      xpValue = 48;
       scoreValue = 650;
       accent = '#f6c453';
       break;
     case 'boss_weaver':
       isBoss = true;
       radius = 34;
-      hp = 2300 * difficultyScale * sector.difficultyMult * ironcladMult;
-      speed = 68;
-      xpValue = 160;
+      hp = 5600 * difficultyScale * sector.difficultyMult * ironcladMult;
+      speed = 74;
+      xpValue = 95;
       scoreValue = 2500;
       accent = '#ff3366';
-      bossName = 'VORTEX WEAVER';
+      bossName = 'Vortex Weaver';
       break;
     case 'boss_seraph':
       isBoss = true;
       radius = 36;
-      hp = 4600 * difficultyScale * sector.difficultyMult * ironcladMult;
-      speed = 82;
-      xpValue = 240;
+      hp = 11200 * difficultyScale * sector.difficultyMult * ironcladMult;
+      speed = 88;
+      xpValue = 140;
       scoreValue = 4500;
       accent = '#ff4de8';
-      bossName = 'PRISM SERAPH';
+      bossName = 'Prism Seraph';
       break;
     case 'boss_archon':
       isBoss = true;
       radius = 40;
-      hp = 8200 * difficultyScale * sector.difficultyMult * ironcladMult;
-      speed = 76;
-      xpValue = 400;
+      hp = 19500 * difficultyScale * sector.difficultyMult * ironcladMult;
+      speed = 82;
+      xpValue = 220;
       scoreValue = 9000;
       accent = '#f6c453';
-      bossName = 'CHRONO ARCHON';
+      bossName = 'Chrono Archon';
       break;
     case 'boss_leviathan':
       isBoss = true;
       radius = 36;
-      hp = 11500 * difficultyScale * sector.difficultyMult * ironcladMult;
-      speed = 118;
-      xpValue = 500;
+      hp = 28000 * difficultyScale * sector.difficultyMult * ironcladMult;
+      speed = 124;
+      xpValue = 280;
       scoreValue = 14000;
       accent = '#4effb4';
-      bossName = 'VOID LEVIATHAN';
+      bossName = 'Void Leviathan';
       segments = Array.from({ length: 8 }, (_, idx) => ({ x, y: y - idx * 24 }));
       break;
   }
@@ -238,7 +238,7 @@ export function spawnEnemy(
     scoreValue,
     isElite,
     isBoss,
-    fireTimer: 0.65 + Math.random() * 1.0,
+    fireTimer: 0.55 + Math.random() * 0.85,
     stateTimer: 0,
     phase: 1,
     patternIndex: 0,
@@ -258,17 +258,17 @@ export function fireEnemyBullet(
   angle: number,
   speed: number,
   kind: EnemyBulletKind = 'orb',
-  damage = 17,
+  damage = 18,
   radius = 5.5
 ): void {
-  if (ctx.enemyBullets.length >= 480) {
+  if (ctx.enemyBullets.length >= 520) {
     ctx.enemyBullets.shift();
   }
   const pactFast = ctx.player.pacts.includes('bullet_magnet') ? 1.25 : 1.0;
   const heatFast = ctx.activeHeat.includes('hyper_fire') ? 1.25 : 1.0;
   const curseStacks = ctx.player.curses.filter((c) => c === 'fast_hostiles').length;
   const curseFast = Math.pow(1.18, curseStacks);
-  const spd = speed * 1.12 * pactFast * heatFast * curseFast;
+  const spd = speed * 1.22 * pactFast * heatFast * curseFast;
   const isHeavy = kind === 'heavy_orb';
   ctx.enemyBullets.push({
     id: ctx.nextId(),
@@ -277,8 +277,8 @@ export function fireEnemyBullet(
     y,
     vx: Math.cos(angle) * spd,
     vy: Math.sin(angle) * spd,
-    radius: isHeavy ? 8.0 : radius,
-    damage: isHeavy ? Math.round(damage * 1.3) : Math.round(damage * 1.15),
+    radius: isHeavy ? 8.2 : radius,
+    damage: isHeavy ? Math.round(damage * 1.6) : Math.round(damage * 1.42),
     age: 0,
     maxAge: 7.5,
     grazed: false,
@@ -305,9 +305,9 @@ export function updateWaveDirector(
   const t = ctx.elapsed;
   const swarmHeat = ctx.activeHeat.includes('swarm') ? 1.4 : 1.0;
   const greedEliteRate = ctx.player.pacts.includes('greed') ? 1.35 : 1.0;
-  const diffScale = 1 + t / 82 + (ctx.endlessMode ? Math.max(0.45, (t - 240) / 70) : 0);
-  const maxEnemies = Math.min(104, Math.round((22 + Math.floor(t * 0.24)) * swarmHeat));
-  const rate = Math.min(7.2, (2.35 + t * 0.017) * swarmHeat);
+  const diffScale = 1 + t / 60 + (ctx.endlessMode ? Math.max(0.55, (t - 240) / 60) : 0);
+  const maxEnemies = Math.min(112, Math.round((24 + Math.floor(t * 0.28)) * swarmHeat));
+  const rate = Math.min(7.8, (2.6 + t * 0.02) * swarmHeat);
 
   spawnAccum.value += dtWorld * rate;
   eliteTimer.value += dtWorld * greedEliteRate;
@@ -365,8 +365,8 @@ export function updateWaveDirector(
         x: nx,
         y: ny,
         radius: 22,
-        hp: 140 * diffScale,
-        maxHp: 140 * diffScale,
+        hp: 300 * diffScale,
+        maxHp: 300 * diffScale,
         age: 0,
         maxAge: 34,
         progress: 0,
@@ -807,34 +807,37 @@ function updateBossBehavior(
 
   if (boss.kind === 'boss_weaver') {
     if (pat % 4 === 3) {
-      boss.fireTimer = boss.phase === 2 ? 0.85 : 1.05;
-      const count = boss.phase === 2 ? 7 : 5;
+      boss.fireTimer = boss.phase === 2 ? 0.72 : 0.92;
+      const count = boss.phase === 2 ? 9 : 7;
       for (let i = 0; i < count; i++) {
         fireEnemyBullet(
           ctx,
           boss.x,
           boss.y,
-          toPlayer + (i - (count - 1) / 2) * 0.22,
-          140,
+          toPlayer + (i - (count - 1) / 2) * 0.2,
+          150,
           'heavy_orb',
-          17,
+          19,
           8
         );
       }
     } else {
-      boss.fireTimer = boss.phase === 2 ? 0.21 : 0.28;
-      const arms = boss.phase === 2 ? 6 : 5;
+      boss.fireTimer = boss.phase === 2 ? 0.18 : 0.24;
+      const arms = boss.phase === 2 ? 7 : 6;
       for (let i = 0; i < arms; i++) {
         fireEnemyBullet(
           ctx,
           boss.x,
           boss.y,
-          t * 2.1 + (i * Math.PI * 2) / arms,
-          144,
+          t * 2.3 + (i * Math.PI * 2) / arms,
+          152,
           i === 0 ? 'diamond' : 'orb',
-          15,
+          17,
           5.5
         );
+      }
+      if (boss.phase === 2 && pat % 2 === 0) {
+        fireEnemyBullet(ctx, boss.x, boss.y, toPlayer, 182, 'needle', 18, 5.4);
       }
     }
     return;
@@ -842,11 +845,11 @@ function updateBossBehavior(
 
   if (boss.kind === 'boss_seraph') {
     if (pat % 5 === 0) {
-      boss.fireTimer = 1.25;
+      boss.fireTimer = 1.05;
       const angles =
         boss.phase === 2
-          ? [toPlayer, toPlayer + Math.PI / 3, toPlayer - Math.PI / 3]
-          : [toPlayer - 0.32, toPlayer + 0.32];
+          ? [toPlayer, toPlayer + Math.PI / 3, toPlayer - Math.PI / 3, toPlayer + Math.PI / 6]
+          : [toPlayer - 0.28, toPlayer + 0.28];
       for (const ang of angles) {
         ctx.lasers.push({
           x1: boss.x,
@@ -856,26 +859,26 @@ function updateBossBehavior(
           width: 11,
           color: '#ff4de8',
           alpha: 1,
-          life: 0.95,
-          maxLife: 0.95,
+          life: 0.85,
+          maxLife: 0.85,
           isEnemy: true,
           isTelegraph: true,
-          damage: 22
+          damage: 28
         });
       }
     } else if (pat % 5 === 3) {
-      boss.fireTimer = boss.phase === 2 ? 0.85 : 1.05;
-      const total = boss.phase === 2 ? 16 : 12;
+      boss.fireTimer = boss.phase === 2 ? 0.72 : 0.92;
+      const total = boss.phase === 2 ? 20 : 14;
       for (let i = 0; i < total; i++) {
         const ang = (i * Math.PI * 2) / total + t * 0.6;
         const isHeavy = i % 3 === 0;
-        fireEnemyBullet(ctx, boss.x, boss.y, ang, isHeavy ? 128 : 150 + (i % 2) * 30, isHeavy ? 'heavy_orb' : 'diamond', 15, 5.5);
+        fireEnemyBullet(ctx, boss.x, boss.y, ang, isHeavy ? 138 : 162 + (i % 2) * 32, isHeavy ? 'heavy_orb' : 'diamond', 17, 5.5);
       }
     } else {
-      boss.fireTimer = boss.phase === 2 ? 0.42 : 0.56;
-      const spread = boss.phase === 2 ? 7 : 5;
+      boss.fireTimer = boss.phase === 2 ? 0.36 : 0.48;
+      const spread = boss.phase === 2 ? 9 : 6;
       for (let i = 0; i < spread; i++) {
-        fireEnemyBullet(ctx, boss.x, boss.y, toPlayer + (i - (spread - 1) / 2) * 0.26, 158, 'diamond', 16, 5.5);
+        fireEnemyBullet(ctx, boss.x, boss.y, toPlayer + (i - (spread - 1) / 2) * 0.23, 168, 'diamond', 18, 5.5);
       }
     }
     return;
@@ -883,10 +886,10 @@ function updateBossBehavior(
 
   // BOSS III: CHRONO ARCHON
   if (pat % 6 === 0) {
-    boss.fireTimer = 1.15;
-    const spokes = boss.phase >= 3 ? 4 : 3;
+    boss.fireTimer = 0.98;
+    const spokes = boss.phase >= 3 ? 5 : 4;
     for (let i = 0; i < spokes; i++) {
-      const ang = toPlayer + (i * Math.PI * 2) / spokes + 0.25;
+      const ang = toPlayer + (i * Math.PI * 2) / spokes + 0.22;
       ctx.lasers.push({
         x1: boss.x,
         y1: boss.y,
@@ -895,34 +898,34 @@ function updateBossBehavior(
         width: 12,
         color: '#f6c453',
         alpha: 1,
-        life: 0.9,
-        maxLife: 0.9,
+        life: 0.82,
+        maxLife: 0.82,
         isEnemy: true,
         isTelegraph: true,
-        damage: 24
+        damage: 30
       });
     }
   } else if (pat % 6 === 3) {
-    boss.fireTimer = boss.phase >= 3 ? 0.78 : 0.96;
-    const total = boss.phase >= 3 ? 18 : 14;
+    boss.fireTimer = boss.phase >= 3 ? 0.68 : 0.84;
+    const total = boss.phase >= 3 ? 22 : 16;
     for (let i = 0; i < total; i++) {
       const ang = (i * Math.PI * 2) / total + boss.angle;
       const isHeavy = i % 2 === 0;
-      fireEnemyBullet(ctx, boss.x, boss.y, ang, isHeavy ? 132 : 164, isHeavy ? 'heavy_orb' : 'orb', 16, 5.8);
+      fireEnemyBullet(ctx, boss.x, boss.y, ang, isHeavy ? 144 : 174, isHeavy ? 'heavy_orb' : 'orb', 18, 5.8);
     }
   } else {
-    boss.fireTimer = boss.phase >= 3 ? 0.22 : boss.phase === 2 ? 0.28 : 0.36;
-    const arms = boss.phase >= 3 ? 8 : 6;
+    boss.fireTimer = boss.phase >= 3 ? 0.19 : boss.phase === 2 ? 0.24 : 0.32;
+    const arms = boss.phase >= 3 ? 9 : 7;
     const dir = pat % 2 === 0 ? 1 : -1;
     for (let i = 0; i < arms; i++) {
       fireEnemyBullet(
         ctx,
         boss.x,
         boss.y,
-        t * 2.4 * dir + (i * Math.PI * 2) / arms,
-        150 + boss.phase * 10,
+        t * 2.5 * dir + (i * Math.PI * 2) / arms,
+        162 + boss.phase * 12,
         i % 3 === 0 ? 'diamond' : 'orb',
-        16,
+        18,
         5.4
       );
     }

@@ -47,6 +47,7 @@ const PATHS: Record<string, string> = {
   haptics: '<rect x="7" y="4" width="10" height="16" rx="1.5" /><path d="M3 8v8M21 8v8" />',
   flash: '<circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2" />',
   lock: '<rect x="5" y="11" width="14" height="10" rx="1" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />',
+  key: '<circle cx="8" cy="12" r="3.8" /><path d="M11.8 12H21M17 12v3.2M20 12v2.4" />',
   check: '<polyline points="4 12 10 18 20 6" />',
   reroll: '<path d="M20 12a8 8 0 1 1-2.3-5.7" /><polyline points="20 4 20 10 14 10" />',
   heal: '<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />',

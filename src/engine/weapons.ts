@@ -213,7 +213,8 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   updateActivePylons(ctx, dtWorld, dtReal);
 
   for (const w of player.weapons) {
-    const dtWeapon = inStillpoint ? dtReal * 0.85 : dtWorld;
+    // Stillpoint slows weapon cadence too (Overclock core boosts weaponDtReal separately)
+    const dtWeapon = inStillpoint ? dtReal * 0.46 : dtWorld;
     w.cooldown -= dtWeapon * totalRateMult;
     w.auxTimer += dtReal;
 

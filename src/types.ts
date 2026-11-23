@@ -223,6 +223,48 @@ export interface MetaUpgradeDef {
   perLevelShort: string;
 }
 
+export type ModuleCategory = 'offense' | 'focus' | 'chassis' | 'risk';
+
+export type ModuleId =
+  | 'overbore'
+  | 'twin_chambers'
+  | 'hollow_points'
+  | 'boss_hunter'
+  | 'shrapnel_rig'
+  | 'cryo_rounds'
+  | 'deep_capacitor'
+  | 'sniper_lens'
+  | 'hair_trigger'
+  | 'slipstream'
+  | 'graze_leech'
+  | 'plated_hull'
+  | 'reactive_cell'
+  | 'field_reroll'
+  | 'salvage_magnet'
+  | 'risk_glass'
+  | 'risk_drain'
+  | 'risk_strict';
+
+export interface ModuleDef {
+  id: ModuleId;
+  name: string;
+  category: ModuleCategory;
+  /** Positive cost uses Pick-10 points; negative cost (Risk Trait) expands budget! */
+  points: number;
+  unlockCost: number;
+  iconKey: string;
+  accent: string;
+  line: string;
+}
+
+export type LoadoutPresetIndex = 0 | 1 | 2;
+
+export type CrateDrop =
+  | { kind: 'coating'; rarity: CoatingRarity; coating: CoatingItem }
+  | { kind: 'ship'; rarity: CoatingRarity; vesselId: VesselId }
+  | { kind: 'trail'; rarity: CoatingRarity; trailId: TrailId }
+  | { kind: 'aura'; rarity: CoatingRarity; auraId: ParryFxId };
+
 export interface MilestoneDef {
   id: string;
   name: string;
@@ -234,6 +276,7 @@ export interface MilestoneDef {
 
 export interface MetaSave {
   shards: number;
+  keys: number;
   standardCrates: number;
   relicCrates: number;
   bestTimeSec: number;
@@ -264,6 +307,10 @@ export interface MetaSave {
   activeHeat: HeatId[];
   claimedMilestones: string[];
   upgrades: Record<MetaUpgradeId, number>;
+  unlockedModules: ModuleId[];
+  loadoutPresets: [ModuleId[], ModuleId[], ModuleId[]];
+  activePreset: LoadoutPresetIndex;
+  migratedToLoadout?: boolean;
   settings: {
     music: boolean;
     sfx: boolean;
@@ -371,6 +418,7 @@ export interface PlayerState {
   damageMult: number;
   bossDmgMult: number;
   critChance: number;
+  critMult: number;
   fireRateMult: number;
   areaMult: number;
   corePowerMult: number;
@@ -385,6 +433,7 @@ export interface PlayerState {
   slowPower: number;
   slowDmgMult: number;
   armor: number;
+  modules: ModuleId[];
   weapons: OwnedWeapon[];
   passives: OwnedPassive[];
   relics: RelicId[];

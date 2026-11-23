@@ -2,6 +2,7 @@ import { sound } from '../audio';
 import { bridge } from '../bridge';
 import { CORES, HEAT_MODS, RELICS } from '../data/builds';
 import { FINISHES, PARRY_FX, TRAILS } from '../data/finishes';
+import { getActiveLoadout } from '../data/loadout';
 import { evaluateMilestones, getEquippedCoating, persistMetaSave } from '../data/meta';
 import { SECTORS } from '../data/sectors';
 import { generateUpgradeChoices, PACTS, PASSIVES, WEAPONS } from '../data/upgrades';
@@ -139,6 +140,7 @@ export class StillpointGame {
   private lastFrameTs = 0;
   private scrapHarvestCounter = 0;
   private bonusHealDmg = 0;
+  private goodRunCrateAwarded = false;
   private metaCommitted = { shards: 0, kills: 0, grazes: 0, runCounted: false };
 
   get isBossDraft(): boolean {
@@ -405,13 +407,13 @@ export class StillpointGame {
     if (this.player.xp >= this.player.xpToNext) {
       this.player.xp -= this.player.xpToNext;
       this.player.level++;
-      this.player.xpToNext = Math.round(26 + this.player.level * 16 + Math.pow(this.player.level, 1.46) * 5);
+      this.player.xpToNext = this.nextLevelXp(this.player.level);
       this.openUpgradeDraft(false);
       return;
     }
 
     this.phase = 'playing';
-    this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.35);
+    this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.3);
     this.input.setEnabled(true);
     this.callbacks.onPhaseChange('playing');
     this.emitHud();
@@ -421,14 +423,20 @@ export class StillpointGame {
     if (this.phase !== 'levelup' || this.player.rerolls <= 0) return this.currentChoices;
     this.player.rerolls--;
     bridge.haptic('light');
-    this.currentChoices = generateUpgradeChoices(this.player, 3, this.pendingBossDraft);
+    const draftCount = this.player.modules.includes('risk_strict') ? 2 : 3;
+    this.currentChoices = generateUpgradeChoices(this.player, draftCount, this.pendingBossDraft);
     this.callbacks.onPhaseChange('levelup', this.currentChoices);
     return this.currentChoices;
   }
 
+  private nextLevelXp(level: number): number {
+    return Math.round(52 + level * 34 + Math.pow(level, 1.72) * 14);
+  }
+
   private resetWorldState(vesselId: VesselId): void {
     const vessel = VESSELS[vesselId];
-    const u = this.save.upgrades;
+    const activeModules = [...getActiveLoadout(this.save)];
+    const hasMod = (id: (typeof activeModules)[number]) => activeModules.includes(id);
 
     this.enemies = [];
     this.enemyBullets = [];
@@ -442,17 +450,18 @@ export class StillpointGame {
     this.pickups = [];
     this.particles.clear();
 
-    const maxHp = vessel.stats.maxHp + (u.hull_integrity ?? 0) * 14;
+    const baseMaxHp = vessel.stats.maxHp + (hasMod('plated_hull') ? 32 : 0);
+    const startShield = vessel.stats.shield + (hasMod('reactive_cell') ? 28 : 0);
     this.player = {
       x: 0,
       y: 0,
       vx: 0,
       vy: 0,
       facingAngle: -Math.PI / 2,
-      hp: maxHp,
-      maxHp,
-      shield: vessel.stats.shield,
-      maxShield: Math.max(20, vessel.stats.shield + 12),
+      hp: baseMaxHp,
+      maxHp: baseMaxHp,
+      shield: startShield,
+      maxShield: Math.max(20, startShield + 12),
       shieldRegenTimer: 0,
       invulnTimer: 0,
       hitFlash: 0,
@@ -465,8 +474,8 @@ export class StillpointGame {
       coreCooldownMax: vesselId === 'phantom' ? 0.55 : 0.75,
       level: 1,
       xp: 0,
-      xpToNext: 26,
-      rerolls: 1 + (u.reroll_module ?? 0),
+      xpToNext: 95,
+      rerolls: hasMod('risk_strict') ? 0 : 1 + (hasMod('field_reroll') ? 2 : 0),
       grazeCombo: 0,
       grazeComboTimer: 0,
       grazeHealCounter: 0,
@@ -484,6 +493,7 @@ export class StillpointGame {
       damageMult: 1,
       bossDmgMult: 1,
       critChance: 0.05,
+      critMult: 1.75,
       fireRateMult: 1,
       areaMult: 1,
       corePowerMult: 1,
@@ -498,6 +508,7 @@ export class StillpointGame {
       slowPower: 0.42,
       slowDmgMult: 1,
       armor: vessel.stats.armor,
+      modules: activeModules,
       weapons: [{ id: vessel.starterWeapon, level: 1, evolved: false, cooldown: 0.18, auxTimer: 0 }],
       passives: [],
       relics: [],
@@ -509,6 +520,7 @@ export class StillpointGame {
 
     this.recomputePlayerStats();
     this.player.hp = this.player.maxHp;
+    this.player.shield = startShield;
     this.player.kineticCharge = this.player.maxKineticCharge;
 
     this.enclosure = {
@@ -561,6 +573,7 @@ export class StillpointGame {
     this.meteorSpawnTimer = 0;
     this.scrapHarvestCounter = 0;
     this.bonusHealDmg = 0;
+    this.goodRunCrateAwarded = false;
     this.metaCommitted = { shards: 0, kills: 0, grazes: 0, runCounted: false };
     this.hasUsedStillpoint = false;
     this.tutorialTimer = 9;
@@ -578,7 +591,7 @@ export class StillpointGame {
 
   private recomputePlayerStats(): void {
     const v = VESSELS[this.vesselId];
-    const u = this.save.upgrades;
+    const hasMod = (id: PlayerState['modules'][number]) => this.player.modules.includes(id);
     const pLv = (id: PassiveId) => this.player.passives.find((p) => p.id === id)?.level ?? 0;
 
     const capLv = pLv('chrono_capacitor');
@@ -597,70 +610,81 @@ export class StillpointGame {
     const glassHpMult =
       (this.player.pacts.includes('glass_cannon') ? 0.8 : 1.0) *
       (this.save.activeHeat.includes('fragile') ? 0.75 : 1.0) *
-      (this.player.relics.includes('glass_prism') ? 0.82 : 1.0);
+      (this.player.relics.includes('glass_prism') ? 0.82 : 1.0) *
+      (hasMod('risk_glass') ? 0.7 : 1.0);
     const curseHpLoss = this.player.curses.filter((c) => c === 'fragile_hull').length * 16;
     const curseDrainMult = Math.pow(1.25, this.player.curses.filter((c) => c === 'heavy_drain').length);
     const curseSlowMult = Math.pow(0.88, this.player.curses.filter((c) => c === 'slow_rig').length);
     const dmgBonus =
       (this.player.pacts.includes('bloodlust') ? 1.4 : 1.0) *
-      (this.save.activeHeat.includes('fragile') ? 1.25 : 1.0);
+      (this.save.activeHeat.includes('fragile') ? 1.25 : 1.0) *
+      (hasMod('overbore') ? 1.18 : 1.0);
     const greedShardMult = this.player.pacts.includes('greed') ? 1.6 : 1.0;
     const heatShardBonus =
       1 + this.save.activeHeat.reduce((acc, h) => acc + (HEAT_MODS[h]?.shardBonus ?? 0), 0);
 
     const prevMaxHp = this.player.maxHp;
-    this.player.maxHp = Math.max(
-      36,
-      Math.round((v.stats.maxHp + (u.hull_integrity ?? 0) * 14) * glassHpMult) - curseHpLoss
-    );
+    const baseHp = v.stats.maxHp + (hasMod('plated_hull') ? 32 : 0);
+    this.player.maxHp = Math.max(32, Math.round(baseHp * glassHpMult) - curseHpLoss);
     if (this.player.maxHp > prevMaxHp) this.player.hp += this.player.maxHp - prevMaxHp;
     this.player.hp = Math.min(this.player.hp, this.player.maxHp);
 
     const bloodShieldMult = this.player.relics.includes('blood_engine') ? 0.85 : 1.0;
-    this.player.maxShield = Math.max(16, Math.round((v.stats.shield + plateLv * 12 + 12) * bloodShieldMult));
+    const modShield = hasMod('reactive_cell') ? 28 : 0;
+    this.player.maxShield = Math.max(
+      16,
+      Math.round((v.stats.shield + modShield + plateLv * 12 + 12) * bloodShieldMult)
+    );
     this.player.shield = Math.min(this.player.shield, this.player.maxShield);
-    this.player.armor = v.stats.armor + plateLv;
-    this.player.maxKineticCharge = v.stats.maxCharge + capLv * 18;
+    this.player.armor = v.stats.armor + plateLv + (hasMod('plated_hull') ? 2 : 0);
+    this.player.maxKineticCharge = v.stats.maxCharge + capLv * 18 + (hasMod('deep_capacitor') ? 35 : 0);
     const overclockDrainMult = this.coreId === 'overclock' ? 0.62 : 1.0;
     const timeBankDrainMult = this.player.relics.includes('time_bank') ? 1.22 : 1.0;
     this.player.stillpointDrainMult =
       Math.pow(0.9, capLv) *
-      Math.pow(0.93, u.time_lattice ?? 0) *
+      (hasMod('deep_capacitor') ? 0.82 : 1.0) *
+      (hasMod('risk_drain') ? 1.35 : 1.0) *
       overclockDrainMult *
       timeBankDrainMult *
       curseDrainMult;
-    this.player.moveSpeed = v.stats.moveSpeed * (1 + thrLv * 0.09) * curseSlowMult;
+    this.player.moveSpeed =
+      v.stats.moveSpeed * (1 + thrLv * 0.09) * (hasMod('slipstream') ? 1.14 : 1.0) * curseSlowMult;
     this.player.chargeRateMult =
-      v.stats.chargeRateMult * (1 + thrLv * 0.16) * (1 + (u.kinetic_core ?? 0) * 0.1);
+      v.stats.chargeRateMult * (1 + thrLv * 0.16) * (hasMod('slipstream') ? 1.25 : 1.0);
     const doubleTapRofMult = this.player.relics.includes('double_tap') ? 0.86 : 1.0;
     this.player.fireRateMult = (1 + coilLv * 0.13) * doubleTapRofMult;
     this.player.coreCooldownMax =
-      (this.vesselId === 'phantom' ? 0.55 : 0.75) * Math.pow(0.88, coilLv);
+      (this.vesselId === 'phantom' ? 0.55 : 0.75) *
+      Math.pow(0.88, coilLv) *
+      (hasMod('hair_trigger') ? 0.7 : 1.0);
     this.player.areaMult = 1 + lensLv * 0.16;
-    this.player.damageMult = Math.max(1, (1 + coreLv * 0.16 + this.bonusHealDmg) * dmgBonus);
-    this.player.bossDmgMult = 1 + tgtLv * 0.16;
-    this.player.corePowerMult =
-      (1 + coreLv * 0.22) * (1 + (u.parry_resonance ?? 0) * 0.12);
-    this.player.grazeRadius = v.stats.grazeRadius + grazeLv * 14;
-    this.player.magnetRadius = 74 + (u.magnet_field ?? 0) * 20 + grazeLv * 18;
+    this.player.damageMult = Math.max(0.8, (1 + coreLv * 0.15 + this.bonusHealDmg) * dmgBonus);
+    this.player.bossDmgMult = 1 + tgtLv * 0.16 + (hasMod('boss_hunter') ? 0.3 : 0);
+    this.player.corePowerMult = (1 + coreLv * 0.2) * (hasMod('hair_trigger') ? 1.3 : 1.0);
+    this.player.grazeRadius = v.stats.grazeRadius + grazeLv * 14 + (hasMod('graze_leech') ? 24 : 0);
+    this.player.magnetRadius = 74 + (hasMod('salvage_magnet') ? 60 : 0) + grazeLv * 18;
     this.player.critChance =
       0.05 +
       (this.vesselId === 'vesper' ? 0.08 : 0) +
-      (u.crit_calibration ?? 0) * 0.05 +
+      (hasMod('hollow_points') ? 0.15 : 0) +
       edgeLv * 0.1;
+    this.player.critMult = hasMod('hollow_points') ? 2.2 : 1.75;
     this.player.projectileSpeedMult =
-      (this.vesselId === 'vesper' ? 1.18 : 1.0) * (1 + edgeLv * 0.12);
+      (this.vesselId === 'vesper' ? 1.18 : 1.0) *
+      (hasMod('overbore') ? 1.2 : 1.0) *
+      (1 + edgeLv * 0.12);
     this.player.bonusProjectiles =
       Math.floor((echoLv + 1) / 2) +
       (this.player.relics.includes('double_tap') ? 1 : 0) +
-      (this.vesselId === 'seraph' ? 1 : 0);
-    this.player.xpMult = 1 + overLv * 0.18;
+      (this.vesselId === 'seraph' ? 1 : 0) +
+      (hasMod('twin_chambers') ? 1 : 0);
+    this.player.xpMult = 1 + overLv * 0.15;
     this.player.slowPower = 0.42 + cryoLv * 0.06;
     this.player.slowDmgMult = 1 + cryoLv * 0.18;
     this.player.shardMult =
       SECTORS[this.sectorId].shardMult *
       heatShardBonus *
-      (1 + (u.shard_harvester ?? 0) * 0.12 + overLv * 0.18) *
+      (1 + (hasMod('salvage_magnet') ? 0.2 : 0) + overLv * 0.16) *
       greedShardMult;
   }
 
@@ -820,11 +844,17 @@ export class StillpointGame {
     }
 
     const plateLv = player.passives.find((p) => p.id === 'reactive_plating')?.level ?? 0;
-    if (plateLv > 0 && player.shield < player.maxShield) {
+    const hasReactiveCell = player.modules.includes('reactive_cell');
+    if ((plateLv > 0 || hasReactiveCell) && player.shield < player.maxShield) {
       player.shieldRegenTimer += dtWorld;
-      if (player.shieldRegenTimer >= Math.max(2.2, 5.5 - plateLv * 0.6)) {
+      const interval =
+        plateLv > 0
+          ? Math.max(2.0, (hasReactiveCell ? 4.8 : 5.5) - plateLv * 0.6)
+          : 4.0;
+      if (player.shieldRegenTimer >= interval) {
         player.shieldRegenTimer = 0;
-        player.shield = Math.min(player.maxShield, player.shield + 4);
+        const gain = (plateLv > 0 ? 4 : 0) + (hasReactiveCell ? 5 : 0);
+        player.shield = Math.min(player.maxShield, player.shield + gain);
       }
     }
 
@@ -905,7 +935,7 @@ export class StillpointGame {
     const p = this.player;
     const v = VESSELS[this.vesselId];
     const aura = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
-    const metaAreaMult = 1 + (this.save.upgrades.parry_resonance ?? 0) * 0.08;
+    const metaAreaMult = p.modules.includes('hair_trigger') ? 1.15 : 1.0;
     const coreRadiusMult = p.areaMult * v.stats.coreAreaMult * metaAreaMult;
 
     // Nova vessel passive: drop a pulling gravity rift whenever a Core triggers!
@@ -1093,7 +1123,7 @@ export class StillpointGame {
   private activateStillpointCoreExit(): void {
     const p = this.player;
     const v = VESSELS[this.vesselId];
-    const metaAreaMult = 1 + (this.save.upgrades.parry_resonance ?? 0) * 0.08;
+    const metaAreaMult = p.modules.includes('hair_trigger') ? 1.15 : 1.0;
 
     // Detonate Blink Decoys on touch-down!
     if (this.coreId === 'blink' && this.decoys.length > 0) {
@@ -1672,9 +1702,11 @@ export class StillpointGame {
             }
           }
 
-          // Chill effect on Frost Bolts
+          // Chill effect on Frost Bolts or Cryo Rounds loadout module
           if (b.kind === 'frost_bolt') {
             e.chillTimer = 3.2;
+          } else if (this.player.modules.includes('cryo_rounds')) {
+            e.chillTimer = Math.max(e.chillTimer ?? 0, 2.0);
           }
           if (e.chillTimer && e.chillTimer > 0) {
             finalDmg *= this.player.slowDmgMult;
@@ -1684,7 +1716,7 @@ export class StillpointGame {
           const isCrit =
             (this.coreId === 'overclock' && this.player.inStillpoint) ||
             Math.random() < this.player.critChance;
-          if (isCrit) finalDmg *= 1.8;
+          if (isCrit) finalDmg *= this.player.critMult;
 
           if (phantomEvolved && b.kind === 'dagger_homing' && !e.isBoss && e.hp / e.maxHp <= 0.2) {
             finalDmg = e.hp + 10;
@@ -1792,9 +1824,10 @@ export class StillpointGame {
     bridge.haptic('success');
     this.particles.shatter(shrine.x, shrine.y, '#e5b34c', 12, 1.3);
     this.particles.ripple(shrine.x, shrine.y, 200, 14, '#e5b34c', 0.45);
+    this.spawnXp(shrine.x - 10, shrine.y - 6, 30);
+    this.spawnXp(shrine.x + 10, shrine.y + 6, 30);
     this.pickups.push(
-      { id: this.nextEntityId++, kind: 'chest', x: shrine.x, y: shrine.y, vx: 0, vy: 0, value: 1, age: 0, magnetized: false },
-      { id: this.nextEntityId++, kind: 'shard', x: shrine.x + 18, y: shrine.y - 10, vx: 0, vy: 0, value: Math.round(22 * this.player.shardMult), age: 0, magnetized: false },
+      { id: this.nextEntityId++, kind: 'shard', x: shrine.x + 18, y: shrine.y - 10, vx: 0, vy: 0, value: Math.round(24 * this.player.shardMult), age: 0, magnetized: false },
       { id: this.nextEntityId++, kind: 'magnet', x: shrine.x - 18, y: shrine.y + 8, vx: 0, vy: 0, value: 1, age: 0, magnetized: false }
     );
   }
@@ -1877,13 +1910,15 @@ export class StillpointGame {
       p.shield = Math.min(p.maxShield, p.shield + 6);
     }
 
-    // Graze Conduit passive: every 12 grazes restores HP!
+    // Graze Siphon module / Graze Conduit passive: grazing restores HP
     const grazeLv = p.passives.find((x) => x.id === 'graze_conduit')?.level ?? 0;
-    if (grazeLv > 0) {
+    const hasGrazeLeech = p.modules.includes('graze_leech');
+    if (grazeLv > 0 || hasGrazeLeech) {
       p.grazeHealCounter++;
-      if (p.grazeHealCounter >= 12) {
+      const threshold = hasGrazeLeech ? 10 : 12;
+      if (p.grazeHealCounter >= threshold) {
         p.grazeHealCounter = 0;
-        const healAmt = Math.round(4 + grazeLv * 1.5);
+        const healAmt = (hasGrazeLeech ? 5 : 0) + (grazeLv > 0 ? Math.round(4 + grazeLv * 1.5) : 0);
         p.hp = Math.min(p.maxHp, p.hp + healAmt);
         this.particles.callout(p.x, p.y - 30, `+${healAmt} HP`, '#8ee06c', 0.9, 0.6);
       }
@@ -2033,14 +2068,14 @@ export class StillpointGame {
       }
     }
 
-    const surgeXpMult = p.surgeTimer > 0 ? 1.5 : 1;
+    const surgeXpMult = p.surgeTimer > 0 ? 1.2 : 1;
     p.xp += pk.value * p.xpMult * surgeXpMult;
     this.stats.score += pk.value * p.surgeTier;
     sound.playXp();
     if (p.xp >= p.xpToNext) {
       p.xp -= p.xpToNext;
       p.level++;
-      p.xpToNext = Math.round(26 + p.level * 16 + Math.pow(p.level, 1.46) * 5);
+      p.xpToNext = this.nextLevelXp(p.level);
       this.openUpgradeDraft(false);
     }
   }
@@ -2053,17 +2088,21 @@ export class StillpointGame {
     sound.setStillpointBlend(0);
     sound.playLevelUp();
     bridge.haptic('medium');
-    this.currentChoices = generateUpgradeChoices(this.player, 3, isBossChest);
+    const choiceCount = this.player.modules.includes('risk_strict') ? 2 : 3;
+    this.currentChoices = generateUpgradeChoices(this.player, choiceCount, isBossChest);
     this.callbacks.onPhaseChange('levelup', this.currentChoices);
     this.emitHud();
   }
 
   private damageEnemy = (enemy: Enemy, rawDmg: number, color: string, isCrit = false): void => {
     if (enemy.hp <= 0) return;
-    const bossScale = enemy.isBoss ? this.player.bossDmgMult : 1;
+    const bossScale = enemy.isBoss || enemy.isElite ? this.player.bossDmgMult : 1;
+    const hasSniperLens = this.player.modules.includes('sniper_lens');
     const stillpointScale = this.player.inStillpoint
       ? (this.player.relics.includes('time_bank') ? 1.4 : 1) *
-        (this.player.pacts.includes('glass_cannon') ? 1.55 : 1)
+        (this.player.pacts.includes('glass_cannon') ? 1.55 : 1) *
+        (hasSniperLens ? 1.45 : 1) *
+        (enemy.isBoss && !hasSniperLens ? 0.72 : 1)
       : 1;
     const dmg = rawDmg * bossScale * stillpointScale;
     enemy.hp -= dmg;
@@ -2116,10 +2155,13 @@ export class StillpointGame {
       this.particles.callout(this.player.x, this.player.y - 34, 'FRENZY', '#ff4858', 1.0, 0.7);
     }
 
-    // Volatile Shrapnel relic: slain enemies burst into 5 piercing splinters!
-    if (this.player.relics.includes('volatile_shrapnel') && this.playerBullets.length < 180) {
-      for (let k = 0; k < 5; k++) {
-        const ang = (k * Math.PI * 2) / 5 + Math.random() * 0.4;
+    // Volatile Shrapnel relic / Shrapnel Rig module: slain enemies burst into piercing splinters
+    const splinterCount =
+      (this.player.relics.includes('volatile_shrapnel') ? 5 : 0) +
+      (this.player.modules.includes('shrapnel_rig') ? 3 : 0);
+    if (splinterCount > 0 && this.playerBullets.length < 180) {
+      for (let k = 0; k < splinterCount; k++) {
+        const ang = (k * Math.PI * 2) / splinterCount + Math.random() * 0.4;
         this.playerBullets.push({
           id: this.nextEntityId++,
           kind: 'shrapnel',
@@ -2189,7 +2231,7 @@ export class StillpointGame {
           age: 0,
           magnetized: false
         });
-        if (Math.random() < 0.48) {
+        if (Math.random() < 0.24) {
           this.pickups.push({
             id: this.nextEntityId++,
             kind: 'heal',
@@ -2202,7 +2244,7 @@ export class StillpointGame {
             magnetized: false
           });
         }
-      } else if (Math.random() < 0.015) {
+      } else if (Math.random() < 0.006) {
         this.pickups.push({
           id: this.nextEntityId++,
           kind: Math.random() < 0.65 ? 'heal' : 'magnet',
@@ -2254,8 +2296,12 @@ export class StillpointGame {
 
     const shardBonus = Math.round((45 + bossIndexCleared * 35) * this.player.shardMult);
     this.stats.shardsEarned += shardBonus;
-    // Boss kills always award a sealed Crate (Relic Crate on Heat 2+ or final boss!)
-    if (this.save.activeHeat.length >= 2 || bossIndexCleared >= 2) {
+    // Boss kills always award a sealed Crate (Classified crate on Heat 2+, final boss, or Boss 2 with Heat)
+    if (
+      this.save.activeHeat.length >= 2 ||
+      bossIndexCleared >= 2 ||
+      (bossIndexCleared >= 1 && this.save.activeHeat.length >= 1)
+    ) {
       this.save.relicCrates++;
       this.stats.relicCratesEarned++;
       this.callbacks.onUnlockNotice('Classified crate dropped');
@@ -2264,7 +2310,7 @@ export class StillpointGame {
       this.stats.cratesEarned++;
       this.callbacks.onUnlockNotice('Salvage crate dropped');
     }
-    this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.35);
+    this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.2);
     this.player.kineticCharge = this.player.maxKineticCharge;
 
     const finalBossKind = this.sectorId === 'singularity' ? 'boss_leviathan' : 'boss_archon';
@@ -2293,8 +2339,8 @@ export class StillpointGame {
 
     if (this.enclosure.active) this.enclosure.playerHitDuringBoss = true;
 
-    let dmg = Math.max(6, rawDmg - p.armor);
-    p.invulnTimer = 0.42;
+    let dmg = Math.max(8, rawDmg - p.armor);
+    p.invulnTimer = 0.26;
     p.hitFlash = 1;
     p.grazeCombo = 0;
 
@@ -2328,7 +2374,7 @@ export class StillpointGame {
 
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
       const b = this.enemyBullets[i];
-      if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 58 * 58) {
+      if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 28 * 28) {
         this.enemyBullets.splice(i, 1);
       }
     }
@@ -2372,6 +2418,19 @@ export class StillpointGame {
     this.stats.coreId = this.coreId;
     this.stats.skinId = this.skinId;
     this.stats.heatCount = this.save.activeHeat.length;
+
+    // Award a Salvage Crate for a strong run if no boss/hauler crate dropped yet
+    if (
+      !this.goodRunCrateAwarded &&
+      this.stats.cratesEarned === 0 &&
+      this.stats.relicCratesEarned === 0 &&
+      ((this.stats.elapsed >= 90 && this.stats.kills >= 55) || this.stats.score >= 18000)
+    ) {
+      this.goodRunCrateAwarded = true;
+      this.save.standardCrates += 1;
+      this.stats.cratesEarned += 1;
+      this.callbacks.onUnlockNotice('Salvage crate earned');
+    }
 
     this.save.shards += deltaShards;
     if (!this.metaCommitted.runCounted) {

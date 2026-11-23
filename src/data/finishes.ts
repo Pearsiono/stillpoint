@@ -1,9 +1,11 @@
 import {
   CoatingItem,
   CoatingRarity,
+  CrateDrop,
   FinishId,
   ParryFxId,
   TrailId,
+  VesselId,
   WearGrade
 } from '../types';
 
@@ -175,10 +177,41 @@ export const ALL_ROLLABLE_FINISHES: FinishId[] = [
   ...ROLLABLE_FINISHES_BY_RARITY.contraband
 ];
 
-export const CRATE_COSTS = {
-  standard: 120,
-  relic: 240
-} as const;
+export const CRATE_KEY_COST = 100;
+
+export const DUPLICATE_SHARD_VALUE: Record<CoatingRarity, number> = {
+  milspec: 55,
+  restricted: 110,
+  classified: 185,
+  covert: 310,
+  contraband: 520
+};
+
+export const SHIP_RARITY: Record<VesselId, CoatingRarity> = {
+  vesper: 'milspec',
+  aegis: 'restricted',
+  phantom: 'classified',
+  volt: 'classified',
+  nova: 'covert',
+  seraph: 'contraband'
+};
+
+export const TRAIL_RARITY: Record<TrailId, CoatingRarity> = {
+  ion_ash: 'milspec',
+  slag_flame: 'milspec',
+  verdigris_mist: 'restricted',
+  crimson_burn: 'classified',
+  void_arc: 'covert',
+  monolith_gold: 'contraband'
+};
+
+export const AURA_RARITY: Record<ParryFxId, CoatingRarity> = {
+  steel_ring: 'milspec',
+  shatter_gold: 'milspec',
+  blood_slash: 'restricted',
+  arc_pulse: 'classified',
+  obsidian_wave: 'covert'
+};
 
 export function getWearGrade(floatVal: number): { code: WearGrade; label: string; color: string } {
   if (floatVal < 0.07) return { code: 'FN', label: 'Factory New', color: '#5cd68d' };
@@ -256,18 +289,16 @@ export function getCaseHardenedBluePct(seed: number): number {
   return Math.round(22 + f * 52);
 }
 
-export function rollCoatingFromCrate(crateType: 'standard' | 'relic'): CoatingItem {
+export function rollCrateDrop(crateType: 'standard' | 'relic'): CrateDrop {
   const r = Math.random();
   let rarity: CoatingRarity;
   if (crateType === 'relic') {
-    // Classified Relic Crate: zero filler-heavy odds, strong Classified/Covert/Gold odds!
     if (r < 0.032) rarity = 'contraband';
     else if (r < 0.15) rarity = 'covert';
     else if (r < 0.42) rarity = 'classified';
     else if (r < 0.80) rarity = 'restricted';
     else rarity = 'milspec';
   } else {
-    // Standard Salvage Crate
     if (r < 0.014) rarity = 'contraband';
     else if (r < 0.068) rarity = 'covert';
     else if (r < 0.20) rarity = 'classified';
@@ -275,7 +306,54 @@ export function rollCoatingFromCrate(crateType: 'standard' | 'relic'): CoatingIt
     else rarity = 'milspec';
   }
 
-  const pool = ROLLABLE_FINISHES_BY_RARITY[rarity];
+  const pickKind = Math.random();
+  const strikerChance = crateType === 'relic' ? 0.22 : 0.12;
+  const makeCoating = (): CrateDrop => {
+    const pool = ROLLABLE_FINISHES_BY_RARITY[rarity];
+    const finishId = pool[Math.floor(Math.random() * pool.length)];
+    return {
+      kind: 'coating',
+      rarity,
+      coating: createCoatingItem(finishId, undefined, undefined, Math.random() < strikerChance)
+    };
+  };
+
+  if (rarity === 'milspec') {
+    if (pickKind < 0.18) return { kind: 'trail', rarity, trailId: 'slag_flame' };
+    if (pickKind < 0.30) return { kind: 'aura', rarity, auraId: 'shatter_gold' };
+    return makeCoating();
+  }
+  if (rarity === 'restricted') {
+    if (pickKind < 0.22) return { kind: 'ship', rarity, vesselId: 'aegis' };
+    if (pickKind < 0.37) return { kind: 'trail', rarity, trailId: 'verdigris_mist' };
+    if (pickKind < 0.50) return { kind: 'aura', rarity, auraId: 'blood_slash' };
+    return makeCoating();
+  }
+  if (rarity === 'classified') {
+    if (pickKind < 0.28) {
+      const ship: VesselId = Math.random() < 0.5 ? 'phantom' : 'volt';
+      return { kind: 'ship', rarity, vesselId: ship };
+    }
+    if (pickKind < 0.43) return { kind: 'trail', rarity, trailId: 'crimson_burn' };
+    if (pickKind < 0.56) return { kind: 'aura', rarity, auraId: 'arc_pulse' };
+    return makeCoating();
+  }
+  if (rarity === 'covert') {
+    if (pickKind < 0.26) return { kind: 'ship', rarity, vesselId: 'nova' };
+    if (pickKind < 0.41) return { kind: 'trail', rarity, trailId: 'void_arc' };
+    if (pickKind < 0.54) return { kind: 'aura', rarity, auraId: 'obsidian_wave' };
+    return makeCoating();
+  }
+  // Contraband ★
+  if (pickKind < 0.35) return { kind: 'ship', rarity, vesselId: 'seraph' };
+  if (pickKind < 0.55) return { kind: 'trail', rarity, trailId: 'monolith_gold' };
+  return makeCoating();
+}
+
+export function rollCoatingFromCrate(crateType: 'standard' | 'relic'): CoatingItem {
+  const drop = rollCrateDrop(crateType);
+  if (drop.kind === 'coating') return drop.coating;
+  const pool = ROLLABLE_FINISHES_BY_RARITY[drop.rarity];
   const finishId = pool[Math.floor(Math.random() * pool.length)];
   const strikerChance = crateType === 'relic' ? 0.22 : 0.12;
   return createCoatingItem(finishId, undefined, undefined, Math.random() < strikerChance);

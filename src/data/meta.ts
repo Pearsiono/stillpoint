@@ -1,8 +1,9 @@
 import { bridge } from '../bridge';
 import { HEAT_ORDER } from './builds';
 import {
-  CRATE_COSTS,
+  CRATE_KEY_COST,
   createStarterCoating,
+  DUPLICATE_SHARD_VALUE,
   FINISHES,
   forgeTradeUpCoating,
   getCoatingScrapValue,
@@ -10,13 +11,21 @@ import {
   TRAILS
 } from './finishes';
 import {
+  canToggleModule,
+  DEFAULT_PRESETS,
+  MODULES,
+  STARTER_UNLOCKED_MODULES
+} from './loadout';
+import {
   CoatingItem,
   CoreId,
+  CrateDrop,
   HeatId,
+  LoadoutPresetIndex,
   MetaSave,
   MetaUpgradeDef,
-  MetaUpgradeId,
   MilestoneDef,
+  ModuleId,
   ParryFxId,
   SectorId,
   SkinId,
@@ -242,6 +251,7 @@ export function createDefaultSave(): MetaSave {
   const starter = createStarterCoating();
   return {
     shards: 0,
+    keys: 1,
     standardCrates: 1,
     relicCrates: 0,
     bestTimeSec: 0,
@@ -281,6 +291,14 @@ export function createDefaultSave(): MetaSave {
       crit_calibration: 0,
       shard_harvester: 0
     },
+    unlockedModules: [...STARTER_UNLOCKED_MODULES],
+    loadoutPresets: [
+      [...DEFAULT_PRESETS[0]],
+      [...DEFAULT_PRESETS[1]],
+      [...DEFAULT_PRESETS[2]]
+    ],
+    activePreset: 0,
+    migratedToLoadout: true,
     settings: {
       music: true,
       sfx: true,
@@ -300,6 +318,29 @@ export function loadMetaSave(): MetaSave {
     const raw = localStorage.getItem(SAVE_STORAGE_KEY) || bridge.getInitialNativeSave();
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<MetaSave>;
+    const validMod = (id: unknown): id is ModuleId =>
+      typeof id === 'string' && id in MODULES;
+
+    const unlockedModules = Array.isArray(parsed.unlockedModules)
+      ? Array.from(new Set([...STARTER_UNLOCKED_MODULES, ...parsed.unlockedModules.filter(validMod)]))
+      : [...STARTER_UNLOCKED_MODULES];
+
+    const rawPresets = Array.isArray(parsed.loadoutPresets) ? parsed.loadoutPresets : null;
+    const loadoutPresets: [ModuleId[], ModuleId[], ModuleId[]] = [
+      rawPresets && Array.isArray(rawPresets[0])
+        ? Array.from(new Set(rawPresets[0].filter((m) => validMod(m) && unlockedModules.includes(m))))
+        : [...DEFAULT_PRESETS[0]],
+      rawPresets && Array.isArray(rawPresets[1])
+        ? Array.from(new Set(rawPresets[1].filter((m) => validMod(m) && unlockedModules.includes(m))))
+        : [...DEFAULT_PRESETS[1]],
+      rawPresets && Array.isArray(rawPresets[2])
+        ? Array.from(new Set(rawPresets[2].filter((m) => validMod(m) && unlockedModules.includes(m))))
+        : [...DEFAULT_PRESETS[2]]
+    ];
+
+    const activePreset: LoadoutPresetIndex =
+      parsed.activePreset === 1 || parsed.activePreset === 2 ? parsed.activePreset : 0;
+
     const merged: MetaSave = {
       ...fallback,
       ...parsed,
@@ -307,6 +348,9 @@ export function loadMetaSave(): MetaSave {
         ...fallback.upgrades,
         ...(parsed.upgrades ?? {})
       },
+      unlockedModules,
+      loadoutPresets,
+      activePreset,
       settings: {
         ...fallback.settings,
         ...(parsed.settings ?? {})
@@ -342,6 +386,10 @@ export function loadMetaSave(): MetaSave {
         parsed.selectedParryFx && parsed.selectedParryFx in PARRY_FX
           ? parsed.selectedParryFx
           : 'steel_ring',
+      keys:
+        typeof parsed.keys === 'number' && Number.isFinite(parsed.keys)
+          ? Math.max(0, Math.floor(parsed.keys))
+          : 1,
       standardCrates:
         typeof parsed.standardCrates === 'number' && Number.isFinite(parsed.standardCrates)
           ? Math.max(0, Math.floor(parsed.standardCrates))
@@ -361,6 +409,21 @@ export function loadMetaSave(): MetaSave {
       sectorsCleared: Array.isArray(parsed.sectorsCleared) ? parsed.sectorsCleared : [],
       claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : []
     };
+
+    // Migrate old linear Upgrades into Shards once so players can spend them on Pick-10 Modules & Keys
+    if (!parsed.migratedToLoadout) {
+      let refund = 0;
+      for (const def of META_UPGRADES) {
+        const lv = Math.max(0, Math.min(def.maxLevel, merged.upgrades[def.id] ?? 0));
+        for (let i = 0; i < lv; i++) {
+          refund += getMetaUpgradeCost(def, i);
+        }
+        merged.upgrades[def.id] = 0;
+      }
+      if (refund > 0) merged.shards += refund;
+      merged.migratedToLoadout = true;
+    }
+
     if (merged.coatings.length === 0) merged.coatings = [createStarterCoating()];
     if (!merged.coatings.some((c) => c.uid === merged.equippedCoatingUid)) {
       merged.equippedCoatingUid = merged.coatings[0].uid;
@@ -417,14 +480,54 @@ export function scrapCoating(save: MetaSave, uid: string): number {
   return payout;
 }
 
-export function buyCrate(save: MetaSave, kind: 'standard' | 'relic'): boolean {
-  const cost = CRATE_COSTS[kind];
-  if (save.shards < cost) return false;
-  save.shards -= cost;
-  if (kind === 'standard') save.standardCrates++;
-  else save.relicCrates++;
+export function buyCrateKey(save: MetaSave): boolean {
+  if (save.shards < CRATE_KEY_COST) return false;
+  save.shards -= CRATE_KEY_COST;
+  save.keys += 1;
   persistMetaSave(save);
   return true;
+}
+
+export function applyCrateDrop(
+  save: MetaSave,
+  drop: CrateDrop
+): { isDuplicate: boolean; shardRefund: number } {
+  if (drop.kind === 'coating') {
+    save.coatings.unshift(drop.coating);
+    persistMetaSave(save);
+    return { isDuplicate: false, shardRefund: 0 };
+  }
+  if (drop.kind === 'ship') {
+    if (save.unlockedVessels.includes(drop.vesselId)) {
+      const shardRefund = DUPLICATE_SHARD_VALUE[drop.rarity];
+      save.shards += shardRefund;
+      persistMetaSave(save);
+      return { isDuplicate: true, shardRefund };
+    }
+    save.unlockedVessels.push(drop.vesselId);
+    persistMetaSave(save);
+    return { isDuplicate: false, shardRefund: 0 };
+  }
+  if (drop.kind === 'trail') {
+    if (save.unlockedTrails.includes(drop.trailId)) {
+      const shardRefund = DUPLICATE_SHARD_VALUE[drop.rarity];
+      save.shards += shardRefund;
+      persistMetaSave(save);
+      return { isDuplicate: true, shardRefund };
+    }
+    save.unlockedTrails.push(drop.trailId);
+    persistMetaSave(save);
+    return { isDuplicate: false, shardRefund: 0 };
+  }
+  if (save.unlockedParryFx.includes(drop.auraId)) {
+    const shardRefund = DUPLICATE_SHARD_VALUE[drop.rarity];
+    save.shards += shardRefund;
+    persistMetaSave(save);
+    return { isDuplicate: true, shardRefund };
+  }
+  save.unlockedParryFx.push(drop.auraId);
+  persistMetaSave(save);
+  return { isDuplicate: false, shardRefund: 0 };
 }
 
 export function executeTradeUp(save: MetaSave, uids: string[]): CoatingItem | null {
@@ -447,17 +550,39 @@ export function executeTradeUp(save: MetaSave, uids: string[]): CoatingItem | nu
   return forged;
 }
 
-export function buyMetaUpgrade(save: MetaSave, id: MetaUpgradeId): boolean {
-  const def = META_UPGRADES.find((u) => u.id === id);
-  if (!def) return false;
-  const lv = save.upgrades[id] ?? 0;
-  if (lv >= def.maxLevel) return false;
-  const cost = getMetaUpgradeCost(def, lv);
-  if (save.shards < cost) return false;
-  save.shards -= cost;
-  save.upgrades[id] = lv + 1;
+export function unlockLoadoutModule(save: MetaSave, id: ModuleId): boolean {
+  const def = MODULES[id];
+  if (!def || save.unlockedModules.includes(id)) return false;
+  if (save.shards < def.unlockCost) return false;
+  save.shards -= def.unlockCost;
+  save.unlockedModules.push(id);
   persistMetaSave(save);
   return true;
+}
+
+export function toggleLoadoutModule(
+  save: MetaSave,
+  id: ModuleId
+): { ok: boolean; reason?: string } {
+  if (!save.unlockedModules.includes(id)) return { ok: false, reason: 'Locked' };
+  const cur = save.loadoutPresets[save.activePreset];
+  const check = canToggleModule(cur, id);
+  if (!check.ok) return check;
+  const idx = cur.indexOf(id);
+  if (idx >= 0) cur.splice(idx, 1);
+  else cur.push(id);
+  persistMetaSave(save);
+  return { ok: true };
+}
+
+export function selectLoadoutPreset(save: MetaSave, idx: LoadoutPresetIndex): void {
+  save.activePreset = idx;
+  persistMetaSave(save);
+}
+
+export function clearActivePreset(save: MetaSave): void {
+  save.loadoutPresets[save.activePreset] = [];
+  persistMetaSave(save);
 }
 
 export function evaluateMilestones(save: MetaSave): string[] {
