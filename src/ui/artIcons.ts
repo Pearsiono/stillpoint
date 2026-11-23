@@ -1,6 +1,32 @@
-import { PassiveId, SectorId, SkinId, VesselId, WeaponId } from '../types';
+import { CoreId, PassiveId, SectorId, SkinId, VesselId, WeaponId } from '../types';
 
 export type RarityTier = 'common' | 'good' | 'rare' | 'epic' | 'gold' | 'mythic';
+
+export function rarityForCore(id: CoreId): RarityTier {
+  switch (id) {
+    case 'deflector': return 'rare';
+    case 'blink': return 'epic';
+    case 'siphon': return 'gold';
+    case 'overclock': return 'gold';
+    case 'berserk': return 'mythic';
+  }
+}
+
+export function coreCssFilter(id: CoreId): string {
+  switch (id) {
+    case 'deflector': return 'none';
+    case 'blink': return 'hue-rotate(92deg) saturate(1.55) brightness(1.08)';
+    case 'siphon': return 'sepia(0.55) hue-rotate(-14deg) saturate(1.9) brightness(1.06)';
+    case 'overclock': return 'sepia(0.6) hue-rotate(12deg) saturate(1.85) brightness(1.16)';
+    case 'berserk': return 'sepia(0.65) hue-rotate(-46deg) saturate(2.4) brightness(1.04)';
+  }
+}
+
+export function coreIconImg(id: CoreId, size = 28): string {
+  const f = coreCssFilter(id);
+  const st = f === 'none' ? '' : `style="filter:${f}"`;
+  return `<img src="./art/icon_core.png" width="${size}" height="${size}" class="art-img" ${st} alt="" draggable="false" />`;
+}
 
 export function rarityForLevel(level: number, evolved = false): RarityTier {
   if (evolved) return 'mythic';
@@ -47,12 +73,14 @@ const WEAPON_ICON_URL: Record<WeaponId, string> = {
   chrono_scythe: './art/icon_chrono_scythe.png',
   ricochet_shard: './art/icon_ricochet_shard.png',
   nova_pulse: './art/icon_nova_pulse.png',
-  rail_turret: './art/icon_rail_turret.png'
+  rail_turret: './art/icon_rail_turret.png',
+  frost_nova: './art/icon_frost_nova.png',
+  swarm_missiles: './art/icon_swarm_missiles.png'
 };
 
 // Map passives to crisp rendered art icons with subtle hue styling
 const PASSIVE_ICON_MAP: Record<PassiveId, { src: string; filter?: string }> = {
-  chrono_capacitor: { src: './art/icon_shard.png', filter: 'hue-rotate(-10deg)' },
+  chrono_capacitor: { src: './art/icon_core.png' },
   kinetic_thrusters: { src: './art/icon_nova_pulse.png', filter: 'hue-rotate(85deg)' },
   flux_coil: { src: './art/icon_arc_tether.png' },
   aether_lens: { src: './art/icon_prism_drones.png' },
@@ -61,10 +89,15 @@ const PASSIVE_ICON_MAP: Record<PassiveId, { src: string; filter?: string }> = {
   momentum_edge: { src: './art/icon_ricochet_shard.png', filter: 'hue-rotate(135deg)' },
   echo_chamber: { src: './art/icon_ricochet_shard.png' },
   reactive_plating: { src: './art/icon_shield.png' },
-  overclock_core: { src: './art/icon_shard.png', filter: 'hue-rotate(155deg) saturate(1.5) brightness(1.15)' }
+  overclock_core: { src: './art/icon_shard.png', filter: 'hue-rotate(155deg) saturate(1.5) brightness(1.15)' },
+  cryo_core: { src: './art/icon_frost_nova.png', filter: 'brightness(1.15) saturate(1.3)' },
+  targeting_array: { src: './art/icon_swarm_missiles.png', filter: 'hue-rotate(22deg)' }
 };
 
 export function artIconImg(key: string, size = 32): string {
+  if (key === 'core') {
+    return `<img src="./art/icon_core.png" width="${size}" height="${size}" class="art-img" alt="" draggable="false" />`;
+  }
   if (key in WEAPON_ICON_URL) {
     const src = WEAPON_ICON_URL[key as WeaponId];
     return `<img src="${src}" width="${size}" height="${size}" class="art-img" alt="" draggable="false" />`;

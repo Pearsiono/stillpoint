@@ -23,8 +23,11 @@ function bootstrap(): void {
   const overlays = new OverlayController(uiRoot, save, {
     onStartRun: () => game.startNewRun(),
     onSelectVessel: (vessel) => game.setVessel(vessel),
+    onSelectCore: (core) => game.setCore(core),
     onSelectSkin: (skin) => game.setSkin(skin),
     onSelectSector: (sector) => game.setSector(sector),
+    onToggleHeat: (heat) => game.toggleHeat(heat),
+    onRandomizeBuild: () => game.randomizeBuild(),
     onSheetToggle: (open) => game.setMenuSheetOpen(open),
     onSelectUpgrade: (choiceId) => game.selectUpgrade(choiceId),
     onReroll: () => game.rerollChoices(),

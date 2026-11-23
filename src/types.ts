@@ -8,6 +8,24 @@ export type GamePhase =
 
 export type VesselId = 'vesper' | 'aegis' | 'phantom' | 'volt' | 'nova' | 'seraph';
 
+export type CoreId = 'deflector' | 'blink' | 'siphon' | 'overclock' | 'berserk';
+
+export type RelicId =
+  | 'glass_prism'
+  | 'volatile_shrapnel'
+  | 'time_bank'
+  | 'blood_engine'
+  | 'chain_parry'
+  | 'ghost_step'
+  | 'executioner'
+  | 'bullet_alchemy'
+  | 'orbital_overdrive'
+  | 'last_stand'
+  | 'double_tap'
+  | 'magnetic_storm';
+
+export type HeatId = 'swarm' | 'hyper_fire' | 'ironclad' | 'fragile' | 'cursed_void';
+
 export type SkinId =
   | 'cyanide'
   | 'ronin'
@@ -32,7 +50,9 @@ export type WeaponId =
   | 'chrono_scythe'
   | 'ricochet_shard'
   | 'nova_pulse'
-  | 'rail_turret';
+  | 'rail_turret'
+  | 'frost_nova'
+  | 'swarm_missiles';
 
 export type PassiveId =
   | 'chrono_capacitor'
@@ -44,7 +64,9 @@ export type PassiveId =
   | 'momentum_edge'
   | 'echo_chamber'
   | 'reactive_plating'
-  | 'overclock_core';
+  | 'overclock_core'
+  | 'cryo_core'
+  | 'targeting_array';
 
 export type MetaUpgradeId =
   | 'hull_integrity'
@@ -57,6 +79,22 @@ export type MetaUpgradeId =
   | 'shard_harvester';
 
 export type PactId = 'bloodlust' | 'glass_cannon' | 'bullet_magnet' | 'greed';
+
+export interface CoreDef {
+  id: CoreId;
+  name: string;
+  shortDesc: string;
+  accent: string;
+  unlockCost: number;
+}
+
+export interface RelicDef {
+  id: RelicId;
+  name: string;
+  line: string;
+  accent: string;
+  iconKey: string;
+}
 
 export interface SkinDef {
   id: SkinId;
@@ -86,7 +124,7 @@ export interface SectorDef {
   difficultyMult: number;
   bossIntervalScale: number;
   unlockCost: number;
-  unlockBossRequired?: number; // 1 = Boss I, 2 = Boss II, 3 = Boss III
+  unlockBossRequired?: number;
 }
 
 export interface VesselDef {
@@ -162,10 +200,13 @@ export interface MetaSave {
   sectorsCleared: SectorId[];
   unlockedVessels: VesselId[];
   selectedVessel: VesselId;
+  unlockedCores: CoreId[];
+  selectedCore: CoreId;
   unlockedSkins: SkinId[];
   selectedSkin: SkinId;
   unlockedSectors: SectorId[];
   selectedSector: SectorId;
+  activeHeat: HeatId[];
   claimedMilestones: string[];
   upgrades: Record<MetaUpgradeId, number>;
   settings: {
@@ -190,7 +231,7 @@ export interface OwnedPassive {
 }
 
 export interface UpgradeChoice {
-  kind: 'weapon' | 'passive' | 'evolution' | 'heal';
+  kind: 'weapon' | 'passive' | 'evolution' | 'relic' | 'heal';
   id: string;
   title: string;
   line: string;
@@ -202,6 +243,23 @@ export interface UpgradeChoice {
   isSynergy?: boolean;
   weaponId?: WeaponId;
   passiveId?: PassiveId;
+  relicId?: RelicId;
+}
+
+export interface BlinkDecoy {
+  x: number;
+  y: number;
+  age: number;
+  maxAge: number;
+  radius: number;
+}
+
+export interface MeteorStrike {
+  x: number;
+  y: number;
+  radius: number;
+  timer: number;
+  maxTimer: number;
 }
 
 export interface PlayerState {
@@ -219,6 +277,7 @@ export interface PlayerState {
   hitFlash: number;
   kineticCharge: number;
   maxKineticCharge: number;
+  overchargeReady: boolean; // Time Bank relic!
   inStillpoint: boolean;
   stillpointBlend: number;
   stillpointTimeHeld: number;
@@ -230,9 +289,19 @@ export interface PlayerState {
   rerolls: number;
   grazeCombo: number;
   grazeComboTimer: number;
+  // Momentum / Surge Overdrive!
+  momentum: number; // 0..100
+  surgeTier: number; // 1..4
+  surgeTimer: number; // >0 when in 6s MAX SURGE!
+  frenzyTimer: number; // Blood Engine relic
+  berserkStacks: number;
+  berserkTimer: number;
+  lastStandUsed: boolean;
+  missileLocks: number[]; // enemy ids painted during Stillpoint!
   inOverclockRing: boolean;
   moveSpeed: number;
   damageMult: number;
+  bossDmgMult: number;
   critChance: number;
   fireRateMult: number;
   areaMult: number;
@@ -245,9 +314,12 @@ export interface PlayerState {
   shardMult: number;
   bonusProjectiles: number;
   projectileSpeedMult: number;
+  slowPower: number;
+  slowDmgMult: number;
   armor: number;
   weapons: OwnedWeapon[];
   passives: OwnedPassive[];
+  relics: RelicId[];
   pacts: PactId[];
   trail: Array<{ x: number; y: number; alpha: number }>;
   distanceMovedSinceDagger: number;
@@ -264,6 +336,11 @@ export type EnemyKind =
   | 'spinner'
   | 'reflector'
   | 'mine'
+  | 'leech'
+  | 'bomber'
+  | 'aegis_bot'
+  | 'carrier'
+  | 'hauler'
   | 'boss_weaver'
   | 'boss_seraph'
   | 'boss_archon'
@@ -290,11 +367,12 @@ export interface Enemy {
   phase: number;
   patternIndex: number;
   hitFlash: number;
+  chillTimer?: number;
   telegraphAngle?: number;
   telegraphTimer?: number;
   accent: string;
   bossName?: string;
-  segments?: Array<{ x: number; y: number }>; // Articulated tail for Void Leviathan
+  segments?: Array<{ x: number; y: number }>;
 }
 
 export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'parry_orb';
@@ -324,7 +402,10 @@ export type PlayerBulletKind =
   | 'dagger_homing'
   | 'mortar_shell'
   | 'scythe'
-  | 'ricochet';
+  | 'ricochet'
+  | 'frost_bolt'
+  | 'missile'
+  | 'shrapnel';
 
 export interface PlayerBullet {
   id: number;
@@ -362,7 +443,7 @@ export interface RailPylon {
 
 export interface HazardZone {
   id: number;
-  kind: 'crater' | 'singularity' | 'rift' | 'nova_wave';
+  kind: 'crater' | 'singularity' | 'rift' | 'nova_wave' | 'frost_burst';
   x: number;
   y: number;
   radius: number;
@@ -386,7 +467,7 @@ export interface WorldNode {
   maxHp: number;
   age: number;
   maxAge: number;
-  progress: number; // for pact hover activation
+  progress: number;
   pactId?: PactId;
   accent: string;
 }
@@ -417,6 +498,8 @@ export interface ParryWave {
   bonusParryCount: number;
   colorOuter: string;
   colorInner: string;
+  isBerserkSlash?: boolean;
+  overcharged?: boolean;
 }
 
 export interface Pickup {
@@ -453,6 +536,12 @@ export interface RunStats {
   bossesDefeated: number;
   shardsEarned: number;
   sectorId: SectorId;
+  vesselId: VesselId;
+  coreId: CoreId;
+  skinId: SkinId;
+  heatCount: number;
+  weapons: Array<{ id: WeaponId; level: number; evolved: boolean }>;
+  relics: RelicId[];
   endlessMode: boolean;
   victory: boolean;
 }

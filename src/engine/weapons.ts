@@ -134,6 +134,10 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   const { player, enemies, playerBullets, hazards, particles } = ctx;
   const inStillpoint = player.inStillpoint;
   const overclockMult = player.inOverclockRing ? 1.85 : 1;
+  const surgeMult = player.surgeTimer > 0 ? 1.32 : 1;
+  const frenzyMult = player.frenzyTimer > 0 ? 1.4 : 1;
+  const berserkMult = 1 + Math.min(0.6, player.berserkStacks * 0.08);
+  const totalRateMult = player.fireRateMult * overclockMult * surgeMult * frenzyMult * berserkMult;
 
   if (ctx.justEnteredStillpoint) {
     for (const h of hazards) {
@@ -195,6 +199,12 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
       const dmg = (42 + nova.level * 14 + (nova.evolved ? 40 : 0)) * player.damageMult;
       fireNovaWave(ctx, radius, dmg, nova.evolved, true);
     }
+
+    // Swarm Missiles: unleash Macross lock-on barrage on touch-down!
+    const swarm = player.weapons.find((w) => w.id === 'swarm_missiles');
+    if (swarm && player.missileLocks.length > 0) {
+      launchLockedMissiles(ctx, swarm);
+    }
   }
 
   // Update Rail Pylons continuously
@@ -202,7 +212,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
 
   for (const w of player.weapons) {
     const dtWeapon = inStillpoint ? dtReal * 0.85 : dtWorld;
-    w.cooldown -= dtWeapon * player.fireRateMult * overclockMult;
+    w.cooldown -= dtWeapon * totalRateMult;
     w.auxTimer += dtReal;
 
     switch (w.id) {
@@ -235,6 +245,12 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
         break;
       case 'rail_turret':
         updateRailTurret(ctx, w);
+        break;
+      case 'frost_nova':
+        updateFrostNova(ctx, w);
+        break;
+      case 'swarm_missiles':
+        updateSwarmMissiles(ctx, w);
         break;
     }
   }
@@ -811,6 +827,156 @@ export function spawnPlantedDagger(
     hitSet: new Set(),
     evolved: w.evolved
   });
+}
+
+// NEW WEAPON 11: Cryo Ring — Chills & slows enemies; Stillpoint shatters chilled enemies!
+function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, enemies, playerBullets, hazards, particles } = ctx;
+  if (ctx.justEnteredStillpoint) {
+    // Shatter every chilled enemy within range!
+    let shattered = 0;
+    const range = (310 + w.level * 24) * player.areaMult;
+    const shatterDmg = (w.evolved ? 82 : 34 + w.level * 11) * player.damageMult;
+    for (const e of enemies) {
+      if (e.hp <= 0 || !(e.chillTimer && e.chillTimer > 0)) continue;
+      if (Math.hypot(e.x - player.x, e.y - player.y) <= range) {
+        shattered++;
+        ctx.damageEnemy(e, shatterDmg, '#9be8ff', true);
+        particles.shatter(e.x, e.y, '#9be8ff', 7, 1.15);
+        hazards.push({
+          id: ctx.nextId(),
+          kind: 'frost_burst',
+          x: e.x,
+          y: e.y,
+          radius: 14,
+          maxRadius: (w.evolved ? 84 : 56) * player.areaMult,
+          damagePerSec: 0,
+          age: 0,
+          maxAge: 0.25,
+          color: '#7ee8ff',
+          collapsed: false,
+          evolved: w.evolved,
+          pullStrength: 0
+        });
+      }
+    }
+    if (shattered > 0) {
+      sound.playParry(shattered + 2, false);
+      particles.callout(player.x, player.y - 42, `SHATTER ×${shattered}`, '#9be8ff', 1.15, 0.85);
+    }
+  }
+
+  if (w.cooldown > 0) return;
+  w.cooldown = w.evolved ? 0.55 : Math.max(0.68, 1.15 - w.level * 0.09);
+
+  const count = (w.evolved ? 8 : 4 + Math.floor(w.level / 2)) + player.bonusProjectiles;
+  const dmg = (w.evolved ? 28 : 12 + w.level * 4) * player.damageMult;
+  const spd = 340 * player.projectileSpeedMult;
+  const base = ctx.time * 1.3;
+
+  sound.playShoot('pulse');
+  for (let i = 0; i < count; i++) {
+    const ang = base + (i * Math.PI * 2) / count;
+    playerBullets.push({
+      id: ctx.nextId(),
+      kind: 'frost_bolt',
+      x: player.x + Math.cos(ang) * 14,
+      y: player.y + Math.sin(ang) * 14,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      radius: 6,
+      damage: dmg,
+      pierce: w.evolved ? 4 : 2,
+      age: 0,
+      maxAge: 0.95,
+      color: '#7ee8ff',
+      homing: 0,
+      hitSet: new Set(),
+      evolved: w.evolved
+    });
+  }
+}
+
+// NEW WEAPON 12: Swarm Missiles — Curving rockets + Stillpoint lock-on Macross salvo!
+function updateSwarmMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, enemies, playerBullets } = ctx;
+  if (player.inStillpoint) {
+    // Paint lock-on reticles while in Stillpoint!
+    if (w.cooldown > 0) return;
+    w.cooldown = w.evolved ? 0.11 : 0.17;
+    const maxLocks = (w.evolved ? 14 : 4 + w.level * 2) + player.bonusProjectiles;
+    if (player.missileLocks.length < maxLocks) {
+      const candidates = enemies.filter((e) => e.hp > 0 && Math.hypot(e.x - player.x, e.y - player.y) < 520);
+      if (candidates.length > 0) {
+        const pick = candidates[player.missileLocks.length % candidates.length];
+        player.missileLocks.push(pick.id);
+        sound.playGraze(player.missileLocks.length);
+      }
+    }
+    return;
+  }
+
+  if (w.cooldown > 0) return;
+  w.cooldown = w.evolved ? 0.5 : Math.max(0.62, 1.05 - w.level * 0.08);
+  const count = (w.evolved ? 4 : w.level >= 4 ? 3 : 2) + player.bonusProjectiles;
+  const dmg = (w.evolved ? 36 : 16 + w.level * 5.5) * player.damageMult;
+  const spd = 420 * player.projectileSpeedMult;
+
+  sound.playShoot('mortar');
+  for (let i = 0; i < count; i++) {
+    const launchAng = player.facingAngle + (i % 2 === 0 ? 1 : -1) * (0.75 + Math.random() * 0.5);
+    const target = findNearestEnemy(player.x, player.y, enemies, 580, true);
+    playerBullets.push({
+      id: ctx.nextId(),
+      kind: 'missile',
+      x: player.x,
+      y: player.y,
+      vx: Math.cos(launchAng) * spd,
+      vy: Math.sin(launchAng) * spd,
+      radius: 6,
+      damage: dmg,
+      pierce: 1,
+      age: 0,
+      maxAge: 2.3,
+      color: w.evolved ? '#f6c453' : '#ff7b47',
+      homing: 8.5,
+      targetId: target?.id,
+      hitSet: new Set(),
+      evolved: w.evolved,
+      blastRadius: (w.evolved ? 54 : 36) * player.areaMult
+    });
+  }
+}
+
+function launchLockedMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, playerBullets } = ctx;
+  const dmg = (w.evolved ? 46 : 22 + w.level * 7) * player.damageMult;
+  const spd = 460 * player.projectileSpeedMult;
+  sound.playShoot('mortar');
+  player.missileLocks.forEach((tid, idx) => {
+    const spread = (idx / Math.max(1, player.missileLocks.length)) * Math.PI * 2;
+    playerBullets.push({
+      id: ctx.nextId(),
+      kind: 'missile',
+      x: player.x,
+      y: player.y,
+      vx: Math.cos(spread) * spd,
+      vy: Math.sin(spread) * spd,
+      radius: 6.5,
+      damage: dmg,
+      pierce: 1,
+      age: 0,
+      maxAge: 2.5,
+      color: '#f6c453',
+      homing: 11.5,
+      targetId: tid,
+      hitSet: new Set(),
+      evolved: w.evolved,
+      blastRadius: (w.evolved ? 64 : 44) * player.areaMult
+    });
+  });
+  ctx.particles.callout(player.x, player.y - 38, `SALVO ×${player.missileLocks.length}`, '#ff7b47', 1.15, 0.85);
+  player.missileLocks.length = 0;
 }
 
 export function pointToSegmentDist(

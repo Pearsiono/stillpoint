@@ -2,12 +2,15 @@ import { SECTORS } from '../data/sectors';
 import { resolveSkinColors, SKINS } from '../data/skins';
 import { PACTS } from '../data/upgrades';
 import {
+  BlinkDecoy,
   BossEnclosure,
+  CoreId,
   Enemy,
   EnemyBullet,
   HazardZone,
   InputSnapshot,
   LaserBeam,
+  MeteorStrike,
   ParryWave,
   Pickup,
   PlayerBullet,
@@ -26,6 +29,7 @@ import { getHaloBladesPositions, getPrismDronePositions } from './weapons';
 export interface RenderState {
   player: PlayerState;
   vesselId: VesselId;
+  coreId: CoreId;
   skinId: SkinId;
   sectorId: SectorId;
   enemies: Enemy[];
@@ -34,6 +38,8 @@ export interface RenderState {
   pylons: RailPylon[];
   hazards: HazardZone[];
   nodes: WorldNode[];
+  decoys: BlinkDecoy[];
+  meteors: MeteorStrike[];
   lasers: LaserBeam[];
   parryWaves: ParryWave[];
   pickups: Pickup[];
@@ -127,12 +133,16 @@ export class WastelandRenderer {
         this.drawBossEnclosure(ctx, state.enclosure, state.realTime);
       }
       this.drawHazards(ctx, state.hazards, state.realTime);
+      this.drawMeteorsAndDecoys(ctx, state);
       this.drawPylons(ctx, state.pylons, state.realTime);
       this.drawPickups(ctx, state.pickups, state.realTime);
 
       this.drawPlayer(ctx, state, skin);
       this.drawOrbitalWeapons(ctx, state);
       this.drawEnemies(ctx, state.enemies, state.realTime);
+      if (state.player.missileLocks.length > 0) {
+        this.drawMissileLockReticles(ctx, state);
+      }
       this.drawLasers(ctx, state.lasers, state.enemies, state.realTime);
       this.drawArcs(ctx, state.particles);
       this.drawPlayerBullets(ctx, state.playerBullets, state.realTime);
@@ -371,13 +381,13 @@ export class WastelandRenderer {
 
   private drawHazards(ctx: CanvasRenderingContext2D, hazards: HazardZone[], realTime: number): void {
     for (const h of hazards) {
-      if (h.kind === 'nova_wave') {
+      if (h.kind === 'nova_wave' || h.kind === 'frost_burst') {
         const t = Math.min(1, h.age / h.maxAge);
         const rad = 18 + ((h.maxRadius ?? 110) - 18) * (1 - Math.pow(1 - t, 2.5));
         ctx.save();
         ctx.strokeStyle = h.color;
         ctx.globalAlpha = (1 - t) * 0.9;
-        ctx.lineWidth = 5 * (1 - t) + 1.5;
+        ctx.lineWidth = (h.kind === 'frost_burst' ? 3.5 : 5) * (1 - t) + 1.5;
         ctx.beginPath();
         ctx.arc(h.x, h.y, rad, 0, Math.PI * 2);
         ctx.stroke();
@@ -412,6 +422,85 @@ export class WastelandRenderer {
         ctx.beginPath();
         ctx.arc(0, 0, h.radius * 0.22, 0, Math.PI * 2);
         ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawMeteorsAndDecoys(ctx: CanvasRenderingContext2D, state: RenderState): void {
+    // Meteor Barrage red-amber ground telegraph circles
+    for (const m of state.meteors) {
+      const progress = 1 - Math.max(0, m.timer / m.maxTimer);
+      ctx.save();
+      ctx.translate(m.x, m.y);
+      ctx.fillStyle = `rgba(255, 106, 38, ${0.12 + progress * 0.22})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ff6a26';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      // Expanding inner detonation fill
+      ctx.strokeStyle = '#fff0b8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius * progress, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Phantom Blink exploding decoys
+    const shipArt = sprites.getShipArt(state.vesselId, state.skinId);
+    for (const d of state.decoys) {
+      const ratio = 1 - d.age / d.maxAge;
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.strokeStyle = '#cf7dff';
+      ctx.globalAlpha = 0.65;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.arc(0, 0, 26 + (1 - ratio) * 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (shipArt) {
+        ctx.globalAlpha = 0.45 + Math.sin(state.realTime * 28) * 0.15;
+        ctx.drawImage(shipArt, -22, -22, 44, 44);
+      }
+      ctx.restore();
+    }
+  }
+
+  private drawMissileLockReticles(ctx: CanvasRenderingContext2D, state: RenderState): void {
+    const counts = new Map<number, number>();
+    for (const id of state.player.missileLocks) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    for (const [id, cnt] of counts) {
+      const e = state.enemies.find((x) => x.id === id && x.hp > 0);
+      if (!e) continue;
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(state.realTime * 2.5);
+      const r = e.radius + 10;
+      ctx.strokeStyle = '#ff7b47';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 4; i++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(r - 5, -r);
+        ctx.lineTo(r, -r);
+        ctx.lineTo(r, -r + 5);
+        ctx.stroke();
+      }
+      if (cnt > 1) {
+        ctx.rotate(-state.realTime * 2.5);
+        ctx.fillStyle = '#f6c453';
+        ctx.font = '900 10px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`×${cnt}`, 0, -r - 4);
       }
       ctx.restore();
     }
@@ -508,16 +597,30 @@ export class WastelandRenderer {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // 3. Chrono-Relic Astrolabe Ring during Stillpoint
+    // 3. Chrono-Relic Astrolabe Ring during Stillpoint (+ Gravity Siphon / Surge aura!)
+    if (player.surgeTimer > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.drawImage(sprites.get('glow_gold'), -46, -46, 92, 92);
+      ctx.restore();
+    }
+
     if (blend > 0.08) {
       ctx.save();
       ctx.globalAlpha = blend * 0.78;
-      ctx.rotate(-realTime * 0.9);
-      ctx.strokeStyle = skin.accent;
+      ctx.rotate(-realTime * (state.coreId === 'siphon' ? 2.4 : 0.9));
+      ctx.strokeStyle =
+        state.coreId === 'siphon'
+          ? '#ff9f43'
+          : state.coreId === 'berserk'
+            ? '#ff4858'
+            : state.coreId === 'overclock'
+              ? '#e5b34c'
+              : skin.accent;
       ctx.lineWidth = 1.25;
       ctx.setLineDash([12, 8, 2, 8]);
       ctx.beginPath();
-      ctx.arc(0, 0, 44, 0, Math.PI * 2);
+      ctx.arc(0, 0, state.coreId === 'siphon' ? 68 : 44, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
       for (let i = 0; i < 4; i++) {
@@ -751,7 +854,25 @@ export class WastelandRenderer {
         ctx.fill();
       }
 
-      if (e.isElite) {
+      if (e.chillTimer && e.chillTimer > 0) {
+        ctx.strokeStyle = '#7ee8ff';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if (e.kind === 'hauler') {
+        ctx.strokeStyle = '#f6c453';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (e.isElite || e.kind === 'hauler') {
         ctx.strokeStyle = '#e5b34c';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
@@ -961,6 +1082,42 @@ export class WastelandRenderer {
         ctx.fillRect(-9, -2, 18, 4);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(-5, -1, 12, 2);
+        ctx.restore();
+        continue;
+      }
+
+      if (b.kind === 'missile') {
+        const ang = Math.atan2(b.vy, b.vx);
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.moveTo(9, 0);
+        ctx.lineTo(-6, -4);
+        ctx.lineTo(-4, 0);
+        ctx.lineTo(-6, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#fff5d6';
+        ctx.fillRect(-10, -1.5, 5, 3);
+        ctx.restore();
+        continue;
+      }
+
+      if (b.kind === 'frost_bolt' || b.kind === 'shrapnel') {
+        const ang = Math.atan2(b.vy, b.vx);
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.moveTo(9, 0);
+        ctx.lineTo(0, -3.5);
+        ctx.lineTo(-7, 0);
+        ctx.lineTo(0, 3.5);
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
         continue;
       }

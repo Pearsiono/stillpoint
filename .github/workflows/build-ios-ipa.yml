@@ -62,8 +62,11 @@ jobs:
           test -f "$APP_PATH/WebApp/index.html"
           test -f "$APP_PATH/WebApp/art/ship_vesper.png"
           test -f "$APP_PATH/WebApp/art/sector_drift.jpg"
+          test -f "$APP_PATH/WebApp/art/icon_frost_nova.png"
+          test -f "$APP_PATH/WebApp/art/icon_swarm_missiles.png"
+          test -f "$APP_PATH/WebApp/art/enemy_hauler.png"
           ls -la "$APP_PATH/WebApp/assets"
-          ls -la "$APP_PATH/WebApp/art" | head -n 20
+          echo "Bundled art assets: $(ls -1 "$APP_PATH/WebApp/art" | wc -l)"
 
       - name: Package unsigned IPA for Sideloadly
         working-directory: ios

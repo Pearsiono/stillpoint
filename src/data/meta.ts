@@ -1,5 +1,7 @@
 import { bridge } from '../bridge';
 import {
+  CoreId,
+  HeatId,
   MetaSave,
   MetaUpgradeDef,
   MetaUpgradeId,
@@ -239,10 +241,13 @@ export function createDefaultSave(): MetaSave {
     sectorsCleared: [],
     unlockedVessels: ['vesper'],
     selectedVessel: 'vesper',
+    unlockedCores: ['deflector'],
+    selectedCore: 'deflector',
     unlockedSkins: ['cyanide'],
     selectedSkin: 'cyanide',
     unlockedSectors: ['drift'],
     selectedSector: 'drift',
+    activeHeat: [],
     claimedMilestones: [],
     upgrades: {
       hull_integrity: 0,
@@ -287,16 +292,21 @@ export function loadMetaSave(): MetaSave {
       unlockedVessels: Array.isArray(parsed.unlockedVessels)
         ? (Array.from(new Set(['vesper', ...parsed.unlockedVessels])) as VesselId[])
         : ['vesper'],
+      unlockedCores: Array.isArray(parsed.unlockedCores)
+        ? (Array.from(new Set(['deflector', ...parsed.unlockedCores])) as CoreId[])
+        : ['deflector'],
       unlockedSkins: Array.isArray(parsed.unlockedSkins)
         ? (Array.from(new Set(['cyanide', ...parsed.unlockedSkins])) as SkinId[])
         : ['cyanide'],
       unlockedSectors: Array.isArray(parsed.unlockedSectors)
         ? (Array.from(new Set(['drift', ...parsed.unlockedSectors])) as SectorId[])
         : ['drift'],
+      activeHeat: Array.isArray(parsed.activeHeat) ? (parsed.activeHeat as HeatId[]) : [],
       sectorsCleared: Array.isArray(parsed.sectorsCleared) ? parsed.sectorsCleared : [],
       claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : []
     };
     if (!merged.unlockedVessels.includes(merged.selectedVessel)) merged.selectedVessel = 'vesper';
+    if (!merged.unlockedCores.includes(merged.selectedCore)) merged.selectedCore = 'deflector';
     if (!merged.unlockedSkins.includes(merged.selectedSkin)) merged.selectedSkin = 'cyanide';
     if (!merged.unlockedSectors.includes(merged.selectedSector)) merged.selectedSector = 'drift';
     return merged;

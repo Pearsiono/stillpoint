@@ -16,6 +16,7 @@ import { ParticleSystem } from './particles';
 export interface EnemyWorldContext {
   player: PlayerState;
   sectorId: SectorId;
+  activeHeat: string[];
   enemies: Enemy[];
   enemyBullets: EnemyBullet[];
   lasers: LaserBeam[];
@@ -44,7 +45,8 @@ export function spawnEnemy(
 ): Enemy {
   const sector = SECTORS[ctx.sectorId];
   const bloodlustSpeed = ctx.player.pacts.includes('bloodlust') ? 1.2 : 1.0;
-  const hpMult = difficultyScale * sector.difficultyMult * (isElite ? 3.2 : 1);
+  const ironcladMult = ctx.activeHeat.includes('ironclad') && (isElite || kind.startsWith('boss_')) ? 1.35 : 1.0;
+  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * (isElite ? 3.2 : 1);
 
   let radius = 13;
   let hp = 26;
@@ -137,6 +139,46 @@ export function spawnEnemy(
       scoreValue = isElite ? 210 : 65;
       accent = '#ff9f1c';
       break;
+    case 'leech':
+      radius = isElite ? 20 : 15;
+      hp = 64 * hpMult;
+      speed = 86;
+      xpValue = isElite ? 55 : 22;
+      scoreValue = isElite ? 240 : 85;
+      accent = '#d946ef';
+      break;
+    case 'bomber':
+      radius = isElite ? 24 : 18;
+      hp = 104 * hpMult;
+      speed = 74;
+      xpValue = isElite ? 66 : 26;
+      scoreValue = isElite ? 290 : 95;
+      accent = '#f59e0b';
+      break;
+    case 'aegis_bot':
+      radius = isElite ? 26 : 20;
+      hp = 138 * hpMult;
+      speed = 56;
+      xpValue = isElite ? 72 : 28;
+      scoreValue = isElite ? 320 : 105;
+      accent = '#60a5fa';
+      break;
+    case 'carrier':
+      radius = isElite ? 30 : 24;
+      hp = 195 * hpMult;
+      speed = 40;
+      xpValue = isElite ? 95 : 42;
+      scoreValue = isElite ? 420 : 150;
+      accent = '#fb923c';
+      break;
+    case 'hauler':
+      radius = 23;
+      hp = 155 * difficultyScale * sector.difficultyMult;
+      speed = 112;
+      xpValue = 80;
+      scoreValue = 650;
+      accent = '#f6c453';
+      break;
     case 'boss_weaver':
       isBoss = true;
       radius = 34;
@@ -223,7 +265,8 @@ export function fireEnemyBullet(
     ctx.enemyBullets.shift();
   }
   const pactFast = ctx.player.pacts.includes('bullet_magnet') ? 1.25 : 1.0;
-  const spd = speed * pactFast;
+  const heatFast = ctx.activeHeat.includes('hyper_fire') ? 1.25 : 1.0;
+  const spd = speed * pactFast * heatFast;
   const isParryBonus = kind === 'parry_orb';
   ctx.enemyBullets.push({
     id: ctx.nextId(),
@@ -260,14 +303,15 @@ export function updateWaveDirector(
   if (ctx.enclosure.active || ctx.enclosure.warningTimer > 0) return;
 
   const t = ctx.elapsed;
+  const swarmHeat = ctx.activeHeat.includes('swarm') ? 1.4 : 1.0;
   const greedEliteRate = ctx.player.pacts.includes('greed') ? 1.35 : 1.0;
   const diffScale = 1 + t / 112 + (ctx.endlessMode ? (t - 350) / 85 : 0);
-  const maxEnemies = Math.min(82, 18 + Math.floor(t * 0.19));
-  const rate = Math.min(5.4, 1.9 + t * 0.013);
+  const maxEnemies = Math.min(96, Math.round((18 + Math.floor(t * 0.19)) * swarmHeat));
+  const rate = Math.min(6.4, (1.95 + t * 0.013) * swarmHeat);
 
   spawnAccum.value += dtWorld * rate;
   eliteTimer.value += dtWorld * greedEliteRate;
-  nodeTimer.value += dtWorld;
+  nodeTimer.value += dtWorld * (ctx.activeHeat.includes('cursed_void') ? 1.55 : 1.0);
 
   while (spawnAccum.value >= 1 && ctx.enemies.length < maxEnemies) {
     spawnAccum.value -= 1;
@@ -362,24 +406,27 @@ function pickWaveEnemy(t: number, isElite: boolean, sectorId: SectorId): EnemyKi
   }
   if (t < 165) {
     const r = Math.random();
-    if (isElite) return r < 0.4 ? 'ring_caster' : r < 0.72 ? 'bulwark' : 'reflector';
-    if (r < 0.22) return 'swarmer';
-    if (r < 0.38) return 'dart';
-    if (r < 0.54) return 'turret';
-    if (r < 0.7) return 'ring_caster';
-    if (r < 0.84) return 'reflector';
-    if (r < 0.92) return 'mine';
+    if (isElite) return r < 0.34 ? 'ring_caster' : r < 0.62 ? 'aegis_bot' : r < 0.85 ? 'bulwark' : 'carrier';
+    if (r < 0.18) return 'swarmer';
+    if (r < 0.32) return 'dart';
+    if (r < 0.46) return 'turret';
+    if (r < 0.58) return 'ring_caster';
+    if (r < 0.7) return 'leech';
+    if (r < 0.8) return 'bomber';
+    if (r < 0.9) return 'aegis_bot';
     return 'splitter';
   }
   const r = Math.random();
-  if (isElite) return r < 0.34 ? 'bulwark' : r < 0.66 ? 'spinner' : 'reflector';
-  if (r < 0.16) return 'dart';
-  if (r < 0.32) return 'ring_caster';
-  if (r < 0.48) return 'sniper';
-  if (r < 0.64) return 'spinner';
-  if (r < 0.78) return 'reflector';
-  if (r < 0.9) return 'mine';
-  return 'bulwark';
+  if (isElite) return r < 0.28 ? 'carrier' : r < 0.56 ? 'aegis_bot' : r < 0.8 ? 'bulwark' : 'spinner';
+  if (r < 0.13) return 'dart';
+  if (r < 0.25) return 'ring_caster';
+  if (r < 0.37) return 'sniper';
+  if (r < 0.49) return 'spinner';
+  if (r < 0.6) return 'leech';
+  if (r < 0.72) return 'bomber';
+  if (r < 0.84) return 'aegis_bot';
+  if (r < 0.92) return 'reflector';
+  return 'carrier';
 }
 
 export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
@@ -390,6 +437,11 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
     e.stateTimer += dtWorld;
     e.fireTimer -= dtWorld;
     if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dtWorld * 6);
+    if (e.chillTimer && e.chillTimer > 0) {
+      e.chillTimer = Math.max(0, e.chillTimer - dtWorld);
+    }
+    const chillMult = e.chillTimer && e.chillTimer > 0 ? Math.max(0.38, 1 - player.slowPower) : 1.0;
+    const stepDt = dtWorld * chillMult;
 
     const dx = player.x - e.x;
     const dy = player.y - e.y;
@@ -577,12 +629,80 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         }
         break;
       }
+      case 'leech': {
+        // Orbits mid-range & siphons player's Kinetic Charge with visible crimson-violet beam!
+        e.angle = toPlayer;
+        const factor = dist > 180 ? 0.95 : dist < 120 ? -0.45 : 0.1;
+        const tx = -dy / dist;
+        const ty = dx / dist;
+        e.vx = ((dx / dist) * factor + tx * 0.5) * e.speed;
+        e.vy = ((dy / dist) * factor + ty * 0.5) * e.speed;
+        if (dist < 230 && !player.inStillpoint) {
+          player.kineticCharge = Math.max(0, player.kineticCharge - 11 * dtWorld);
+          if (e.fireTimer <= 0) {
+            e.fireTimer = 0.22;
+            ctx.particles.arc(e.x, e.y, player.x, player.y, '#d946ef', 1.8, 0.2);
+          }
+        }
+        break;
+      }
+      case 'bomber': {
+        // Sweeps past player dropping armed cluster mines!
+        e.angle = toPlayer + 0.35;
+        e.vx = Math.cos(e.angle) * e.speed;
+        e.vy = Math.sin(e.angle) * e.speed;
+        if (e.fireTimer <= 0 && dist < 380 && ctx.enemies.length < 90) {
+          e.fireTimer = 3.2;
+          const m = spawnEnemy(ctx, 'mine', e.x, e.y, false, 0.75);
+          m.fireTimer = 0.8;
+        }
+        break;
+      }
+      case 'aegis_bot': {
+        // Marches steadily facing player with armored frontal shield!
+        e.angle = toPlayer;
+        e.vx = (dx / dist) * e.speed;
+        e.vy = (dy / dist) * e.speed;
+        if (e.fireTimer <= 0 && dist < 350) {
+          e.fireTimer = 2.6;
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.18, 122, 'orb', 14, 5.5);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.18, 122, 'orb', 14, 5.5);
+        }
+        break;
+      }
+      case 'carrier': {
+        e.angle = toPlayer;
+        e.vx = (dx / dist) * e.speed * (dist > 190 ? 1 : 0.15);
+        e.vy = (dy / dist) * e.speed * (dist > 190 ? 1 : 0.15);
+        if (e.fireTimer <= 0 && dist < 440 && ctx.enemies.length < 92) {
+          e.fireTimer = 3.6;
+          for (let i = -1; i <= 1; i += 2) {
+            const drone = spawnEnemy(ctx, 'swarmer', e.x + i * 16, e.y, false, 0.6);
+            drone.radius = 9.5;
+          }
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer, 118, 'parry_orb', 14, 8);
+        }
+        break;
+      }
+      case 'hauler': {
+        // Golden Treasure Hauler races laterally across arena; hunt it down before it escapes!
+        if (e.stateTimer < 0.1 && e.vx === 0 && e.vy === 0) {
+          const dir = e.x < player.x ? 1 : -1;
+          e.vx = dir * e.speed;
+          e.vy = (Math.random() - 0.5) * 40;
+          e.angle = Math.atan2(e.vy, e.vx);
+        }
+        if (e.stateTimer > 15) {
+          e.hp = 0; // Escaped!
+        }
+        break;
+      }
     }
 
-    e.x += e.vx * dtWorld;
-    e.y += e.vy * dtWorld;
+    e.x += e.vx * stepDt;
+    e.y += e.vy * stepDt;
 
-    if (!enclosure.active && dist > 620) {
+    if (!enclosure.active && dist > 640 && e.kind !== 'hauler') {
       e.x = player.x - (dx / dist) * 440;
       e.y = player.y - (dy / dist) * 440;
     }

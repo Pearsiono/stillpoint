@@ -1,3 +1,4 @@
+import { RELIC_IDS, RELICS } from './builds';
 import {
   PactId,
   PassiveDef,
@@ -153,6 +154,28 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     stillpointShort: 'Links pylons with lethal beams',
     evolvedShort: 'Triangulates plasma fields between nodes',
     maxLevel: 5
+  },
+  frost_nova: {
+    id: 'frost_nova',
+    name: 'Cryo Ring',
+    evolvedName: 'ABSOLUTE ZERO',
+    catalystPassive: 'cryo_core',
+    accent: '#7ee8ff',
+    shortDesc: 'Chills foes · Slow-mo shatters frozen enemies',
+    stillpointShort: 'Shatters chilled foes into ice spikes',
+    evolvedShort: 'Deep-freeze shockwaves detonate waves on contact',
+    maxLevel: 5
+  },
+  swarm_missiles: {
+    id: 'swarm_missiles',
+    name: 'Swarm Missiles',
+    evolvedName: 'VALKYRIE SALVO',
+    catalystPassive: 'targeting_array',
+    accent: '#ff7b47',
+    shortDesc: 'Homing rockets · Slow-mo paints lock-on salvo',
+    stillpointShort: 'Launches painted missile swarm on resume',
+    evolvedShort: 'Continuous curved warhead barrage melts bosses',
+    maxLevel: 5
   }
 };
 
@@ -235,6 +258,22 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     pairsWith: 'rail_turret',
     accent: '#f6c453',
     shortStat: '+18% XP & Shard gain',
+    maxLevel: 5
+  },
+  cryo_core: {
+    id: 'cryo_core',
+    name: 'Cryo Core',
+    pairsWith: 'frost_nova',
+    accent: '#7ee8ff',
+    shortStat: '+18% DMG vs chilled · Deeper freeze',
+    maxLevel: 5
+  },
+  targeting_array: {
+    id: 'targeting_array',
+    name: 'Targeting Array',
+    pairsWith: 'swarm_missiles',
+    accent: '#ff7b47',
+    shortStat: '+16% Boss DMG · Stronger homing',
     maxLevel: 5
   }
 };
@@ -368,6 +407,27 @@ export function generateUpgradeChoices(
     }
   }
 
+  // Wildcard Run Relics! Always offered inside Relic Caches (bosses, shrines, treasure haulers) & milestone levels!
+  const unownedRelics = RELIC_IDS.filter((rid) => !player.relics.includes(rid));
+  if (unownedRelics.length > 0 && (preferEvolution || player.level === 5 || player.level === 10 || player.level === 15)) {
+    for (const rid of unownedRelics) {
+      const rdef = RELICS[rid];
+      pool.push({
+        weight: preferEvolution ? 35 : 16,
+        choice: {
+          kind: 'relic',
+          id: `rel:${rid}`,
+          title: rdef.name,
+          line: rdef.line,
+          accent: rdef.accent,
+          iconKey: rdef.iconKey,
+          relicId: rid
+        }
+      });
+    }
+  }
+
+  // Weighted sample without replacement
   const selected: UpgradeChoice[] = [];
   const remaining = [...pool];
 
@@ -375,6 +435,11 @@ export function generateUpgradeChoices(
     const evoIdx = remaining.findIndex((item) => item.choice.kind === 'evolution');
     if (evoIdx >= 0) {
       selected.push(remaining.splice(evoIdx, 1)[0].choice);
+    }
+  } else if (preferEvolution && unownedRelics.length > 0) {
+    const relIdx = remaining.findIndex((item) => item.choice.kind === 'relic');
+    if (relIdx >= 0) {
+      selected.push(remaining.splice(relIdx, 1)[0].choice);
     }
   }
 

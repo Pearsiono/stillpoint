@@ -1,5 +1,6 @@
 import { sound } from '../audio';
 import { bridge } from '../bridge';
+import { CORE_ORDER, CORES, HEAT_MODS, HEAT_ORDER, RELICS } from '../data/builds';
 import {
   buyMetaUpgrade,
   getMetaUpgradeCost,
@@ -11,7 +12,9 @@ import { SECTOR_ORDER, SECTORS } from '../data/sectors';
 import { SKIN_ORDER, SKINS } from '../data/skins';
 import { VESSEL_ORDER, VESSELS } from '../data/vessels';
 import {
+  CoreId,
   GamePhase,
+  HeatId,
   MetaSave,
   MetaUpgradeId,
   RunStats,
@@ -23,6 +26,8 @@ import {
 import {
   artIconImg,
   bossArtForSector,
+  coreIconImg,
+  rarityForCore,
   rarityForLevel,
   rarityForSkin,
   rarityForVessel,
@@ -34,6 +39,7 @@ import { formatTime, renderUpgradeDraftHtml } from './hud';
 import { svgIcon } from './icons';
 
 type HubTab = 'skins' | 'hangar' | 'battle' | 'talents' | 'trials';
+type HangarSub = 'ships' | 'cores';
 
 const TALENT_ICON_KEYS: Record<MetaUpgradeId, string> = {
   hull_integrity: 'reactive_plating',
@@ -49,8 +55,11 @@ const TALENT_ICON_KEYS: Record<MetaUpgradeId, string> = {
 export interface OverlayActions {
   onStartRun: () => void;
   onSelectVessel: (vessel: VesselId) => void;
+  onSelectCore: (core: CoreId) => void;
   onSelectSkin: (skin: SkinId) => void;
   onSelectSector: (sector: SectorId) => void;
+  onToggleHeat: (heat: HeatId) => void;
+  onRandomizeBuild: () => void;
   onSheetToggle: (open: boolean) => void;
   onSelectUpgrade: (choiceId: string) => void;
   onReroll: () => void;
@@ -64,8 +73,10 @@ export class OverlayController {
   private save: MetaSave;
   private actions: OverlayActions;
   private tab: HubTab = 'battle';
+  private hangarSub: HangarSub = 'ships';
   private browsingSectorIdx = 0;
   private settingsOpen = false;
+  private heatOpen = false;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer = 0;
 
@@ -103,6 +114,7 @@ export class OverlayController {
   ): void {
     if (phase === 'playing') {
       this.settingsOpen = false;
+      this.heatOpen = false;
       this.container.innerHTML = '';
       return;
     }
@@ -146,7 +158,11 @@ export class OverlayController {
               ? this.buildTalentsTab()
               : this.buildTrialsTab();
 
-    const settingsModal = this.settingsOpen ? this.buildSettingsModal() : '';
+    const modalHtml = this.settingsOpen
+      ? this.buildSettingsModal()
+      : this.heatOpen
+        ? this.buildHeatModal()
+        : '';
 
     this.container.innerHTML = `
       <div class="hub-shell">
@@ -191,7 +207,7 @@ export class OverlayController {
           </button>
         </nav>
 
-        ${settingsModal}
+        ${modalHtml}
       </div>
     `;
 
@@ -204,10 +220,12 @@ export class OverlayController {
     const secUnlocked = this.save.unlockedSectors.includes(secId);
     const secCleared = this.save.sectorsCleared.includes(secId);
     const canUnlockSec = !secUnlocked && this.save.shards >= sector.unlockCost;
+    const heatCount = this.save.activeHeat.length;
+    const totalMult = sector.shardMult * (1 + heatCount * 0.25);
 
     const vessel = VESSELS[this.save.selectedVessel];
+    const core = CORES[this.save.selectedCore];
     const skinFilter = skinCssFilter(this.save.selectedSkin);
-    const maxHp = vessel.stats.maxHp + (this.save.upgrades.hull_integrity ?? 0) * 14;
 
     return `
       <div class="battle-tab">
@@ -225,13 +243,16 @@ export class OverlayController {
               <div class="chapter-top-badges">
                 <span class="ch-pill" style="color:${sector.accent};border-color:${sector.accent}">${sector.code}</span>
                 <span class="ch-pill" style="color:var(--gold)">
-                  ${secCleared ? '★ ' : ''}${sector.shardMult.toFixed(1)}×
+                  ${secCleared ? '★ ' : ''}${totalMult.toFixed(1)}×
                 </span>
               </div>
             </div>
             <div class="chapter-footer">
               <div class="chapter-title">${sector.name}</div>
               <div class="boss-mini">
+                <button class="heat-pill ${heatCount > 0 ? 'hot' : ''}" id="btn-heat">
+                  HEAT ${heatCount}
+                </button>
                 <div class="boss-thumb">
                   <img src="${bossArtForSector(secId)}" width="22" height="22" class="art-img" alt="" />
                 </div>
@@ -251,14 +272,18 @@ export class OverlayController {
           <div class="hero-info">
             <div class="hero-name-row">
               <span class="hero-name">${vessel.name}</span>
-              <div class="r-frame ${rarityForVessel(vessel.id)}" style="width:34px;height:34px">
-                ${artIconImg(vessel.starterWeapon, 24)}
+              <div style="display:flex;gap:5px">
+                <div class="r-frame ${rarityForVessel(vessel.id)}" style="width:32px;height:32px">
+                  ${artIconImg(vessel.starterWeapon, 22)}
+                </div>
+                <div class="r-frame ${rarityForCore(core.id)}" style="width:32px;height:32px">
+                  ${coreIconImg(core.id, 22)}
+                </div>
               </div>
             </div>
             <div class="hero-stats">
-              <span class="stat-chip">HP ${maxHp}</span>
-              <span class="stat-chip">SPD ${vessel.stats.moveSpeed}</span>
-              <span class="stat-chip" style="color:var(--accent)">${SKINS[this.save.selectedSkin].name}</span>
+              <span class="stat-chip" style="color:${core.accent};border-color:${core.accent}66">${core.name}</span>
+              <span class="stat-chip">${SKINS[this.save.selectedSkin].name}</span>
             </div>
           </div>
         </div>
@@ -276,24 +301,47 @@ export class OverlayController {
 
   private buildHangarTab(): string {
     const vessel = VESSELS[this.save.selectedVessel];
+    const core = CORES[this.save.selectedCore];
     const skinFilter = skinCssFilter(this.save.selectedSkin);
     const maxHp = vessel.stats.maxHp + (this.save.upgrades.hull_integrity ?? 0) * 14;
 
-    const cards = VESSEL_ORDER.map((vid) => {
-      const v = VESSELS[vid];
-      const unlocked = this.save.unlockedVessels.includes(vid);
-      const selected = this.save.selectedVessel === vid;
-      const tier = rarityForVessel(vid);
-      return `
-        <button class="r-frame equip-card ${tier} ${selected ? 'selected' : ''} ${unlocked ? '' : 'locked'}" data-ship="${vid}">
-          <img src="${shipArtUrl(vid)}" class="equip-thumb" style="${unlocked ? `filter:${skinFilter}` : ''}" alt="${v.name}" />
-          <div class="equip-name">${v.name}</div>
-          <div class="equip-cost">
-            ${unlocked ? (selected ? svgIcon('check', 12, '#ffffff') : '') : `${artIconImg('shard', 12)}${v.unlockCost}`}
-          </div>
-        </button>
-      `;
-    }).join('');
+    const subContent =
+      this.hangarSub === 'ships'
+        ? `<div class="equip-grid">${VESSEL_ORDER.map((vid) => {
+            const v = VESSELS[vid];
+            const unlocked = this.save.unlockedVessels.includes(vid);
+            const selected = this.save.selectedVessel === vid;
+            const tier = rarityForVessel(vid);
+            return `
+              <button class="r-frame equip-card ${tier} ${selected ? 'selected' : ''} ${unlocked ? '' : 'locked'}" data-ship="${vid}">
+                <img src="${shipArtUrl(vid)}" class="equip-thumb" style="${unlocked ? `filter:${skinFilter}` : ''}" alt="${v.name}" />
+                <div class="equip-name">${v.name}</div>
+                <div class="equip-cost">
+                  ${unlocked ? (selected ? svgIcon('check', 12, '#ffffff') : '') : `${artIconImg('shard', 12)}${v.unlockCost}`}
+                </div>
+              </button>
+            `;
+          }).join('')}</div>`
+        : `<div class="trial-list">${CORE_ORDER.map((cid) => {
+            const c = CORES[cid];
+            const unlocked = this.save.unlockedCores.includes(cid);
+            const selected = this.save.selectedCore === cid;
+            const canBuy = !unlocked && this.save.shards >= c.unlockCost;
+            return `
+              <button class="talent-row ${selected ? 'unlocked' : ''}" data-core="${cid}" style="text-align:left;${selected ? `border-color:${c.accent}` : ''}">
+                <div class="r-frame talent-node ${rarityForCore(cid)}">
+                  ${coreIconImg(cid, 28)}
+                </div>
+                <div class="talent-body">
+                  <div class="talent-name" style="color:${c.accent}">${c.name}</div>
+                  <div class="talent-stat">${c.shortDesc}</div>
+                </div>
+                <span class="buy-pill ${canBuy ? 'ready' : ''}">
+                  ${unlocked ? (selected ? svgIcon('check', 13, '#ffffff') : 'USE') : `${artIconImg('shard', 12)}${c.unlockCost}`}
+                </span>
+              </button>
+            `;
+          }).join('')}</div>`;
 
     return `
       <div class="bay-preview">
@@ -301,19 +349,24 @@ export class OverlayController {
         <div class="hero-info">
           <div class="hero-name-row">
             <span class="hero-name">${vessel.name}</span>
-            <div class="r-frame ${rarityForVessel(vessel.id)}" style="width:36px;height:36px">
-              ${artIconImg(vessel.starterWeapon, 26)}
-            </div>
+            <button class="icon-square" id="btn-randomize" style="width:32px;height:32px" aria-label="Randomize Build">
+              ${svgIcon('reroll', 15)}
+            </button>
           </div>
-          <div class="talent-stat">${vessel.perkShort}</div>
+          <div class="talent-stat">${this.hangarSub === 'ships' ? vessel.perkShort : core.shortDesc}</div>
           <div class="hero-stats">
             <span class="stat-chip">HP ${maxHp}</span>
-            <span class="stat-chip">SPD ${vessel.stats.moveSpeed}</span>
+            <span class="stat-chip" style="color:${core.accent}">${core.name}</span>
           </div>
         </div>
       </div>
 
-      <div class="equip-grid">${cards}</div>
+      <div class="subtab-row">
+        <button class="subtab-btn ${this.hangarSub === 'ships' ? 'active' : ''}" data-hsub="ships">SHIPS</button>
+        <button class="subtab-btn ${this.hangarSub === 'cores' ? 'active' : ''}" data-hsub="cores">CORES</button>
+      </div>
+
+      ${subContent}
     `;
   }
 
@@ -411,14 +464,42 @@ export class OverlayController {
     return `<div class="trial-list">${rows}</div>`;
   }
 
+  private buildHeatModal(): string {
+    const bonusPct = this.save.activeHeat.length * 25;
+    const rows = HEAT_ORDER.map((hid) => {
+      const h = HEAT_MODS[hid];
+      const on = this.save.activeHeat.includes(hid);
+      return `
+        <button class="trial-card ${on ? 'done' : ''}" data-heat="${hid}" style="width:100%;text-align:left;${on ? `border-color:${h.accent}` : ''}">
+          <div>
+            <div class="talent-name" style="color:${on ? h.accent : '#efece3'}">${h.name}</div>
+            <div class="talent-stat">${h.shortDesc}</div>
+          </div>
+          <span class="buy-pill ${on ? 'ready' : ''}">+25%</span>
+        </button>
+      `;
+    }).join('');
+
+    return `
+      <div class="modal-backdrop" id="heat-bg">
+        <div class="modal-box">
+          <div class="modal-head">
+            <div class="modal-title" style="color:#ff6a26">HEAT</div>
+            <span class="ch-pill" style="color:var(--gold)">+${bonusPct}% SHARDS</span>
+          </div>
+          <div class="trial-list">${rows}</div>
+          <button class="ghost-btn" id="btn-close-heat">DONE</button>
+        </div>
+      </div>
+    `;
+  }
+
   private buildSettingsModal(): string {
     const s = this.save.settings;
     return `
       <div class="modal-backdrop" id="settings-bg">
         <div class="modal-box">
-          <div class="modal-head">
-            <div class="modal-title">SETTINGS</div>
-          </div>
+          <div class="modal-head"><div class="modal-title">SETTINGS</div></div>
           <div class="toggle-grid">
             <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">${svgIcon('music', 16)} <span>MUSIC</span></button>
             <button class="toggle-tile ${s.sfx ? 'on' : ''}" data-toggle="sfx">${svgIcon('sfx', 16)} <span>SFX</span></button>
@@ -432,7 +513,6 @@ export class OverlayController {
   }
 
   private bindHubEvents(): void {
-    // Bottom 5 tabs
     this.container.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.tab = btn.dataset.tab as HubTab;
@@ -441,7 +521,14 @@ export class OverlayController {
       });
     });
 
-    // Quick 1-tap Music Mute right in top bar!
+    this.container.querySelectorAll<HTMLButtonElement>('[data-hsub]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.hangarSub = btn.dataset.hsub as HangarSub;
+        bridge.haptic('light');
+        this.renderHub();
+      });
+    });
+
     this.container.querySelector('#btn-quick-mute')?.addEventListener('click', () => {
       this.save.settings.music = !this.save.settings.music;
       sound.setSettings(this.save.settings.music, this.save.settings.sfx);
@@ -467,6 +554,40 @@ export class OverlayController {
       }
     });
 
+    this.container.querySelector('#btn-heat')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.heatOpen = true;
+      bridge.haptic('light');
+      this.renderHub();
+    });
+
+    this.container.querySelector('#btn-close-heat')?.addEventListener('click', () => {
+      this.heatOpen = false;
+      this.renderHub();
+    });
+
+    this.container.querySelector('#heat-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'heat-bg') {
+        this.heatOpen = false;
+        this.renderHub();
+      }
+    });
+
+    this.container.querySelectorAll<HTMLButtonElement>('[data-heat]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this.actions.onToggleHeat(b.dataset.heat as HeatId);
+        bridge.haptic('light');
+        this.renderHub();
+      });
+    });
+
+    this.container.querySelector('#btn-randomize')?.addEventListener('click', () => {
+      this.actions.onRandomizeBuild();
+      bridge.haptic('medium');
+      sound.playXp();
+      this.renderHub();
+    });
+
     this.container.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((b) => {
       b.addEventListener('click', () => {
         const key = b.dataset.toggle as keyof MetaSave['settings'];
@@ -479,7 +600,6 @@ export class OverlayController {
       });
     });
 
-    // Battle tab controls
     this.container.querySelector('#btn-sec-prev')?.addEventListener('click', () => {
       this.browsingSectorIdx = (this.browsingSectorIdx - 1 + SECTOR_ORDER.length) % SECTOR_ORDER.length;
       const id = SECTOR_ORDER[this.browsingSectorIdx];
@@ -524,7 +644,6 @@ export class OverlayController {
       }
     });
 
-    // Hangar ships
     this.container.querySelectorAll<HTMLButtonElement>('[data-ship]').forEach((b) => {
       b.addEventListener('click', () => {
         const vid = b.dataset.ship as VesselId;
@@ -545,7 +664,26 @@ export class OverlayController {
       });
     });
 
-    // Skins
+    this.container.querySelectorAll<HTMLButtonElement>('[data-core]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const cid = b.dataset.core as CoreId;
+        const c = CORES[cid];
+        if (this.save.unlockedCores.includes(cid)) {
+          this.actions.onSelectCore(cid);
+          bridge.haptic('light');
+          this.renderHub();
+        } else if (this.save.shards >= c.unlockCost) {
+          this.save.shards -= c.unlockCost;
+          this.save.unlockedCores.push(cid);
+          this.actions.onSelectCore(cid);
+          persistMetaSave(this.save);
+          bridge.haptic('success');
+          sound.playLevelUp();
+          this.renderHub();
+        }
+      });
+    });
+
     this.container.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => {
       b.addEventListener('click', () => {
         const sid = b.dataset.skin as SkinId;
@@ -566,7 +704,6 @@ export class OverlayController {
       });
     });
 
-    // Talent upgrades
     this.container.querySelectorAll<HTMLButtonElement>('[data-buy-meta]').forEach((b) => {
       b.addEventListener('click', () => {
         if (buyMetaUpgrade(this.save, b.dataset.buyMeta as MetaUpgradeId)) {
@@ -639,9 +776,28 @@ export class OverlayController {
       bossesDefeated: 0,
       shardsEarned: 0,
       sectorId: this.save.selectedSector,
+      vesselId: this.save.selectedVessel,
+      coreId: this.save.selectedCore,
+      skinId: this.save.selectedSkin,
+      heatCount: 0,
+      weapons: [],
+      relics: [],
       endlessMode: false,
       victory: false
     };
+
+    const weaponStrip = st.weapons
+      .map(
+        (w) =>
+          `<span class="r-frame ${rarityForLevel(w.level, w.evolved)}" style="width:32px;height:32px">${artIconImg(w.id, 22)}<span class="slot-lv">${w.evolved ? '★' : w.level}</span></span>`
+      )
+      .join('');
+    const relicStrip = st.relics
+      .map(
+        (rid) =>
+          `<span class="r-frame gold" style="width:28px;height:28px">${artIconImg(RELICS[rid].iconKey, 18)}</span>`
+      )
+      .join('');
 
     this.container.innerHTML = `
       <div class="modal-backdrop">
@@ -653,6 +809,12 @@ export class OverlayController {
             <div class="currency-pill" style="padding:4px 9px;color:var(--gold)">
               ${artIconImg('shard', 16)} +${st.shardsEarned}
             </div>
+          </div>
+
+          <div class="build-strip">
+            <img src="${shipArtUrl(st.vesselId)}" width="34" height="34" class="art-img" style="filter:${skinCssFilter(st.skinId)}" alt="" />
+            ${weaponStrip}
+            ${relicStrip}
           </div>
 
           <div class="summary-grid">

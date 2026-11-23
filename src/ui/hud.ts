@@ -109,8 +109,17 @@ export class HudView {
     this.timerEl.textContent = h.endlessMode ? `∞ ${formatTime(h.elapsed)}` : formatTime(h.elapsed);
     this.scoreEl.textContent = h.score.toLocaleString();
 
-    if (h.grazeCombo >= 3) {
+    if (h.surgeActive) {
       this.comboEl.style.display = 'block';
+      this.comboEl.style.color = '#f6c453';
+      this.comboEl.textContent = 'SURGE ×4';
+    } else if (h.surgeTier >= 2) {
+      this.comboEl.style.display = 'block';
+      this.comboEl.style.color = 'var(--accent)';
+      this.comboEl.textContent = h.grazeCombo >= 3 ? `×${h.surgeTier} · GRAZE ${h.grazeCombo}` : `×${h.surgeTier}`;
+    } else if (h.grazeCombo >= 3) {
+      this.comboEl.style.display = 'block';
+      this.comboEl.style.color = 'var(--accent)';
       this.comboEl.textContent = `×${h.grazeCombo}`;
     } else {
       this.comboEl.style.display = 'none';
@@ -119,7 +128,9 @@ export class HudView {
     const loadoutKey =
       h.weapons.map((w) => `${w.id}${w.level}${w.evolved ? 'E' : ''}`).join(',') +
       '|' +
-      h.passives.map((p) => `${p.id}${p.level}`).join(',');
+      h.passives.map((p) => `${p.id}${p.level}`).join(',') +
+      '|' +
+      h.relics.join(',');
     if (loadoutKey !== this.lastLoadoutKey) {
       this.lastLoadoutKey = loadoutKey;
       const wHtml = h.weapons
@@ -134,14 +145,20 @@ export class HudView {
           return `<span class="r-frame hud-slot ${tier}">${artIconImg(p.id, 16)}<span class="slot-lv">${p.level}</span></span>`;
         })
         .join('');
-      this.slotsWrap.innerHTML = wHtml + pHtml;
+      const rHtml =
+        h.relics.length > 0
+          ? `<span class="r-frame hud-slot epic">${artIconImg('core', 16)}<span class="slot-lv">${h.relics.length}</span></span>`
+          : '';
+      this.slotsWrap.innerHTML = wHtml + pHtml + rHtml;
     }
 
     const bossKey = h.boss
       ? `b:${h.boss.name}:${h.boss.hp}`
       : h.bossWarning
         ? `w:${h.bossWarning}`
-        : '';
+        : h.eventBanner
+          ? `e:${h.eventBanner}`
+          : '';
     if (bossKey !== this.lastBossKey) {
       this.lastBossKey = bossKey;
       if (h.boss) {
@@ -154,6 +171,8 @@ export class HudView {
         `;
       } else if (h.bossWarning) {
         this.bossArea.innerHTML = `<div class="boss-warn">${h.bossWarning}</div>`;
+      } else if (h.eventBanner) {
+        this.bossArea.innerHTML = `<div class="boss-warn" style="border-color:var(--accent);color:var(--accent)">${h.eventBanner}</div>`;
       } else {
         this.bossArea.innerHTML = '';
       }
@@ -172,9 +191,11 @@ export function renderUpgradeDraftHtml(
       const tier =
         c.kind === 'evolution'
           ? 'mythic'
-          : c.kind === 'heal'
-            ? 'good'
-            : rarityForLevel(c.level ?? 1, false);
+          : c.kind === 'relic'
+            ? 'gold'
+            : c.kind === 'heal'
+              ? 'good'
+              : rarityForLevel(c.level ?? 1, false);
       const pips =
         c.level && c.maxLevel
           ? `<div class="pips">${Array.from({ length: c.maxLevel }, (_, i) => `<span class="pip ${i < c.level! ? 'on' : ''}"></span>`).join('')}</div>`
@@ -182,11 +203,13 @@ export function renderUpgradeDraftHtml(
       const tag =
         c.kind === 'evolution'
           ? 'EVO'
-          : c.isSynergy
-            ? 'EVO PAIR'
-            : c.isNew
-              ? 'NEW'
-              : '';
+          : c.kind === 'relic'
+            ? 'RELIC'
+            : c.isSynergy
+              ? 'EVO PAIR'
+              : c.isNew
+                ? 'NEW'
+                : '';
       return `
         <button class="draft-card ${c.kind === 'evolution' ? 'evo' : ''}" data-choice="${c.id}">
           <div class="r-frame draft-icon-box ${tier}">

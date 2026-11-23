@@ -3,14 +3,14 @@
 A post-apocalyptic relic-wasteland bullet-hell roguelike built for iPhone (portrait one-thumb + Lift-to-Focus time-dilation).
 
 ## Features
-- **Lift-to-Focus (`STILLPOINT`) + Parry Shockwave**: Drag anywhere to steer your scavenged hover-rig and graze enemy fire for Kinetic Charge; lift your thumb (or hold **Space** on desktop) to drop time to ~17%, reveal your pinpoint relic core, and shatter nearby bullets into homing counter-shards.
-- **Post-Apocalyptic Relic Wasteland Art**: Textured biome floors, scattered ruins (cracked rebar slabs, rusted girders, buried brass gears, pillars), shaded war-automaton sprites with grounded drop shadows, shattering polygon debris, and drifting ash/spores/embers.
-- **6 Unlockable Vessels**: *VESPER*, *AEGIS*, *PHANTOM*, *VOLT*, *NOVA*, and *SERAPH* — each with unique hull geometry, starter weapon, and Stillpoint perk.
-- **10 Unlockable Skins**: *RELIC*, *OXIDE*, *BRASSWORKS*, *HAZARD*, *OVERGROWN*, *FROSTGLASS*, *AMETHYST*, *SUMI BONE*, *SLAG CORE*, and *AURELIA* — transforming hull finish, exhaust wake, UI accents, and Parry Shockwave palettes live.
-- **4 Wasteland Sectors**: *01 ASH FLATS*, *02 SUNKEN METRO*, *03 SLAG FOUNDRY*, and *04 THE MONOLITH*, complete with mid-run **Overclock Rings**, breakable **Relic Shrines**, and risk/reward **Cursed Pact Altars**.
-- **10 Dual-State Weapons + 10 Passives + 10 Catalyst Evolutions**: Every weapon shifts behavior between Normal Time and Stillpoint Slow-Mo.
-- **4 Multi-Phase Bosses + Endless Overdrive**: *Vortex Weaver*, *Prism Seraph*, *Chrono Archon*, and the articulated serpent *Void Leviathan*.
-- **8 Core Upgrades + 16 Unlockable Trophies**.
+- **Lift-to-Focus (`STILLPOINT`) + 5 Swappable Stillpoint Cores**: Drag anywhere to steer your scavenged hover-rig and graze enemy fire for Kinetic Charge; lift your thumb (or hold **Space** on desktop) to trigger your equipped Core — **Deflector** (Parry Shockwave), **Phantom Blink** (forward warp + decoy detonation), **Gravity Siphon** (vortex pull + shrapnel shatter), **Overclock** (2.3× fire rate & auto-crit), or **Razor Reflex** (counter-slash execute & shield conversion).
+- **12 Dual-State Weapons + 12 Passives + 12 Catalyst Evolutions**: Every weapon changes behavior between Normal Time and Stillpoint Slow-Mo — including **Cryo Ring** (chill → Stillpoint shatter) and **Swarm Missiles** (paint lock-ons in Stillpoint → release homing salvo on touch-down).
+- **12 Wildcard Run Relics**: Build-breaking artifacts offered at milestones and Relic Shrines (Glass Prism, Volatile Shrapnel, Time Bank, Blood Engine, Chain Parry, Ghost Step, Executioner, Bullet Alchemy, Orbital Overdrive, Last Stand, Double Tap, Magnetic Storm).
+- **5 Stackable Heat Mutators**: Toggle *Swarm +40%*, *Hyper Fire*, *Ironclad*, *Glass Edge*, and *Cursed Void* for +25% Shards each (up to +125%).
+- **Momentum Surge & Mid-Run Tactical Events**: Chain kills, grazes, and parries to ignite **SURGE ×4** (+45% fire rate & movement), intercept golden **Relic Haulers**, survive **Swarm Rings**, and dodge **Slag Barrages**.
+- **6 Unlockable Vessels + 10 Skins + 1-Tap Build Randomizer**: *VESPER*, *AEGIS*, *PHANTOM*, *VOLT*, *NOVA*, and *SERAPH* across 10 wasteland paint finishes, plus 46 studio-rendered top-down 2.5D sprites & icons.
+- **4 Wasteland Sectors, 14 Tactical Enemies & 4 Multi-Phase Bosses**: *01 ASH FLATS*, *02 SUNKEN METRO*, *03 SLAG FOUNDRY*, and *04 THE MONOLITH*, featuring Kinetic Leeches, Cluster Bombers, Shielded Phalanxes, Drone Carriers, and Endless Overdrive.
+- **Reactive Synth Soundtrack + 1-Tap Mute**: Dynamic D-minor synthwave score with Stillpoint low-pass sweep, instant mute, and iOS ambient audio mixing (never interrupts Spotify/Apple Music).
 
 ## Installing on iPhone via Sideloadly
 1. Download `STILLPOINT-unsigned.ipa` from the **Releases** page.

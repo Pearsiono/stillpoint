@@ -38,6 +38,11 @@ const ENEMY_ART_MAP: Partial<Record<EnemyKind, string>> = {
   spinner: 'enemy_spinner',
   reflector: 'enemy_reflector',
   mine: 'enemy_mine',
+  leech: 'enemy_leech',
+  bomber: 'enemy_bomber',
+  aegis_bot: 'enemy_aegis_bot',
+  carrier: 'enemy_carrier',
+  hauler: 'enemy_hauler',
   boss_weaver: 'boss_weaver',
   boss_seraph: 'boss_seraph',
   boss_archon: 'boss_archon',
@@ -87,6 +92,9 @@ class SpriteBank {
       './art/icon_ricochet_shard.png',
       './art/icon_nova_pulse.png',
       './art/icon_rail_turret.png',
+      './art/icon_frost_nova.png',
+      './art/icon_swarm_missiles.png',
+      './art/icon_core.png',
       './art/icon_shield.png',
       './art/icon_shard.png'
     ]) {
