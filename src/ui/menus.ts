@@ -3,7 +3,6 @@ import { bridge } from '../bridge';
 import { CORE_ORDER, CORES, HEAT_MODS, HEAT_ORDER, RELICS } from '../data/builds';
 import {
   CRATE_KEY_COST,
-  createEffectItem,
   FINISHES,
   getCoatingScrapValue,
   getEffectMeta,
@@ -57,7 +56,6 @@ import {
   CoreId,
   CrateDrop,
   EffectItem,
-  FinishId,
   GamePhase,
   HeatId,
   LoadoutPresetIndex,
@@ -73,6 +71,7 @@ import {
   artIconImg,
   bossArtForSector,
   coreIconImg,
+  crateArtUrl,
   rarityForCore,
   rarityForLevel,
   rarityForVessel,
@@ -87,27 +86,6 @@ type HangarSub = 'ships' | 'cores';
 type ArmorySub = 'crates' | 'locker' | 'fx';
 type FxFilter = 'all' | 'trail' | 'aura';
 type FxDemoMode = 'auto' | 'flight' | 'stillpoint';
-
-type CratePreviewTile =
-  | { kind: 'coating'; id: FinishId; seed: number; floatVal: number }
-  | { kind: 'effect'; item: EffectItem };
-
-// Cosmetic-only crate showcase strips (Coatings + Rolled Pattern/Wear Effects)
-const STD_CRATE_SAMPLES: CratePreviewTile[] = [
-  { kind: 'coating', id: 'dune_splinter', seed: 142, floatVal: 0.14 },
-  { kind: 'effect', item: createEffectItem('trail', 'slag_flame', 310, 0.08) },
-  { kind: 'effect', item: createEffectItem('aura', 'blood_slash', 512, 0.12) },
-  { kind: 'coating', id: 'case_hardened', seed: 661, floatVal: 0.05 },
-  { kind: 'effect', item: createEffectItem('aura', 'chrono_crown', 888, 0.02) }
-];
-
-const RELIC_CRATE_SAMPLES: CratePreviewTile[] = [
-  { kind: 'coating', id: 'blood_marble', seed: 205, floatVal: 0.09 },
-  { kind: 'effect', item: createEffectItem('trail', 'void_arc', 950, 0.05) },
-  { kind: 'coating', id: 'gamma_doppler', seed: 942, floatVal: 0.02 },
-  { kind: 'effect', item: createEffectItem('aura', 'prism_shatter', 742, 0.04) },
-  { kind: 'coating', id: 'void_starlight', seed: 512, floatVal: 0.02 }
-];
 
 const PRESET_LABELS: readonly string[] = ['A', 'B', 'C'];
 
@@ -141,6 +119,7 @@ export class OverlayController {
   private browsingSectorIdx = 0;
   private settingsOpen = false;
   private heatOpen = false;
+  private oddsOpen = false;
   private inspectUid: string | null = null;
   private inspectEffectUid: string | null = null;
   private inspectVesselIdx = 0;
@@ -221,6 +200,7 @@ export class OverlayController {
     if (phase === 'playing') {
       this.settingsOpen = false;
       this.heatOpen = false;
+      this.oddsOpen = false;
       this.inspectUid = null;
       this.inspectEffectUid = null;
       this.container.innerHTML = '';
@@ -299,11 +279,13 @@ export class OverlayController {
         ? this.buildInspectEffectModal()
         : this.inspectUid
           ? this.buildInspectModal()
-          : this.settingsOpen
-            ? this.buildSettingsModal()
-            : this.heatOpen
-              ? this.buildHeatModal()
-              : '';
+          : this.oddsOpen
+            ? this.buildCrateOddsModal()
+            : this.settingsOpen
+              ? this.buildSettingsModal()
+              : this.heatOpen
+                ? this.buildHeatModal()
+                : '';
 
     this.container.innerHTML = `
       <div class="hub-shell">
@@ -614,29 +596,16 @@ export class OverlayController {
     const canBuyKey = this.save.shards >= CRATE_KEY_COST;
     const hasKeys = this.save.keys > 0;
 
-    const renderStrip = (group: 'std' | 'relic', samples: CratePreviewTile[]) =>
-      samples
-        .map((s, idx) => {
-          if (s.kind === 'coating') {
-            const rar = RARITY_META[FINISHES[s.id].rarity];
-            return `<div class="crate-mini-swatch" style="border-bottom-color:${rar.color}"><canvas width="64" height="32" data-crate-sample="${group}:${idx}"></canvas></div>`;
-          }
-          const meta = getEffectMeta(s.item.slot, s.item.effectId);
-          const rar = RARITY_META[meta.rarity];
-          return `<div class="crate-mini-swatch crate-mini-icon" style="border-bottom-color:${rar.color}"><canvas width="64" height="44" data-crate-sample="${group}:${idx}"></canvas></div>`;
-        })
-        .join('');
-
     const stdLabel =
       this.save.standardCrates === 0
-        ? 'Drop from bosses, haulers, and trials'
+        ? 'Earn from bosses, haulers, and trials'
         : hasKeys
           ? `${svgIcon('key', 14, '#161108')}<span>Open</span>`
           : 'Need 1 key';
 
     const relicLabel =
       this.save.relicCrates === 0
-        ? 'Drop from sector clears and hard trials'
+        ? 'Earn from sector clears and hard trials'
         : hasKeys
           ? `${svgIcon('key', 14, '#1a0904')}<span>Open</span>`
           : 'Need 1 key';
@@ -648,35 +617,33 @@ export class OverlayController {
           <span class="key-bar-title">Crate keys</span>
           <span class="key-bar-count">×${this.save.keys}</span>
         </div>
-        <button class="buy-pill ${canBuyKey ? 'ready' : ''}" id="btn-buy-key" ${canBuyKey ? '' : 'disabled'}>
-          <span>Buy key</span>
-          ${artIconImg('shard', 12)}
-          <span>${CRATE_KEY_COST}</span>
-        </button>
+        <div class="key-bar-actions">
+          <button class="icon-square" id="btn-crate-odds" style="width:32px;height:32px" aria-label="Crate drop odds">
+            ${svgIcon('info', 15)}
+          </button>
+          <button class="buy-pill ${canBuyKey ? 'ready' : ''}" id="btn-buy-key" ${canBuyKey ? '' : 'disabled'}>
+            <span>Buy key</span>
+            ${artIconImg('shard', 12)}
+            <span>${CRATE_KEY_COST}</span>
+          </button>
+        </div>
       </div>
 
       <div class="crate-stack">
         <div class="crate-block">
-          <div class="crate-top">
-            <div class="crate-title">Salvage crate</div>
-            <span class="crate-count" style="color:${this.save.standardCrates > 0 ? 'var(--gold)' : 'var(--muted)'}">
-              ×${this.save.standardCrates}
-            </span>
-          </div>
-          <div class="crate-preview-strip">${renderStrip('std', STD_CRATE_SAMPLES)}</div>
-          <div class="odds-bar">
-            <div style="flex:60;background:#5b82d6"></div>
-            <div style="flex:25;background:#9c6ae6"></div>
-            <div style="flex:10.5;background:#d64eb8"></div>
-            <div style="flex:3.7;background:#d9483b"></div>
-            <div style="flex:0.8;background:#e2a93b"></div>
-          </div>
-          <div class="odds-legend">
-            <span style="color:#5b82d6">60%</span>
-            <span style="color:#9c6ae6">25%</span>
-            <span style="color:#d64eb8">10.5%</span>
-            <span style="color:#d9483b">3.7%</span>
-            <span style="color:#e2a93b">★ 0.8%</span>
+          <div class="crate-hero">
+            <div class="crate-icon-wrap">
+              <img src="${crateArtUrl('standard')}" class="crate-icon-art" alt="Salvage crate" draggable="false" />
+            </div>
+            <div class="crate-meta">
+              <div class="crate-top">
+                <div class="crate-title">Salvage crate</div>
+                <span class="crate-count" style="color:${this.save.standardCrates > 0 ? 'var(--gold)' : 'var(--muted)'}">
+                  ×${this.save.standardCrates}
+                </span>
+              </div>
+              <div class="ledger-sub">Pattern skins, thruster exhausts, and Stillpoint auras from haulers and bosses.</div>
+            </div>
           </div>
           <button class="battle-btn ${this.save.standardCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-std" ${this.save.standardCrates > 0 ? '' : 'disabled'}>
             ${stdLabel}
@@ -684,30 +651,92 @@ export class OverlayController {
         </div>
 
         <div class="crate-block">
-          <div class="crate-top">
-            <div class="crate-title" style="color:var(--gold)">Classified crate</div>
-            <span class="crate-count" style="color:${this.save.relicCrates > 0 ? 'var(--gold)' : 'var(--muted)'}">
-              ×${this.save.relicCrates}
-            </span>
-          </div>
-          <div class="crate-preview-strip">${renderStrip('relic', RELIC_CRATE_SAMPLES)}</div>
-          <div class="odds-bar">
-            <div style="flex:28;background:#5b82d6"></div>
-            <div style="flex:38;background:#9c6ae6"></div>
-            <div style="flex:23;background:#d64eb8"></div>
-            <div style="flex:8.8;background:#d9483b"></div>
-            <div style="flex:2.2;background:#e2a93b"></div>
-          </div>
-          <div class="odds-legend">
-            <span style="color:#5b82d6">28%</span>
-            <span style="color:#9c6ae6">38%</span>
-            <span style="color:#d64eb8">23%</span>
-            <span style="color:#d9483b">8.8%</span>
-            <span style="color:#e2a93b">★ 2.2%</span>
+          <div class="crate-hero">
+            <div class="crate-icon-wrap classified">
+              <img src="${crateArtUrl('relic')}" class="crate-icon-art" alt="Classified crate" draggable="false" />
+            </div>
+            <div class="crate-meta">
+              <div class="crate-top">
+                <div class="crate-title" style="color:var(--gold)">Classified crate</div>
+                <span class="crate-count" style="color:${this.save.relicCrates > 0 ? 'var(--gold)' : 'var(--muted)'}">
+                  ×${this.save.relicCrates}
+                </span>
+              </div>
+              <div class="ledger-sub">Higher rare and Relic ★ odds from sector clears and hard trials.</div>
+            </div>
           </div>
           <button class="battle-btn rust-btn ${this.save.relicCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>
             ${relicLabel}
           </button>
+        </div>
+      </div>
+    `;
+  }
+
+  private buildCrateOddsModal(): string {
+    const renderTable = (rates: Array<{ label: string; pct: string; flex: number; color: string }>) => `
+      <div class="odds-bar">
+        ${rates.map((r) => `<div style="flex:${r.flex};background:${r.color}"></div>`).join('')}
+      </div>
+      <div class="odds-table">
+        ${rates
+          .map(
+            (r) => `
+              <div class="odds-cell" style="border-top-color:${r.color}">
+                <span class="odds-tier">${r.label}</span>
+                <span class="odds-pct" style="color:${r.color}">${r.pct}</span>
+              </div>
+            `
+          )
+          .join('')}
+      </div>
+    `;
+
+    const stdRates = [
+      { label: 'Mil-Spec', pct: '60%', flex: 60, color: '#5b82d6' },
+      { label: 'Restricted', pct: '25%', flex: 25, color: '#9c6ae6' },
+      { label: 'Classified', pct: '10.5%', flex: 10.5, color: '#d64eb8' },
+      { label: 'Covert', pct: '3.7%', flex: 3.7, color: '#d9483b' },
+      { label: 'Relic ★', pct: '0.8%', flex: 0.8, color: '#e2a93b' }
+    ];
+
+    const relicRates = [
+      { label: 'Mil-Spec', pct: '28%', flex: 28, color: '#5b82d6' },
+      { label: 'Restricted', pct: '38%', flex: 38, color: '#9c6ae6' },
+      { label: 'Classified', pct: '23%', flex: 23, color: '#d64eb8' },
+      { label: 'Covert', pct: '8.8%', flex: 8.8, color: '#d9483b' },
+      { label: 'Relic ★', pct: '2.2%', flex: 2.2, color: '#e2a93b' }
+    ];
+
+    return `
+      <div class="modal-backdrop" id="odds-bg">
+        <div class="modal-box" style="border-top-color:var(--gold)">
+          <div class="modal-head">
+            <div class="modal-title">Drop odds</div>
+            <span class="mono" style="color:var(--muted);font-size:11px">Cosmetics only</span>
+          </div>
+
+          <div class="odds-section">
+            <div class="odds-head">
+              <img src="${crateArtUrl('standard')}" width="24" height="24" class="art-img" alt="" />
+              <span>Salvage crate</span>
+            </div>
+            ${renderTable(stdRates)}
+          </div>
+
+          <div class="odds-section">
+            <div class="odds-head" style="color:var(--gold)">
+              <img src="${crateArtUrl('relic')}" width="24" height="24" class="art-img" alt="" />
+              <span>Classified crate</span>
+            </div>
+            ${renderTable(relicRates)}
+          </div>
+
+          <div class="odds-note">
+            Pool contains 20 pattern skins and 14 thruster or aura effects. Each drop rolls pattern #000 to #999, float wear FN to BS, and a 10% ST tracker chance. Trade up 5 matching drops to craft the next tier.
+          </div>
+
+          <button class="ghost-btn" id="btn-close-odds">Done</button>
         </div>
       </div>
     `;
@@ -1362,21 +1391,7 @@ export class OverlayController {
       }
     });
 
-    // 2. Crate sample tiles (Coatings & Rolled Effects)
-    this.container.querySelectorAll<HTMLCanvasElement>('[data-crate-sample]').forEach((cv) => {
-      const [group, idxStr] = (cv.dataset.crateSample ?? '').split(':');
-      const sample = (group === 'relic' ? RELIC_CRATE_SAMPLES : STD_CRATE_SAMPLES)[Number(idxStr)];
-      if (!sample) return;
-      if (sample.kind === 'coating') {
-        const swatch = renderPatternCanvas(sample.id, sample.seed, sample.floatVal, 64);
-        const ctx = cv.getContext('2d');
-        ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
-      } else {
-        drawEffectThumbnail(cv, sample.item, 1.6);
-      }
-    });
-
-    // 3. Rolled Effect inventory thumbnails
+    // 2. Rolled Effect inventory thumbnails
     this.container.querySelectorAll<HTMLCanvasElement>('[data-fx-thumb]').forEach((cv) => {
       const uid = cv.dataset.fxThumb;
       const item = this.save.effectItems.find((e) => e.uid === uid);
@@ -1465,24 +1480,25 @@ export class OverlayController {
 
     ctx.clearRect(0, 0, W, H);
 
-    // Subtle dark tarmac scroll grid lines so movement & Stillpoint slowdown read instantly!
-    const scrollSpd = 120 * (1 - stillBlend * 0.85);
-    const gridOff = (time * scrollSpd) % 36;
+    // Scroll the actual painted wasteland biome floor underneath the preview ship!
+    const tile = sprites.getPaintedBiomeTile(this.save.selectedSector) ?? sprites.getBiomeTile(this.save.selectedSector);
+    const tileSz = 260;
+    const scrollSpd = 128 * (1 - stillBlend * 0.86);
+    const tileOff = (time * scrollSpd) % tileSz;
     ctx.save();
-    ctx.strokeStyle = `rgba(226, 212, 188, ${0.06 - stillBlend * 0.025})`;
-    ctx.lineWidth = 1;
-    for (let y = gridOff; y < H; y += 36) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+    for (let x = -tileSz * 0.25; x < W; x += tileSz) {
+      for (let y = tileOff - tileSz; y < H; y += tileSz) {
+        ctx.drawImage(tile, x, y, tileSz, tileSz);
+      }
     }
-    for (let x = 20; x < W; x += 36) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, H);
-      ctx.stroke();
-    }
+    // Soft Stillpoint ash-silence dimmer + subtle vignette matching live gameplay!
+    ctx.fillStyle = `rgba(9, 10, 14, ${0.28 + stillBlend * 0.44})`;
+    ctx.fillRect(0, 0, W, H);
+    const vig = ctx.createRadialGradient(W * 0.5, H * 0.48, W * 0.16, W * 0.5, H * 0.5, W * 0.66);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(7,7,10,0.72)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
     ctx.restore();
 
     // Streaming synthetic flight wake trail behind ship!
@@ -1665,7 +1681,22 @@ export class OverlayController {
       });
     });
 
-    // Keys & Crates
+    // Keys, Drop Odds Info & Crates
+    this.container.querySelector('#btn-crate-odds')?.addEventListener('click', () => {
+      this.oddsOpen = true;
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+    this.container.querySelector('#btn-close-odds')?.addEventListener('click', () => {
+      this.oddsOpen = false;
+      this.renderHub(true);
+    });
+    this.container.querySelector('#odds-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'odds-bg') {
+        this.oddsOpen = false;
+        this.renderHub(true);
+      }
+    });
     this.container.querySelector('#btn-buy-key')?.addEventListener('click', () => {
       if (buyCrateKey(this.save)) {
         sound.playLevelUp();

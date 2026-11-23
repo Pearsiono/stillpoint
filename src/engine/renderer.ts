@@ -437,10 +437,69 @@ export class WastelandRenderer {
       const fade = Math.min(1, (h.maxAge - h.age) * 2);
       ctx.save();
       ctx.translate(h.x, h.y);
+
+      if (h.kind === 'acid_pool') {
+        // Organic multi-lobe bubbling caustic wasteland puddle!
+        ctx.globalAlpha = fade * 0.85;
+        ctx.drawImage(sprites.get('glow_emerald'), -h.radius * 1.15, -h.radius * 1.15, h.radius * 2.3, h.radius * 2.3);
+
+        const traceLobe = (scale: number, wobble: number) => {
+          ctx.beginPath();
+          const steps = 28;
+          for (let s = 0; s <= steps; s++) {
+            const a = (s / steps) * Math.PI * 2;
+            const n =
+              1 +
+              0.11 * Math.sin(a * 3 + h.id * 1.7 + realTime * 1.6) +
+              0.07 * Math.cos(a * 5 - h.id * 0.9 - realTime * 2.2);
+            const r = h.radius * scale * (1 - wobble + wobble * n);
+            const px = Math.cos(a) * r;
+            const py = Math.sin(a) * r;
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+        };
+
+        // Dark corroded sludge interior
+        traceLobe(0.96, 1.0);
+        const sludge = ctx.createRadialGradient(0, 0, h.radius * 0.12, 0, 0, h.radius);
+        sludge.addColorStop(0, 'rgba(18, 42, 16, 0.72)');
+        sludge.addColorStop(0.68, 'rgba(54, 118, 36, 0.56)');
+        sludge.addColorStop(1, 'rgba(128, 226, 86, 0.25)');
+        ctx.fillStyle = sludge;
+        ctx.fill();
+        ctx.strokeStyle = h.evolved ? '#b9ff72' : '#7ae352';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Rising & popping animated caustic gas bubbles!
+        for (let b = 0; b < 5; b++) {
+          const cycle = (realTime * (0.9 + (b % 3) * 0.25) + h.id * 0.37 + b * 0.21) % 1;
+          const ba = b * 1.38 + h.id;
+          const br = h.radius * (0.22 + ((b * 0.19 + 0.12) % 0.52));
+          const bx = Math.cos(ba) * br;
+          const by = Math.sin(ba) * br;
+          const bubR = (2.2 + cycle * 4.6) * (h.radius / 42);
+          ctx.globalAlpha = fade * (1 - cycle) * 0.78;
+          ctx.strokeStyle = '#d4ff9c';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(bx, by, bubR, 0, Math.PI * 2);
+          ctx.stroke();
+          if (cycle < 0.75) {
+            ctx.fillStyle = 'rgba(218, 255, 170, 0.45)';
+            ctx.beginPath();
+            ctx.arc(bx - bubR * 0.3, by - bubR * 0.3, Math.max(0.8, bubR * 0.28), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+        continue;
+      }
+
       ctx.globalAlpha = fade * (h.kind === 'singularity' ? 0.9 : 0.68);
-      const glow = sprites.get(
-        h.kind === 'acid_pool' ? 'glow_emerald' : h.kind === 'rift' ? 'glow_cyan' : 'glow_magenta'
-      );
+      const glow = sprites.get(h.kind === 'rift' ? 'glow_cyan' : 'glow_magenta');
       ctx.drawImage(glow, -h.radius * 1.1, -h.radius * 1.1, h.radius * 2.2, h.radius * 2.2);
 
       ctx.strokeStyle = h.color;
@@ -492,77 +551,228 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    // Phantom Blink exploding decoys
-    const shipArt = sprites.getCoatedShipArt(state.vesselId, state.coating);
+    // Phantom Blink exploding phase-beacon decoys (distinct glitching holographic construct, NOT ship clone!)
     for (const d of state.decoys) {
-      const ratio = 1 - d.age / d.maxAge;
+      const progress = Math.min(1, d.age / d.maxAge);
+      const pulse = 0.65 + 0.35 * Math.sin(state.realTime * (12 + progress * 24));
       ctx.save();
       ctx.translate(d.x, d.y);
+
+      // Soft magenta-violet instability glow beneath emitter
+      ctx.globalAlpha = 0.42 + progress * 0.35;
+      ctx.drawImage(sprites.get('glow_magenta'), -36, -36, 72, 72);
+
+      // Fuse countdown ring filling toward detonation
+      ctx.globalAlpha = 0.3;
       ctx.strokeStyle = '#cf7dff';
-      ctx.globalAlpha = 0.65;
       ctx.lineWidth = 2;
-      ctx.setLineDash([6, 5]);
       ctx.beginPath();
-      ctx.arc(0, 0, 26 + (1 - ratio) * 10, 0, Math.PI * 2);
+      ctx.arc(0, 0, 26, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.setLineDash([]);
-      if (shipArt) {
-        ctx.globalAlpha = 0.45 + Math.sin(state.realTime * 28) * 0.15;
-        ctx.drawImage(shipArt, -22, -22, 44, 44);
+
+      ctx.globalAlpha = 0.88;
+      ctx.strokeStyle = progress > 0.72 ? '#ffe0f8' : '#cf7dff';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+      ctx.stroke();
+
+      // Rotating chamfered dark-metal emitter pad
+      ctx.save();
+      ctx.rotate(-state.realTime * (1.8 + progress * 3));
+      ctx.fillStyle = '#1b1724';
+      ctx.strokeStyle = '#9c6ae6';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = (k * Math.PI) / 3;
+        const r = 13;
+        if (k === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
       }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // Glitch-sliced holographic wireframe silhouette bars (vibrates harder near blast!)
+      for (let s = -2; s <= 2; s++) {
+        const jitter = Math.sin(state.realTime * 38 + s * 7.3) * (2.5 + progress * 5.5);
+        const w = (18 - Math.abs(s) * 4.5) * (0.9 + 0.15 * pulse);
+        ctx.fillStyle = s % 2 === 0 ? 'rgba(214, 134, 255, 0.72)' : 'rgba(116, 232, 245, 0.62)';
+        ctx.fillRect(jitter - w / 2, s * 4.5 - 1.2, w, 2.2);
+      }
+
+      // Incandescent phase detonation core diamond
+      ctx.fillStyle = '#ffffff';
+      const cd = 4.2 + progress * 2.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -cd);
+      ctx.lineTo(cd * 0.75, 0);
+      ctx.lineTo(0, cd);
+      ctx.lineTo(-cd * 0.75, 0);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     }
 
-    // Phase Echo holographic turrets
+    // Phase Echo bespoke rotary defense turrets (uses painted turret_echo.png + laser sightline + muzzle flash!)
+    const turretArt = sprites.getTurretEchoArt();
+    const turretShadow = sprites.getTurretEchoShadow();
     for (const ec of state.echoes) {
-      const fade = Math.min(1, (ec.maxAge - ec.age) * 2);
+      const fade = Math.min(1, (ec.maxAge - ec.age) * 2.2);
+      const remain = Math.max(0, 1 - ec.age / ec.maxAge);
+      const recoil = (ec.muzzleFlash ?? 0) * 3.2;
+
+      // Subtle emerald targeting laser sightline toward locked hostile
+      if (ec.targetX !== undefined && ec.targetY !== undefined) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(92, 214, 141, 0.34)';
+        ctx.globalAlpha = fade;
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(ec.x + Math.cos(ec.angle) * 16, ec.y + Math.sin(ec.angle) * 16);
+        ctx.lineTo(ec.targetX, ec.targetY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
       ctx.save();
       ctx.translate(ec.x, ec.y);
-      ctx.strokeStyle = '#5cd68d';
-      ctx.globalAlpha = 0.72 * fade;
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([5, 5]);
+      ctx.globalAlpha = fade;
+
+      // Grounded stabilizer field & remaining-life arc
+      ctx.drawImage(sprites.get('glow_emerald'), -26, -26, 52, 52);
+      ctx.strokeStyle = 'rgba(92, 214, 141, 0.24)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(0, 0, 22, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.setLineDash([]);
-      if (shipArt) {
-        ctx.rotate(ec.angle + Math.PI / 2);
-        ctx.globalAlpha = (0.52 + 0.14 * Math.sin(state.realTime * 18 + ec.id)) * fade;
-        ctx.drawImage(shipArt, -20, -20, 40, 40);
+
+      ctx.strokeStyle = '#5cd68d';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 22, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remain);
+      ctx.stroke();
+
+      // Grounded turret hover shadow
+      const rot = ec.angle + Math.PI / 2;
+      if (turretShadow) {
+        ctx.save();
+        ctx.translate(4, 7);
+        ctx.rotate(rot);
+        ctx.globalAlpha = fade * 0.7;
+        ctx.drawImage(turretShadow, -22, -22, 44, 44);
+        ctx.restore();
       }
+
+      // Bespoke painted rotary defense turret sprite (kicks back slightly on shot!)
+      ctx.save();
+      ctx.rotate(rot);
+      ctx.translate(0, recoil);
+      if (turretArt) {
+        ctx.drawImage(turretArt, -22, -22, 44, 44);
+      } else {
+        ctx.fillStyle = '#2d3632';
+        ctx.strokeStyle = '#5cd68d';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      // Crisp twin-barrel muzzle flash glow!
+      if ((ec.muzzleFlash ?? 0) > 0.08) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = ec.muzzleFlash * fade;
+        for (const bx of [-4.5, 4.5]) {
+          const mg = ctx.createRadialGradient(bx, -21, 0.5, bx, -21, 8.5);
+          mg.addColorStop(0, '#ffffff');
+          mg.addColorStop(0.45, '#5cd68d');
+          mg.addColorStop(1, 'rgba(92,214,141,0)');
+          ctx.fillStyle = mg;
+          ctx.beginPath();
+          ctx.arc(bx, -21, 8.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
       ctx.restore();
     }
 
-    // Wake Mines proximity mines
+    // Wake Mines — riveted industrial 6-prong proximity mines with sensor sweep pulse
     for (const m of state.mines) {
       const blink = 0.55 + 0.45 * Math.sin(state.realTime * 14 + m.id);
+      const sweep = (state.realTime * 1.4 + m.id * 0.31) % 1;
       ctx.save();
       ctx.translate(m.x, m.y);
-      ctx.strokeStyle = m.armed ? `rgba(224, 99, 43, ${0.35 + blink * 0.3})` : 'rgba(224, 178, 74, 0.25)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, m.radius * 0.55, 0, Math.PI * 2);
-      ctx.stroke();
 
-      ctx.fillStyle = '#241c18';
-      ctx.strokeStyle = m.armed ? '#ff7b47' : '#a39a8c';
-      ctx.lineWidth = 1.6;
+      // Ground shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.44)';
+      ctx.beginPath();
+      ctx.ellipse(3, 5, 10, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Expanding proximity trigger sweep pulse when armed
+      if (m.armed) {
+        ctx.strokeStyle = `rgba(224, 99, 43, ${(1 - sweep) * 0.45})`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(0, 0, 10 + sweep * (m.radius * 0.52), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = m.armed ? `rgba(224, 99, 43, ${0.22 + blink * 0.2})` : 'rgba(224, 178, 74, 0.22)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius * 0.54, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 6 metallic contact horns + octagonal beveled mine casing
+      ctx.save();
+      ctx.rotate(state.realTime * (m.armed ? 0.9 : 0.35) + m.id);
+      ctx.strokeStyle = '#7c766c';
+      ctx.lineWidth = 2.2;
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 6, Math.sin(a) * 6);
+        ctx.lineTo(Math.cos(a) * 11, Math.sin(a) * 11);
+        ctx.stroke();
+      }
+
+      const casingGrad = ctx.createRadialGradient(-2, -2, 1, 0, 0, 8.5);
+      casingGrad.addColorStop(0, '#5a5854');
+      casingGrad.addColorStop(0.65, '#2b2926');
+      casingGrad.addColorStop(1, '#141312');
+      ctx.fillStyle = casingGrad;
+      ctx.strokeStyle = m.armed ? '#b37b42' : '#5e5a54';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
-        const a = (i * Math.PI) / 3 + state.realTime * 1.1;
-        const r = 7;
+        const a = (i * Math.PI) / 3 + Math.PI / 6;
+        const r = 8.2;
         if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
         else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
       }
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+      ctx.restore();
 
+      // Recessed armed sensor dome
       ctx.fillStyle = m.armed ? '#ff5436' : '#dfa436';
-      ctx.globalAlpha = blink;
+      ctx.globalAlpha = 0.72 + blink * 0.28;
       ctx.beginPath();
-      ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+      ctx.arc(0, 0, 3.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff5dc';
+      ctx.beginPath();
+      ctx.arc(-0.8, -0.8, 1.1, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -603,28 +813,70 @@ export class WastelandRenderer {
 
   private drawPylons(ctx: CanvasRenderingContext2D, pylons: RailPylon[], realTime: number): void {
     for (const py of pylons) {
+      const pulse = 0.72 + 0.28 * Math.sin(realTime * 9 + py.id);
+      const accent = py.evolved ? '#45e8d8' : '#e5b34c';
       ctx.save();
       ctx.translate(py.x, py.y);
-      ctx.fillStyle = 'rgba(0,0,0,0.42)';
-      ctx.beginPath();
-      ctx.ellipse(4, 7, 11, 7, 0, 0, Math.PI * 2);
-      ctx.fill();
 
-      ctx.fillStyle = '#2c2924';
-      ctx.strokeStyle = py.evolved ? '#45e8d8' : '#e5b34c';
-      ctx.lineWidth = 2;
+      // Grounded shadow + soft energy base glow
+      ctx.fillStyle = 'rgba(0,0,0,0.48)';
       ctx.beginPath();
-      ctx.moveTo(0, -13);
-      ctx.lineTo(10, 2);
-      ctx.lineTo(0, 11);
-      ctx.lineTo(-10, 2);
+      ctx.ellipse(4, 7, 13, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.35 + pulse * 0.22;
+      ctx.drawImage(sprites.get(py.evolved ? 'glow_cyan' : 'glow_gold'), -22, -22, 44, 44);
+      ctx.globalAlpha = 1;
+
+      // Industrial riveted tripod stabilizer legs
+      ctx.strokeStyle = '#6c6860';
+      ctx.lineWidth = 2.6;
+      for (let i = 0; i < 3; i++) {
+        const a = (i * Math.PI * 2) / 3 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * 14, Math.sin(a) * 14);
+        ctx.stroke();
+      }
+
+      // Chamfered bronze-and-gunmetal octagonal pylon housing
+      const grad = ctx.createRadialGradient(-3, -3, 1, 0, 0, 11);
+      grad.addColorStop(0, '#625e56');
+      grad.addColorStop(0.65, '#2b2824');
+      grad.addColorStop(1, '#141311');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#9c8350';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3;
+        const r = 10;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
+      // Rotating induction coil arcs
+      ctx.save();
+      ctx.rotate(realTime * 2.8 + py.id);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < 2; k++) {
+        ctx.beginPath();
+        ctx.arc(0, 0, 13, k * Math.PI, k * Math.PI + 1.15);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Recessed luminous rail capacitor core
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, 4.4, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(0, 0, 2.8 + Math.sin(realTime * 10 + py.id) * 0.8, 0, Math.PI * 2);
+      ctx.arc(0, 0, 2.2 + pulse * 0.7, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -836,70 +1088,172 @@ export class WastelandRenderer {
   }
 
   private drawOrbitalWeapons(ctx: CanvasRenderingContext2D, state: RenderState): void {
+    // 1. Halo Sawblades — serrated industrial rotary saw-discs with glowing cutting edges!
     const blades = getHaloBladesPositions(state.player);
     for (const b of blades) {
+      const edgeCol = b.evolved ? '#e5b34c' : '#4effb4';
       ctx.save();
       ctx.translate(b.x, b.y);
-      ctx.rotate(b.angle * 4.2);
-      ctx.fillStyle = '#25292e';
-      ctx.strokeStyle = b.evolved ? '#e5b34c' : '#4effb4';
-      ctx.lineWidth = b.isStillpoint ? 3 : 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      ctx.globalAlpha = b.isStillpoint ? 0.55 : 0.34;
+      ctx.drawImage(sprites.get(b.evolved ? 'glow_gold' : 'glow_emerald'), -b.radius * 1.9, -b.radius * 1.9, b.radius * 3.8, b.radius * 3.8);
+      ctx.globalAlpha = 1;
 
-      ctx.strokeStyle = '#ebe7dc';
-      ctx.lineWidth = 1.4;
+      ctx.rotate(b.angle * 5.2);
+      // 10 curved industrial saw teeth
+      const teeth = 10;
+      const bodyGrad = ctx.createRadialGradient(-b.radius * 0.25, -b.radius * 0.25, 1, 0, 0, b.radius * 1.15);
+      bodyGrad.addColorStop(0, '#8d928f');
+      bodyGrad.addColorStop(0.55, '#3b3e42');
+      bodyGrad.addColorStop(1, '#1a1c1f');
+      ctx.fillStyle = bodyGrad;
+      ctx.strokeStyle = edgeCol;
+      ctx.lineWidth = b.isStillpoint ? 2.1 : 1.5;
       ctx.beginPath();
-      ctx.moveTo(-b.radius * 0.72, 0);
-      ctx.lineTo(b.radius * 0.72, 0);
-      ctx.moveTo(0, -b.radius * 0.72);
-      ctx.lineTo(0, b.radius * 0.72);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    const drones = getPrismDronePositions(state.player);
-    for (const d of drones) {
-      ctx.save();
-      ctx.translate(d.x, d.y);
-      ctx.rotate(d.angle + Math.PI / 2);
-      ctx.fillStyle = '#2d333d';
-      ctx.strokeStyle = d.evolved ? '#e5b34c' : '#45e8d8';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.lineTo(7, 6);
-      ctx.lineTo(-7, 6);
+      for (let i = 0; i < teeth; i++) {
+        const a0 = (i * Math.PI * 2) / teeth;
+        const a1 = a0 + (Math.PI * 2) / (teeth * 2.2);
+        const a2 = a0 + (Math.PI * 2) / teeth;
+        const rIn = b.radius * 0.72;
+        const rOut = b.radius * 1.12;
+        if (i === 0) ctx.moveTo(Math.cos(a0) * rIn, Math.sin(a0) * rIn);
+        ctx.lineTo(Math.cos(a1) * rOut, Math.sin(a1) * rOut);
+        ctx.lineTo(Math.cos(a2) * rIn, Math.sin(a2) * rIn);
+      }
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+
+      // Recessed dark steel arbor hub + luminous spindle eye
+      ctx.fillStyle = '#181a1d';
+      ctx.strokeStyle = '#9c8350';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, b.radius * 0.44, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = edgeCol;
+      ctx.beginPath();
+      ctx.arc(0, 0, b.radius * 0.2, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 
-    // Gravity Flail tethered wrecking balls
+    // 2. Prism Drones — faceted twin-fin autonomous wingman rigs with grounded shadows!
+    const drones = getPrismDronePositions(state.player);
+    for (const d of drones) {
+      const accent = d.evolved ? '#e5b34c' : '#45e8d8';
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.fillStyle = 'rgba(0,0,0,0.42)';
+      ctx.beginPath();
+      ctx.ellipse(3, 6, 8, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.rotate(d.angle + Math.PI / 2);
+      // Swept gunmetal wing fins
+      const hullG = ctx.createLinearGradient(-7, -9, 7, 7);
+      hullG.addColorStop(0, '#7c8280');
+      hullG.addColorStop(0.55, '#35383c');
+      hullG.addColorStop(1, '#1a1c20');
+      ctx.fillStyle = hullG;
+      ctx.strokeStyle = '#141518';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(9, 4);
+      ctx.lineTo(5, 8);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(-5, 8);
+      ctx.lineTo(-9, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Tarnished bronze central ridge & glowing optical prism core
+      ctx.fillStyle = '#8f7748';
+      ctx.fillRect(-2, -5, 4, 9);
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, -1, 2.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, -1, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 3. Gravity Flail — articulated forged chain links, swing blur arc & spiked iron/brass grav-mace!
     const flails = getGravityFlailPositions(state.player);
     for (const f of flails) {
-      ctx.save();
-      ctx.strokeStyle = f.evolved ? '#f0bc42' : '#e08538';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
-      ctx.beginPath();
-      ctx.moveTo(state.player.x, state.player.y);
-      ctx.lineTo(f.x, f.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      const accent = f.evolved ? '#f5d256' : '#f08a38';
+      const dx = f.x - state.player.x;
+      const dy = f.y - state.player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const chainAng = Math.atan2(dy, dx);
+      // Slight centrifugal trailing curve in the chain opposite rotation direction
+      const perpX = -dy / dist;
+      const perpY = dx / dist;
 
-      ctx.translate(f.x, f.y);
-      ctx.rotate(f.angle * 3.5);
-      ctx.fillStyle = '#241e1a';
-      ctx.strokeStyle = f.evolved ? '#f5d256' : '#e08538';
-      ctx.lineWidth = 2.4;
+      ctx.save();
+      // Subtle translucent kinetic swing trail arc behind the mace head
+      const orbitR = dist;
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.24;
+      ctx.lineWidth = f.radius * 0.7;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      for (let i = 0; i < 12; i++) {
-        const a = (i * Math.PI) / 6;
-        const r = i % 2 === 0 ? f.radius : f.radius * 0.68;
+      ctx.arc(state.player.x, state.player.y, orbitR, chainAng - 0.52, chainAng);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Interlocking forged gunmetal & bronze chain links along the curved whip!
+      const linkCount = Math.max(5, Math.floor(dist / 13));
+      for (let i = 1; i < linkCount; i++) {
+        const t = i / linkCount;
+        const bow = Math.sin(t * Math.PI) * -9;
+        const lx = state.player.x + dx * t + perpX * bow;
+        const ly = state.player.y + dy * t + perpY * bow;
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(chainAng + Math.cos(t * Math.PI) * -0.16);
+        const isBronze = i % 2 === 0;
+        ctx.strokeStyle = '#151413';
+        ctx.lineWidth = 3.4;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5.2, isBronze ? 2.8 : 2.1, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = isBronze ? '#9c824e' : '#6c7072';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5.2, isBronze ? 2.8 : 2.1, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Grounded shadow beneath heavy mace head
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(f.x + 5, f.y + 8, f.radius * 0.95, f.radius * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Heavy 3D-shaded spiked iron-and-brass gravity mace head
+      ctx.translate(f.x, f.y);
+      ctx.globalAlpha = 0.48;
+      ctx.drawImage(sprites.get('glow_gold'), -f.radius * 1.9, -f.radius * 1.9, f.radius * 3.8, f.radius * 3.8);
+      ctx.globalAlpha = 1;
+
+      ctx.rotate(f.angle * 3.6);
+      // 8 honed steel spikes
+      ctx.fillStyle = '#7c8284';
+      ctx.strokeStyle = '#18191b';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const a = (i * Math.PI) / 8;
+        const r = i % 2 === 0 ? f.radius * 1.12 : f.radius * 0.72;
         if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
         else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
       }
@@ -907,9 +1261,27 @@ export class WastelandRenderer {
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = f.evolved ? '#fff4cc' : '#ff9f43';
+      // Spherical shaded gunmetal & bronze collar
+      const orbG = ctx.createRadialGradient(-f.radius * 0.28, -f.radius * 0.28, 1, 0, 0, f.radius * 0.8);
+      orbG.addColorStop(0, '#888378');
+      orbG.addColorStop(0.55, '#3b352e');
+      orbG.addColorStop(1, '#181513');
+      ctx.fillStyle = orbG;
+      ctx.strokeStyle = '#a38750';
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.arc(0, 0, f.radius * 0.34, 0, Math.PI * 2);
+      ctx.arc(0, 0, f.radius * 0.72, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Recessed molten gravity core
+      ctx.fillStyle = accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, f.radius * 0.36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff8de';
+      ctx.beginPath();
+      ctx.arc(-1, -1, f.radius * 0.17, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -1041,27 +1413,58 @@ export class WastelandRenderer {
   }
 
   private drawBoss(ctx: CanvasRenderingContext2D, boss: Enemy, realTime: number): void {
-    // Articulated armored tail segments for Void Leviathan
+    // Articulated armored carapace segments for Void Leviathan (layered beveled gunmetal + bronze + emerald vents)
     if (boss.kind === 'boss_leviathan' && boss.segments) {
       for (let i = boss.segments.length - 1; i >= 0; i--) {
         const seg = boss.segments[i];
+        const prev = i === 0 ? boss : boss.segments[i - 1];
+        const segAng = Math.atan2(prev.y - seg.y, prev.x - seg.x);
         const segR = boss.radius * (0.82 - i * 0.055);
         ctx.save();
         ctx.translate(seg.x, seg.y);
-        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillStyle = 'rgba(0,0,0,0.48)';
         ctx.beginPath();
-        ctx.arc(6, 10, segR, 0, Math.PI * 2);
+        ctx.ellipse(6, 10, segR * 1.05, segR * 0.9, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#2d312f';
-        ctx.strokeStyle = '#758279';
-        ctx.lineWidth = 2.2;
+
+        ctx.rotate(segAng + Math.PI / 2);
+        // Sculpted beveled dorsal plate
+        const shellG = ctx.createRadialGradient(-segR * 0.25, -segR * 0.25, 2, 0, 0, segR * 1.1);
+        shellG.addColorStop(0, '#626965');
+        shellG.addColorStop(0.58, '#2d3230');
+        shellG.addColorStop(1, '#141716');
+        ctx.fillStyle = shellG;
+        ctx.strokeStyle = '#151716';
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.arc(0, 0, segR, 0, Math.PI * 2);
+        ctx.moveTo(0, -segR * 0.95);
+        ctx.lineTo(segR * 0.98, -segR * 0.22);
+        ctx.lineTo(segR * 0.78, segR * 0.78);
+        ctx.lineTo(0, segR * 0.96);
+        ctx.lineTo(-segR * 0.78, segR * 0.78);
+        ctx.lineTo(-segR * 0.98, -segR * 0.22);
+        ctx.closePath();
         ctx.fill();
         ctx.stroke();
+
+        // Tarnished bronze flank ribs
+        ctx.strokeStyle = '#8b774a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-segR * 0.7, -segR * 0.08);
+        ctx.lineTo(-segR * 0.38, segR * 0.42);
+        ctx.moveTo(segR * 0.7, -segR * 0.08);
+        ctx.lineTo(segR * 0.38, segR * 0.42);
+        ctx.stroke();
+
+        // Glowing recessed emerald reactor vent
         ctx.fillStyle = '#4effb4';
         ctx.beginPath();
-        ctx.arc(0, 0, segR * 0.3, 0, Math.PI * 2);
+        ctx.arc(0, 0, segR * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#eafff5';
+        ctx.beginPath();
+        ctx.arc(-1, -1, segR * 0.13, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
@@ -1244,13 +1647,14 @@ export class WastelandRenderer {
       if (b.kind === 'acid_glob') {
         ctx.save();
         ctx.translate(b.x, b.y);
-        ctx.fillStyle = '#78d65c';
+        const g = ctx.createRadialGradient(-1, -1, 0.5, 0, 0, b.radius * 1.45);
+        g.addColorStop(0, '#ecffe0');
+        g.addColorStop(0.45, '#7ae352');
+        g.addColorStop(0.78, 'rgba(54, 130, 32, 0.65)');
+        g.addColorStop(1, 'rgba(30, 80, 18, 0)');
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ebffe0';
-        ctx.beginPath();
-        ctx.arc(-1.5, -1.5, b.radius * 0.42, 0, Math.PI * 2);
+        ctx.arc(0, 0, b.radius * 1.45, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;
@@ -1261,23 +1665,37 @@ export class WastelandRenderer {
         ctx.save();
         ctx.translate(b.x, b.y);
         ctx.rotate(realTime * 2.5 + b.id);
-        ctx.fillStyle = '#241816';
-        ctx.strokeStyle = b.color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
+        // 8 industrial contact prongs
+        ctx.strokeStyle = '#7c766c';
+        ctx.lineWidth = 1.6;
         for (let k = 0; k < 8; k++) {
           const a = (k * Math.PI) / 4;
-          const r = k % 2 === 0 ? b.radius + 2 : b.radius * 0.65;
-          if (k === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-          else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * b.radius * 0.6, Math.sin(a) * b.radius * 0.6);
+          ctx.lineTo(Math.cos(a) * (b.radius + 3), Math.sin(a) * (b.radius + 3));
+          ctx.stroke();
         }
-        ctx.closePath();
+        // Beveled dark gunmetal & bronze mine housing
+        const mg = ctx.createRadialGradient(-2, -2, 1, 0, 0, b.radius);
+        mg.addColorStop(0, '#625e57');
+        mg.addColorStop(0.65, '#2b2824');
+        mg.addColorStop(1, '#141312');
+        ctx.fillStyle = mg;
+        ctx.strokeStyle = '#9c7c48';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(0, 0, b.radius * 0.86, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = '#ffdf85';
-        ctx.globalAlpha = pulse;
+        // Incandescent armed detonation lens
+        ctx.fillStyle = b.color;
+        ctx.globalAlpha = 0.75 + pulse * 0.25;
         ctx.beginPath();
-        ctx.arc(0, 0, 3, 0, Math.PI * 2);
+        ctx.arc(0, 0, b.radius * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff5d8';
+        ctx.beginPath();
+        ctx.arc(-0.8, -0.8, b.radius * 0.18, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         continue;

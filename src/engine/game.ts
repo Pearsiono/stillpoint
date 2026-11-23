@@ -1156,7 +1156,7 @@ export class StillpointGame {
     }
 
     if (this.coreId === 'chrono_echo') {
-      // PHASE ECHO: Deploy an autonomous holographic turret firing your primary rounds!
+      // PHASE ECHO: Deploy an autonomous rotary defense turret adapted to your primary weapon!
       p.kineticCharge = Math.max(0, p.kineticCharge - 14);
       p.coreCooldown = p.coreCooldownMax;
       if (this.echoes.length >= 2) this.echoes.shift();
@@ -1167,7 +1167,9 @@ export class StillpointGame {
         angle: p.facingAngle,
         age: 0,
         maxAge: 6.0,
-        fireTimer: 0.15
+        fireTimer: 0.14,
+        muzzleFlash: 0,
+        weaponId: p.weapons[0]?.id ?? 'pulse_lance'
       });
       this.particles.ripple(p.x, p.y, 110 * coreRadiusMult, 12, '#5cd68d', 0.36);
       this.particles.callout(p.x, p.y - 36, 'PHASE ECHO', '#5cd68d', 1.05, 0.7);
@@ -1599,41 +1601,276 @@ export class StillpointGame {
       }
     }
 
-    // Phase Echo holographic turrets
+    // Phase Echo autonomous rotary turrets (track live targets & fire primary-weapon-adapted rounds!)
     for (let i = this.echoes.length - 1; i >= 0; i--) {
       const ec = this.echoes[i];
       ec.age += dtReal;
+      ec.muzzleFlash = Math.max(0, ec.muzzleFlash - dtReal * 5.2);
       if (ec.age >= ec.maxAge) {
-        this.particles.ring(ec.x, ec.y, '#5cd68d', 16, 0.25);
+        this.particles.ring(ec.x, ec.y, '#5cd68d', 18, 0.28);
         this.echoes.splice(i, 1);
         continue;
       }
+
+      const tgt = findNearestEnemy(ec.x, ec.y, this.enemies, 540, true);
+      if (tgt) {
+        // Smooth rotary turret tracking toward live hostile
+        const desired = Math.atan2(tgt.y - ec.y, tgt.x - ec.x);
+        const diff = Math.atan2(Math.sin(desired - ec.angle), Math.cos(desired - ec.angle));
+        ec.angle += diff * Math.min(1, dtReal * 16);
+        ec.targetX = tgt.x;
+        ec.targetY = tgt.y;
+      } else {
+        ec.targetX = undefined;
+        ec.targetY = undefined;
+      }
+
       ec.fireTimer -= dtReal * p.fireRateMult;
-      if (ec.fireTimer <= 0) {
-        ec.fireTimer = p.inStillpoint ? 0.3 : 0.42;
-        const tgt = findNearestEnemy(ec.x, ec.y, this.enemies, 520, true);
-        if (tgt) {
-          ec.angle = Math.atan2(tgt.y - ec.y, tgt.x - ec.x);
-          const spd = 540 * p.projectileSpeedMult;
-          const dmg = 22 * p.damageMult * p.corePowerMult;
+      if (ec.fireTimer <= 0 && tgt) {
+        const wid = p.weapons[0]?.id ?? ec.weaponId;
+        ec.weaponId = wid;
+        ec.angle = Math.atan2(tgt.y - ec.y, tgt.x - ec.x);
+        ec.muzzleFlash = 1;
+        const dmg = 23 * p.damageMult * p.corePowerMult;
+        const spd = 560 * p.projectileSpeedMult;
+        const cosA = Math.cos(ec.angle);
+        const sinA = Math.sin(ec.angle);
+        const perpX = -sinA * 6;
+        const perpY = cosA * 6;
+        const tipX = ec.x + cosA * 18;
+        const tipY = ec.y + sinA * 18;
+        const fastMult = p.inStillpoint ? 0.72 : 1.0;
+
+        if (wid === 'arc_tether') {
+          ec.fireTimer = 0.44 * fastMult;
+          this.particles.arc(tipX, tipY, tgt.x, tgt.y, '#5ce8b8', 2.8, 0.18);
+          this.damageEnemy(tgt, dmg * 1.18, '#5ce8b8', true);
+          const hop = this.enemies.find(
+            (e) => e.hp > 0 && e.id !== tgt.id && Math.hypot(e.x - tgt.x, e.y - tgt.y) <= 170
+          );
+          if (hop) {
+            this.particles.arc(tgt.x, tgt.y, hop.x, hop.y, '#6fa8ff', 2.1, 0.16);
+            this.damageEnemy(hop, dmg * 0.85, '#6fa8ff', false);
+          }
+          sound.playShoot('zap');
+        } else if (wid === 'mirror_beam' || wid === 'rail_turret') {
+          ec.fireTimer = 0.52 * fastMult;
+          const ex = tipX + cosA * 460;
+          const ey = tipY + sinA * 460;
+          const col = wid === 'mirror_beam' ? '#f0c44e' : '#5cd68d';
+          this.lasers.push({
+            x1: tipX,
+            y1: tipY,
+            x2: ex,
+            y2: ey,
+            width: wid === 'mirror_beam' ? 7 : 9,
+            color: col,
+            alpha: 0.95,
+            life: 0.18,
+            maxLife: 0.18,
+            isEnemy: false
+          });
+          for (const e of [...this.enemies]) {
+            if (e.hp > 0 && pointToSegmentDist(e.x, e.y, tipX, tipY, ex, ey) <= e.radius + 9) {
+              this.damageEnemy(e, dmg * 1.25, col, true);
+            }
+          }
+          this.damageShrinesAlongLine(tipX, tipY, ex, ey, 9, dmg);
+          sound.playShoot('rail');
+        } else if (wid === 'acid_sprayer') {
+          ec.fireTimer = 0.48 * fastMult;
           this.playerBullets.push({
             id: this.nextEntityId++,
-            kind: 'pulse',
-            x: ec.x + Math.cos(ec.angle) * 14,
-            y: ec.y + Math.sin(ec.angle) * 14,
-            vx: Math.cos(ec.angle) * spd,
-            vy: Math.sin(ec.angle) * spd,
-            radius: 5,
-            damage: dmg,
-            pierce: 2,
+            kind: 'acid_glob',
+            x: tipX,
+            y: tipY,
+            vx: cosA * 380 * p.projectileSpeedMult,
+            vy: sinA * 380 * p.projectileSpeedMult,
+            radius: 6,
+            damage: dmg * 0.9,
+            pierce: 1,
             age: 0,
-            maxAge: 1.05,
-            color: '#5cd68d',
+            maxAge: 0.95,
+            color: '#7ae352',
+            homing: 0,
+            hitSet: new Set()
+          });
+          sound.playShoot('mortar');
+        } else if (wid === 'frost_nova') {
+          ec.fireTimer = 0.42 * fastMult;
+          for (const side of [-1, 1]) {
+            const a = ec.angle + side * 0.09;
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'frost_bolt',
+              x: tipX + perpX * side,
+              y: tipY + perpY * side,
+              vx: Math.cos(a) * spd * 0.92,
+              vy: Math.sin(a) * spd * 0.92,
+              radius: 5,
+              damage: dmg * 0.72,
+              pierce: 2,
+              age: 0,
+              maxAge: 1.0,
+              color: '#7ee8ff',
+              homing: 0,
+              hitSet: new Set()
+            });
+          }
+          sound.playShoot('pulse');
+        } else if (wid === 'ricochet_shard') {
+          ec.fireTimer = 0.42 * fastMult;
+          this.playerBullets.push({
+            id: this.nextEntityId++,
+            kind: 'ricochet',
+            x: tipX,
+            y: tipY,
+            vx: cosA * spd * 1.05,
+            vy: sinA * spd * 1.05,
+            radius: 5.5,
+            damage: dmg * 1.05,
+            pierce: 1,
+            bounces: 3,
+            age: 0,
+            maxAge: 1.35,
+            color: '#62f0d4',
             homing: 0,
             hitSet: new Set()
           });
           sound.playShoot('pulse');
+        } else if (wid === 'swarm_missiles') {
+          ec.fireTimer = 0.50 * fastMult;
+          for (const side of [-1, 1]) {
+            const a = ec.angle + side * 0.32;
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'missile',
+              x: tipX + perpX * side,
+              y: tipY + perpY * side,
+              vx: Math.cos(a) * 420 * p.projectileSpeedMult,
+              vy: Math.sin(a) * 420 * p.projectileSpeedMult,
+              radius: 5,
+              damage: dmg * 0.76,
+              pierce: 1,
+              age: 0,
+              maxAge: 1.4,
+              color: '#f0b84e',
+              homing: 9,
+              targetId: tgt.id,
+              hitSet: new Set()
+            });
+          }
+          sound.playShoot('pulse');
+        } else if (wid === 'void_mortars') {
+          ec.fireTimer = 0.58 * fastMult;
+          this.playerBullets.push({
+            id: this.nextEntityId++,
+            kind: 'mortar_shell',
+            x: tipX,
+            y: tipY,
+            vx: cosA * 340 * p.projectileSpeedMult,
+            vy: sinA * 340 * p.projectileSpeedMult,
+            radius: 6.5,
+            damage: dmg * 1.25,
+            pierce: 1,
+            blastRadius: 68 * p.areaMult,
+            age: 0,
+            maxAge: 0.9,
+            color: '#c978ff',
+            homing: 0,
+            hitSet: new Set()
+          });
+          sound.playShoot('mortar');
+        } else if (wid === 'phase_daggers') {
+          ec.fireTimer = 0.40 * fastMult;
+          for (const side of [-1, 1]) {
+            const a = ec.angle + side * 0.14;
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'dagger_homing',
+              x: tipX + perpX * side,
+              y: tipY + perpY * side,
+              vx: Math.cos(a) * spd,
+              vy: Math.sin(a) * spd,
+              radius: 5,
+              damage: dmg * 0.74,
+              pierce: 2,
+              age: 0,
+              maxAge: 1.1,
+              color: '#ff66e5',
+              homing: 7,
+              targetId: tgt.id,
+              hitSet: new Set()
+            });
+          }
+          sound.playShoot('pulse');
+        } else if (wid === 'chrono_scythe') {
+          ec.fireTimer = 0.56 * fastMult;
+          this.playerBullets.push({
+            id: this.nextEntityId++,
+            kind: 'scythe',
+            x: tipX,
+            y: tipY,
+            vx: cosA * 320 * p.projectileSpeedMult,
+            vy: sinA * 320 * p.projectileSpeedMult,
+            radius: 13,
+            damage: dmg * 0.65,
+            pierce: 99,
+            age: 0,
+            maxAge: 1.35,
+            color: '#ff5280',
+            homing: 0,
+            spinAngle: 0,
+            hitResetTimer: 0,
+            hitSet: new Set()
+          });
+          sound.playShoot('pulse');
+        } else if (wid === 'shatter_mine') {
+          ec.fireTimer = 0.48 * fastMult;
+          for (let k = -1; k <= 1; k++) {
+            const a = ec.angle + k * 0.18;
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'shrapnel',
+              x: tipX,
+              y: tipY,
+              vx: Math.cos(a) * 480 * p.projectileSpeedMult,
+              vy: Math.sin(a) * 480 * p.projectileSpeedMult,
+              radius: 5,
+              damage: dmg * 0.66,
+              pierce: 2,
+              age: 0,
+              maxAge: 0.75,
+              color: '#ff7b47',
+              homing: 0,
+              hitSet: new Set()
+            });
+          }
+          sound.playShoot('mortar');
+        } else {
+          // Twin precision barrels firing staggered emerald plasma bolts
+          ec.fireTimer = 0.36 * fastMult;
+          for (const side of [-1, 1]) {
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'pulse',
+              x: tipX + perpX * side,
+              y: tipY + perpY * side,
+              vx: cosA * spd,
+              vy: sinA * spd,
+              radius: 4.6,
+              damage: dmg * 0.68,
+              pierce: 2,
+              age: 0,
+              maxAge: 1.0,
+              color: '#5cd68d',
+              homing: 0,
+              hitSet: new Set()
+            });
+          }
+          sound.playShoot('pulse');
         }
+        this.particles.burst(tipX, tipY, '#7ef5b4', 3, 45, 110, 2, 0.16);
       }
     }
   }

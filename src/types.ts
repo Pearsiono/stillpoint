@@ -459,6 +459,10 @@ export interface PhaseEcho {
   age: number;
   maxAge: number;
   fireTimer: number;
+  muzzleFlash: number;
+  weaponId: WeaponId;
+  targetX?: number;
+  targetY?: number;
 }
 
 export interface MeteorStrike {

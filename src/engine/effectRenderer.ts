@@ -156,25 +156,18 @@ export function drawEffectTrailWake(
       ctx.arc(0, 0, 2.5 * pt.alpha, 0, Math.PI * 2);
       ctx.fill();
     } else if (style === 'acid_vortex') {
-      // Billowing rotating hexagons
-      const r = 4.5 + (1 - pt.alpha) * 8.5;
-      ctx.rotate(time * 2.2 + i * 0.8);
-      ctx.globalAlpha = pt.alpha * 0.48 * flick;
-      ctx.fillStyle = i % 2 === 0 ? p.primary : p.secondary;
+      // Billowing smoky caustic wasteland vapor puffs with glowing emerald core
+      const r = 5.5 + (1 - pt.alpha) * 9.5;
+      ctx.globalAlpha = pt.alpha * 0.56 * flick;
+      const g = ctx.createRadialGradient(0, 0, r * 0.12, 0, 0, r);
+      g.addColorStop(0, p.core);
+      g.addColorStop(0.45, i % 2 === 0 ? p.primary : p.secondary);
+      g.addColorStop(0.82, 'rgba(20, 42, 16, 0.35)');
+      g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
       ctx.beginPath();
-      for (let k = 0; k < 6; k++) {
-        const a = (k * Math.PI) / 3;
-        const x = Math.cos(a) * r;
-        const y = Math.sin(a) * r;
-        if (k === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = p.core;
-      ctx.globalAlpha = pt.alpha * 0.55;
-      ctx.lineWidth = 1;
-      ctx.stroke();
     } else if (style === 'blade_chevron') {
       // Swept razor slag chevrons
       const w = 6 + (1 - pt.alpha) * 9;
@@ -278,17 +271,30 @@ export function drawEffectThrusterPlume(
     ctx.save();
     ctx.translate(n.x, n.y);
 
+    // Incandescent atmospheric throat glow grounded against the dark hull & tarmac
+    const throatR = n.w * 2.5;
+    const throatG = ctx.createRadialGradient(0, 2 * scale, 0.5, 0, len * 0.28, throatR + len * 0.35);
+    throatG.addColorStop(0, `${p.core}cc`);
+    throatG.addColorStop(0.32, `${p.primary}66`);
+    throatG.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = throatG;
+    ctx.globalAlpha = 0.85 * p.intensity;
+    ctx.beginPath();
+    ctx.arc(0, len * 0.22, throatR + len * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+
     if (style === 'afterburner') {
       // Supersonic outer flare + pulsing Mach shock diamonds
-      const grad = ctx.createLinearGradient(0, 0, 0, len * 1.25);
+      const grad = ctx.createLinearGradient(0, 0, 0, len * 1.28);
       grad.addColorStop(0, p.core);
       grad.addColorStop(0.32, p.primary);
+      grad.addColorStop(0.75, `${p.secondary}66`);
       grad.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = grad;
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.92;
       ctx.beginPath();
       ctx.moveTo(-n.w * 1.15, 0);
-      ctx.lineTo(0, len * 1.25);
+      ctx.lineTo(0, len * 1.28);
       ctx.lineTo(n.w * 1.15, 0);
       ctx.closePath();
       ctx.fill();
@@ -309,36 +315,42 @@ export function drawEffectThrusterPlume(
         ctx.fill();
       }
     } else if (style === 'acid_vortex') {
-      // Swirling expanding caustic puffs
-      for (let k = 0; k < 4; k++) {
-        const frac = ((k * 0.25 + time * 2.6) % 1);
-        const py = frac * len * 1.2;
-        const px = Math.sin(time * 9 + k * 2.2 + item.seed) * 3 * scale * frac;
-        const r = n.w * (0.65 + frac * 1.1);
-        ctx.globalAlpha = (1 - frac) * 0.72;
-        ctx.fillStyle = k % 2 === 0 ? p.primary : p.secondary;
+      // Billowing pressurized caustic vapor clouds + glowing green plasma throat
+      for (let k = 0; k < 5; k++) {
+        const frac = ((k * 0.2 + time * 2.5) % 1);
+        const py = frac * len * 1.25;
+        const px = Math.sin(time * 8 + k * 2.1 + item.seed) * 3.4 * scale * frac;
+        const r = n.w * (0.75 + frac * 1.35);
+        const cg = ctx.createRadialGradient(px, py, r * 0.1, px, py, r);
+        cg.addColorStop(0, k % 2 === 0 ? p.core : p.secondary);
+        cg.addColorStop(0.48, p.primary);
+        cg.addColorStop(0.84, 'rgba(22, 46, 18, 0.35)');
+        cg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = (1 - frac) * 0.85;
+        ctx.fillStyle = cg;
         ctx.beginPath();
-        for (let s = 0; s < 6; s++) {
-          const a = (s * Math.PI) / 3 + time * 2.5 + k;
-          const x = px + Math.cos(a) * r;
-          const y = py + Math.sin(a) * r;
-          if (s === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = p.core;
-      ctx.globalAlpha = 0.85;
-      ctx.beginPath();
-      ctx.arc(0, 2 * scale, n.w * 0.55, 0, Math.PI * 2);
-      ctx.fill();
     } else if (style === 'blade_chevron') {
-      // Swept glowing energy chevrons firing backward
+      // Dark heat-wash + swept incandescent slag chevrons firing backward
+      const wash = ctx.createLinearGradient(0, 0, 0, len * 1.2);
+      wash.addColorStop(0, `${p.primary}88`);
+      wash.addColorStop(0.6, 'rgba(18, 12, 10, 0.36)');
+      wash.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = wash;
+      ctx.beginPath();
+      ctx.moveTo(-n.w * 1.3, 0);
+      ctx.lineTo(-n.w * 2.1, len * 1.2);
+      ctx.lineTo(n.w * 2.1, len * 1.2);
+      ctx.lineTo(n.w * 1.3, 0);
+      ctx.closePath();
+      ctx.fill();
+
       for (let k = 0; k < 3; k++) {
         const frac = ((k / 3 + time * 3.8) % 1);
         const cy = frac * len * 1.25;
-        const span = n.w * (1.2 + frac * 1.5);
+        const span = n.w * (1.2 + frac * 1.45);
         ctx.strokeStyle = k === 0 ? p.secondary : p.primary;
         ctx.globalAlpha = (1 - frac) * 0.95;
         ctx.lineWidth = (2.4 - frac * 1.3) * scale;
@@ -349,7 +361,7 @@ export function drawEffectThrusterPlume(
         ctx.stroke();
       }
       ctx.fillStyle = p.core;
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.92;
       ctx.beginPath();
       ctx.moveTo(-n.w * 0.65, 0);
       ctx.lineTo(0, len * 0.55);
@@ -458,22 +470,37 @@ export function drawEffectThrusterPlume(
       ctx.closePath();
       ctx.fill();
     } else {
-      // Classic crisp Ion Jet
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = p.primary;
-      ctx.globalAlpha = 0.86;
+      // Classic crisp Ion Jet with gradient falloff
+      const jg = ctx.createLinearGradient(0, 0, 0, len * 1.15);
+      jg.addColorStop(0, p.core);
+      jg.addColorStop(0.38, p.primary);
+      jg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = jg;
+      ctx.globalAlpha = 0.9;
       ctx.beginPath();
       ctx.moveTo(-n.w, 0);
-      ctx.lineTo(0, len);
+      ctx.lineTo(0, len * 1.15);
       ctx.lineTo(n.w, 0);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = p.core;
       ctx.beginPath();
-      ctx.moveTo(-n.w * 0.46, 0);
-      ctx.lineTo(0, len * 0.58);
-      ctx.lineTo(n.w * 0.46, 0);
+      ctx.moveTo(-n.w * 0.44, 0);
+      ctx.lineTo(0, len * 0.56);
+      ctx.lineTo(n.w * 0.44, 0);
       ctx.closePath();
+      ctx.fill();
+    }
+
+    // Fine incandescent ember sparks trailing out of every exhaust plume
+    for (let e = 0; e < 3; e++) {
+      const ef = (time * (3.1 + e * 0.55) + e * 0.37 + item.seed * 0.013) % 1;
+      const ex = (hashStep(item.seed + e * 17 + Math.floor(time * 2)) - 0.5) * n.w * (1.2 + ef * 1.8);
+      const ey = (2 + ef * len * 1.32);
+      ctx.globalAlpha = (1 - ef) * 0.82 * p.intensity;
+      ctx.fillStyle = e === 0 ? p.core : p.secondary;
+      ctx.beginPath();
+      ctx.arc(ex, ey, (1.3 - ef * 0.7) * scale, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -522,25 +549,39 @@ export function drawEffectStillpointAura(
       : 1.0;
 
   ctx.save();
-  ctx.globalAlpha = Math.min(1, blend * 0.92 * p.intensity * stutter);
+  ctx.globalAlpha = Math.min(1, blend * 0.94 * p.intensity * stutter);
 
-  // Soft radial field halo
-  const bg = ctx.createRadialGradient(0, 0, radius * 0.15, 0, 0, radius * 1.2);
+  // Soft volumetric field halo + dark machined shadow ring grounding the aura into the wasteland tarmac
+  const bg = ctx.createRadialGradient(0, 0, radius * 0.14, 0, 0, radius * 1.24);
   bg.addColorStop(0, `${outer}00`);
-  bg.addColorStop(0.74, `${outer}1c`);
+  bg.addColorStop(0.68, `${outer}22`);
+  bg.addColorStop(0.86, 'rgba(10, 9, 10, 0.28)');
   bg.addColorStop(1, `${outer}00`);
   ctx.fillStyle = bg;
   ctx.beginPath();
-  ctx.arc(0, 0, radius * 1.2, 0, Math.PI * 2);
+  ctx.arc(0, 0, radius * 1.24, 0, Math.PI * 2);
   ctx.fill();
 
+  // Subtle dark-metal recessed bezel shadow ring underneath all structural geometry
+  ctx.strokeStyle = 'rgba(12, 11, 10, 0.54)';
+  ctx.lineWidth = 4.2 * lwScale;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.94, 0, Math.PI * 2);
+  ctx.stroke();
+
   if (style === 'sunburst') {
-    // Radiating rotating golden prism corona shards + spokes
+    // Radiating rotating relic-bronze & incandescent prism corona shards + spokes
     const count = p.symmetry;
     ctx.save();
     ctx.rotate(time * 0.7 * p.twist);
+    ctx.strokeStyle = '#6c5a34';
+    ctx.lineWidth = 3.2 * lwScale;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.strokeStyle = outer;
-    ctx.lineWidth = 1.6 * lwScale;
+    ctx.lineWidth = 1.4 * lwScale;
     ctx.beginPath();
     ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
     ctx.stroke();
@@ -553,6 +594,8 @@ export function drawEffectStillpointAura(
       ctx.save();
       ctx.rotate(a);
       ctx.fillStyle = i % 2 === 0 ? outer : inner;
+      ctx.strokeStyle = 'rgba(16, 14, 12, 0.75)';
+      ctx.lineWidth = 0.8 * lwScale;
       ctx.beginPath();
       ctx.moveTo(rIn, -3.5 * lwScale);
       ctx.lineTo(rOut, 0);
@@ -560,6 +603,7 @@ export function drawEffectStillpointAura(
       ctx.lineTo(rIn - 4 * lwScale, 0);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
       ctx.restore();
     }
     ctx.restore();
@@ -574,7 +618,7 @@ export function drawEffectStillpointAura(
     ctx.stroke();
     ctx.restore();
   } else if (style === 'sawtooth') {
-    // Counter-rotating jagged crimson crescent vortex blades!
+    // Counter-rotating dark-iron jagged blades with incandescent heated cutting edges!
     const blades = Math.max(4, Math.min(8, Math.round(p.symmetry * 0.75)));
     ctx.save();
     ctx.rotate(time * 2.1 * p.twist);
@@ -582,15 +626,20 @@ export function drawEffectStillpointAura(
       const a = (i * Math.PI * 2) / blades;
       ctx.save();
       ctx.rotate(a);
-      ctx.fillStyle = outer;
-      ctx.strokeStyle = inner;
-      ctx.lineWidth = 1.1 * lwScale;
+      ctx.fillStyle = '#282220';
+      ctx.strokeStyle = outer;
+      ctx.lineWidth = 1.6 * lwScale;
       ctx.beginPath();
       ctx.arc(0, 0, radius * 1.02, -0.35, 0.25);
       ctx.lineTo(radius * 1.16, 0.42);
       ctx.arc(0, 0, radius * 0.84, 0.3, -0.35, true);
       ctx.closePath();
       ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = inner;
+      ctx.lineWidth = 0.9 * lwScale;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 1.01, -0.28, 0.24);
       ctx.stroke();
       ctx.restore();
     }
@@ -779,10 +828,11 @@ export function drawEffectStillpointAura(
     ctx.stroke();
     ctx.restore();
   } else if (style === 'clockwork') {
-    // Relic ★ Monolith Clockwork: dual interlocking golden gear rings + sweeping celestial hands!
+    // Relic ★ Monolith Clockwork: antique-bronze mechanical gear halo + teal filigree + celestial hands!
     const teeth = p.symmetry >= 12 ? 16 : 12;
     ctx.save();
     ctx.rotate(time * 0.55 * p.twist);
+    ctx.fillStyle = 'rgba(54, 44, 24, 0.34)';
     ctx.strokeStyle = outer;
     ctx.lineWidth = 1.8 * lwScale;
     ctx.beginPath();
@@ -795,6 +845,7 @@ export function drawEffectStillpointAura(
       else ctx.lineTo(x, y);
     }
     ctx.closePath();
+    ctx.fill();
     ctx.stroke();
     ctx.restore();
 
@@ -828,9 +879,15 @@ export function drawEffectStillpointAura(
     drawHand(time * 1.6 - Math.PI / 2, 0.92, core, 1.5);
     drawHand(time * 0.35 - Math.PI / 2, 0.65, outer, 2.2);
   } else {
-    // Classic Relic Astrolabe with vernier degree ticks & counter-rotating dual rings
+    // Classic Wasteland Rangefinder Astrolabe: brushed steel groove + vernier ticks & counter-rotating ring
     ctx.save();
     ctx.rotate(-time * 0.85 * p.twist);
+    ctx.strokeStyle = 'rgba(130, 118, 92, 0.36)';
+    ctx.lineWidth = 3.2 * lwScale;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.strokeStyle = outer;
     ctx.lineWidth = 1.6 * lwScale;
     ctx.setLineDash(p.sputter > 0.45 ? [8 * lwScale, 12 * lwScale, 3 * lwScale, 11 * lwScale] : [14 * lwScale, 8 * lwScale, 3 * lwScale, 8 * lwScale]);
@@ -861,8 +918,20 @@ export function drawEffectStillpointAura(
     ctx.restore();
   }
 
+  // Subtle orbiting incandescent ash motes tying every aura into STILLPOINT's atmospheric wasteland
+  for (let m = 0; m < 4; m++) {
+    const ma = time * (0.9 + m * 0.22) * (m % 2 === 0 ? 1 : -1) + m * 1.57 + item.seed * 0.05;
+    const mr = radius * (0.96 + 0.1 * Math.sin(time * 3 + m * 2));
+    ctx.fillStyle = m % 2 === 0 ? core : inner;
+    ctx.globalAlpha = blend * (0.45 + 0.35 * Math.sin(time * 6 + m * 1.9));
+    ctx.beginPath();
+    ctx.arc(Math.cos(ma) * mr, Math.sin(ma) * mr, 1.5 * lwScale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // Overburn charred dark embers orbiting edge
   if (p.overburn) {
+    ctx.globalAlpha = blend * 0.9;
     ctx.fillStyle = '#0d0a08';
     ctx.strokeStyle = '#d95a2b';
     ctx.lineWidth = 1 * lwScale;
@@ -880,6 +949,7 @@ export function drawEffectStillpointAura(
 
 /**
  * Renders a crisp miniature swatch thumbnail for an EffectItem (for Armory grid tiles & crate reel!).
+ * Grounded with recessed studio medallion vignette & beveled gunmetal thruster bell (zero flat rects!).
  */
 export function drawEffectThumbnail(
   cv: HTMLCanvasElement,
@@ -890,15 +960,32 @@ export function drawEffectThumbnail(
   if (!ctx) return;
   const W = cv.width;
   const H = cv.height;
+  const p = getEffectVisualParams(item);
   ctx.clearRect(0, 0, W, H);
   ctx.save();
+
+  // Subtle dark gunmetal radial studio backdrop matching Armory tile surfaces
+  const bg = ctx.createRadialGradient(W * 0.5, H * 0.48, 2, W * 0.5, H * 0.5, Math.max(W, H) * 0.54);
+  bg.addColorStop(0, `${p.primary}20`);
+  bg.addColorStop(0.65, 'rgba(18, 17, 16, 0.45)');
+  bg.addColorStop(1, 'rgba(12, 11, 10, 0)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
 
   if (item.slot === 'aura') {
     ctx.translate(W * 0.5, H * 0.5);
     drawEffectStillpointAura(ctx, item, Math.min(W, H) * 0.36, 1, time);
-    const p = getEffectVisualParams(item);
-    ctx.fillStyle = '#ffffff';
-    const d = Math.min(W, H) * 0.075;
+    // Beveled dark gunmetal & bronze center core socket + luminous crystal diamond
+    const d = Math.min(W, H) * 0.085;
+    ctx.fillStyle = '#1b1a18';
+    ctx.strokeStyle = '#7e6d47';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, d * 1.65, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = p.core;
     ctx.beginPath();
     ctx.moveTo(0, -d);
     ctx.lineTo(d, 0);
@@ -906,19 +993,39 @@ export function drawEffectThumbnail(
     ctx.lineTo(-d, 0);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = p.primary;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, d * 1.55, 0, Math.PI * 2);
-    ctx.stroke();
   } else {
-    // Exhaust plume flowing upward-to-downward across the tile
-    ctx.translate(W * 0.5, H * 0.16);
-    const scale = Math.min(W, H) / 48;
-    drawEffectThrusterPlume(ctx, 'vesper', item, time, scale * 0.72);
-    // Tiny silhouette nozzle cap at top
-    ctx.fillStyle = '#5a5c60';
-    ctx.fillRect(-5 * scale * 0.7, 10 * scale * 0.7, 10 * scale * 0.7, 4 * scale * 0.7);
+    // Exhaust plume flowing from a sculpted beveled tapered gunmetal thruster bell
+    ctx.translate(W * 0.5, H * 0.14);
+    const sc = Math.min(W, H) / 48;
+    const plumeScale = sc * 0.74;
+    drawEffectThrusterPlume(ctx, 'vesper', item, time, plumeScale);
+
+    // Sculpted tapered dark-steel & bronze engine bell matching ship_aegis/volt/nova!
+    const bellTopY = 5.5 * plumeScale;
+    const bellBotY = 17.5 * plumeScale;
+    const topW = 7.4 * plumeScale;
+    const botW = 5.6 * plumeScale;
+    const bellG = ctx.createLinearGradient(-topW, bellTopY, topW, bellTopY);
+    bellG.addColorStop(0, '#232528');
+    bellG.addColorStop(0.32, '#7b7f7c');
+    bellG.addColorStop(0.7, '#34363a');
+    bellG.addColorStop(1, '#141518');
+
+    ctx.fillStyle = bellG;
+    ctx.strokeStyle = '#121315';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-topW, bellTopY);
+    ctx.lineTo(topW, bellTopY);
+    ctx.lineTo(botW, bellBotY);
+    ctx.lineTo(-botW, bellBotY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Tarnished bronze retention ring on thruster collar
+    ctx.fillStyle = '#8b7444';
+    ctx.fillRect(-topW * 0.88, bellTopY + 3 * plumeScale, topW * 1.76, 2.2 * plumeScale);
   }
 
   ctx.restore();

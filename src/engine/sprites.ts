@@ -95,6 +95,7 @@ class SpriteBank {
     }
     this.loadArt('node_shrine', './art/node_shrine.png');
     this.loadArt('node_pact', './art/node_pact.png');
+    this.loadArt('turret_echo', './art/turret_echo.png');
 
     // Preload painterly seamless terrain floor tiles & rendered wreckage props!
     for (const sec of ['drift', 'helix', 'furnace', 'singularity']) {
@@ -104,12 +105,14 @@ class SpriteBank {
       this.loadArt(`prop_${prop}`, `./art/prop_${prop}.png`, false);
     }
 
-    // Warm browser image cache for menu banners & painted weapon icons so tabs render instantaneously
+    // Warm browser image cache for menu banners, crates, core emblems & painted weapon icons
     for (const src of [
       './art/sector_drift.jpg',
       './art/sector_helix.jpg',
       './art/sector_furnace.jpg',
       './art/sector_singularity.jpg',
+      './art/crate_salvage.png',
+      './art/crate_classified.png',
       './art/icon_pulse_lance.png',
       './art/icon_halo_blades.png',
       './art/icon_arc_tether.png',
@@ -122,7 +125,19 @@ class SpriteBank {
       './art/icon_rail_turret.png',
       './art/icon_frost_nova.png',
       './art/icon_swarm_missiles.png',
+      './art/icon_grav_flail.png',
+      './art/icon_acid_sprayer.png',
+      './art/icon_mirror_beam.png',
+      './art/icon_shatter_mine.png',
       './art/icon_core.png',
+      './art/icon_core_blink.png',
+      './art/icon_core_aegis_dome.png',
+      './art/icon_core_siphon.png',
+      './art/icon_core_chrono_echo.png',
+      './art/icon_core_overclock.png',
+      './art/icon_core_singularity_lance.png',
+      './art/icon_core_berserk.png',
+      './art/icon_core_catalyst_surge.png',
       './art/icon_shield.png',
       './art/icon_shard.png'
     ]) {
@@ -321,6 +336,16 @@ class SpriteBank {
     const key = kind === 'shrine' ? 'node_shrine' : 'node_pact';
     if (!this.artReady.has(key)) return null;
     return this.artImages.get(key) ?? null;
+  }
+
+  getTurretEchoArt(): HTMLImageElement | null {
+    if (!this.initialized) this.init();
+    if (!this.artReady.has('turret_echo')) return null;
+    return this.artImages.get('turret_echo') ?? null;
+  }
+
+  getTurretEchoShadow(): HTMLCanvasElement | null {
+    return this.shadowCache.get('turret_echo') ?? null;
   }
 
   getBiomeTile(sector: SectorId): HTMLCanvasElement {

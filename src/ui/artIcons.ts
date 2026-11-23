@@ -16,24 +16,24 @@ export function rarityForCore(id: CoreId): RarityTier {
   }
 }
 
-export function coreCssFilter(id: CoreId): string {
-  switch (id) {
-    case 'deflector': return 'none';
-    case 'blink': return 'hue-rotate(92deg) saturate(1.55) brightness(1.08)';
-    case 'aegis_dome': return 'hue-rotate(32deg) saturate(1.45) brightness(1.12)';
-    case 'siphon': return 'sepia(0.55) hue-rotate(-14deg) saturate(1.9) brightness(1.06)';
-    case 'chrono_echo': return 'hue-rotate(-52deg) saturate(1.55) brightness(1.1)';
-    case 'overclock': return 'sepia(0.6) hue-rotate(12deg) saturate(1.85) brightness(1.16)';
-    case 'singularity_lance': return 'sepia(0.7) hue-rotate(-26deg) saturate(2.2) brightness(1.08)';
-    case 'berserk': return 'sepia(0.65) hue-rotate(-46deg) saturate(2.4) brightness(1.04)';
-    case 'catalyst_surge': return 'hue-rotate(138deg) saturate(1.95) brightness(1.08)';
-  }
-}
+const CORE_ICON_URL: Record<CoreId, string> = {
+  deflector: './art/icon_core.png',
+  blink: './art/icon_core_blink.png',
+  aegis_dome: './art/icon_core_aegis_dome.png',
+  siphon: './art/icon_core_siphon.png',
+  chrono_echo: './art/icon_core_chrono_echo.png',
+  overclock: './art/icon_core_overclock.png',
+  singularity_lance: './art/icon_core_singularity_lance.png',
+  berserk: './art/icon_core_berserk.png',
+  catalyst_surge: './art/icon_core_catalyst_surge.png'
+};
 
 export function coreIconImg(id: CoreId, size = 28): string {
-  const f = coreCssFilter(id);
-  const st = f === 'none' ? '' : `style="filter:${f}"`;
-  return `<img src="./art/icon_core.png" width="${size}" height="${size}" class="art-img" ${st} alt="" draggable="false" />`;
+  return `<img src="${CORE_ICON_URL[id]}" width="${size}" height="${size}" class="art-img" alt="" draggable="false" />`;
+}
+
+export function crateArtUrl(kind: 'standard' | 'relic'): string {
+  return kind === 'relic' ? './art/crate_classified.png' : './art/crate_salvage.png';
 }
 
 export function rarityForLevel(level: number, evolved = false): RarityTier {
@@ -90,10 +90,10 @@ const WEAPON_ICON_URL: Record<WeaponId, { src: string; filter?: string }> = {
   rail_turret: { src: './art/icon_rail_turret.png' },
   frost_nova: { src: './art/icon_frost_nova.png' },
   swarm_missiles: { src: './art/icon_swarm_missiles.png' },
-  grav_flail: { src: './art/icon_halo_blades.png', filter: 'sepia(0.6) hue-rotate(-25deg) saturate(1.9)' },
-  acid_sprayer: { src: './art/icon_void_mortars.png', filter: 'hue-rotate(-145deg) saturate(1.75) brightness(1.1)' },
-  mirror_beam: { src: './art/icon_pulse_lance.png', filter: 'sepia(0.65) hue-rotate(8deg) saturate(2.1) brightness(1.15)' },
-  shatter_mine: { src: './art/icon_nova_pulse.png', filter: 'hue-rotate(-28deg) saturate(1.85)' }
+  grav_flail: { src: './art/icon_grav_flail.png' },
+  acid_sprayer: { src: './art/icon_acid_sprayer.png' },
+  mirror_beam: { src: './art/icon_mirror_beam.png' },
+  shatter_mine: { src: './art/icon_shatter_mine.png' }
 };
 
 const PASSIVE_ICON_MAP: Record<PassiveId, { src: string; filter?: string }> = {
@@ -106,13 +106,13 @@ const PASSIVE_ICON_MAP: Record<PassiveId, { src: string; filter?: string }> = {
   momentum_edge: { src: './art/icon_ricochet_shard.png', filter: 'hue-rotate(135deg)' },
   echo_chamber: { src: './art/icon_ricochet_shard.png' },
   reactive_plating: { src: './art/icon_shield.png' },
-  overclock_core: { src: './art/icon_shard.png', filter: 'hue-rotate(155deg) saturate(1.5) brightness(1.15)' },
+  overclock_core: { src: './art/icon_core_overclock.png' },
   cryo_core: { src: './art/icon_frost_nova.png', filter: 'brightness(1.15) saturate(1.3)' },
   targeting_array: { src: './art/icon_swarm_missiles.png', filter: 'hue-rotate(22deg)' },
-  heavy_frame: { src: './art/icon_shield.png', filter: 'sepia(0.55) hue-rotate(-18deg) saturate(1.7)' },
-  corrosive_vat: { src: './art/icon_frost_nova.png', filter: 'hue-rotate(-75deg) saturate(1.85)' },
-  optic_relay: { src: './art/icon_prism_drones.png', filter: 'sepia(0.6) hue-rotate(10deg) saturate(1.9)' },
-  blast_capacitor: { src: './art/icon_swarm_missiles.png', filter: 'hue-rotate(-22deg) saturate(1.8)' }
+  heavy_frame: { src: './art/icon_grav_flail.png' },
+  corrosive_vat: { src: './art/icon_acid_sprayer.png' },
+  optic_relay: { src: './art/icon_mirror_beam.png' },
+  blast_capacitor: { src: './art/icon_shatter_mine.png' }
 };
 
 export function artIconImg(key: string, size = 32): string {
