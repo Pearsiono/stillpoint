@@ -12,7 +12,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         configureAmbientAudioSession()
 
         let window = UIWindow(frame: UIScreen.main.bounds)
-        window.backgroundColor = UIColor(red: 5.0 / 255.0, green: 6.0 / 255.0, blue: 11.0 / 255.0, alpha: 1.0)
+        window.backgroundColor = UIColor(red: 22.0 / 255.0, green: 22.0 / 255.0, blue: 26.0 / 255.0, alpha: 1.0)
         window.rootViewController = GameViewController()
         window.makeKeyAndVisible()
         self.window = window

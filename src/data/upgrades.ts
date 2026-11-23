@@ -1,4 +1,5 @@
 import {
+  PactId,
   PassiveDef,
   PassiveId,
   PlayerState,
@@ -7,8 +8,40 @@ import {
   WeaponId
 } from '../types';
 
-export const MAX_WEAPON_SLOTS = 4;
-export const MAX_PASSIVE_SLOTS = 4;
+export const MAX_WEAPON_SLOTS = 5;
+export const MAX_PASSIVE_SLOTS = 5;
+
+export const PACTS: Record<
+  PactId,
+  { id: PactId; name: string; trade: string; accent: string }
+> = {
+  bloodlust: {
+    id: 'bloodlust',
+    name: 'BLOODLUST',
+    trade: '+40% DMG · Foes faster',
+    accent: '#ff3b5c'
+  },
+  glass_cannon: {
+    id: 'glass_cannon',
+    name: 'FRACTURE',
+    trade: '+65% Parry DMG · -20% HP',
+    accent: '#ff7a1a'
+  },
+  bullet_magnet: {
+    id: 'bullet_magnet',
+    name: 'OVERDRIVE',
+    trade: '+75% Graze · Faster fire',
+    accent: '#d96bff'
+  },
+  greed: {
+    id: 'greed',
+    name: 'AVARICE',
+    trade: '+60% Shards · More Elites',
+    accent: '#f6c453'
+  }
+};
+
+export const PACT_IDS = Object.keys(PACTS) as PactId[];
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
   pulse_lance: {
@@ -17,10 +50,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'SINGULARITY RAIL',
     catalystPassive: 'chrono_capacitor',
     accent: '#22e6ff',
-    icon: '◈',
-    normalDesc: 'Rapid cyan bolts track the closest threats.',
-    stillpointDesc: 'Overcharges into a piercing Chrono Railbeam.',
-    evolvedDesc: 'Twin hyper-piercing beams that tear unstable gravity rifts across the void.',
+    shortDesc: 'Auto-bolts · Slow-mo piercing railbeam',
+    stillpointShort: 'Piercing Chrono Railbeam',
+    evolvedShort: 'Twin rails tear detonating gravity rifts',
     maxLevel: 5
   },
   halo_blades: {
@@ -29,10 +61,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'ECLIPSE GYRO',
     catalystPassive: 'kinetic_thrusters',
     accent: '#4effb4',
-    icon: '◎',
-    normalDesc: 'Orbiting plasma rings slice nearby swarms.',
-    stillpointDesc: 'Expands into a razor Aegis Barrier that shreds enemy bullets.',
-    evolvedDesc: 'Dual counter-rotating solar rings that flare into wide cleave arcs on parry.',
+    shortDesc: 'Orbiting blades · Slow-mo bullet shredder',
+    stillpointShort: 'Shreds incoming enemy bullets',
+    evolvedShort: 'Dual solar rings flare shards on parry',
     maxLevel: 5
   },
   arc_tether: {
@@ -41,10 +72,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'TESLA LATTICE',
     catalystPassive: 'flux_coil',
     accent: '#6fa8ff',
-    icon: '⚡',
-    normalDesc: 'Chains bioluminescent lightning through clustered foes.',
-    stillpointDesc: 'Locks arcs into sustained high-voltage beams that zap nearby bullets.',
-    evolvedDesc: 'Crackling storm web that arcs automatically from every parried shard.',
+    shortDesc: 'Chain lightning · Slow-mo zaps bullets',
+    stillpointShort: 'Zaps nearby enemy projectiles',
+    evolvedShort: 'Parried shards chain storm lightning',
     maxLevel: 5
   },
   prism_drones: {
@@ -53,10 +83,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'SERAPHIM ARRAY',
     catalystPassive: 'aether_lens',
     accent: '#7bf7ff',
-    icon: '△',
-    normalDesc: 'Autonomous crystal drones circle and volley nearby enemies.',
-    stillpointDesc: 'Converges into a Prism Focus firing tri-split beams & extra parry shards.',
-    evolvedDesc: 'Six harmonic drones unleash continuous prism lances and restore shield energy.',
+    shortDesc: 'Autonomous drones · Slow-mo tri-beams',
+    stillpointShort: 'Tri-split refraction beams',
+    evolvedShort: 'Six drones + periodic Shield regen',
     maxLevel: 5
   },
   void_mortars: {
@@ -65,10 +94,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'EVENT HORIZON',
     catalystPassive: 'singularity_core',
     accent: '#b97aff',
-    icon: '◉',
-    normalDesc: 'Lobs plasma shells leaving burning neon blast craters.',
-    stillpointDesc: 'Collapses active craters into gravity wells that pull foes & detonate on resume.',
-    evolvedDesc: 'Persistent mini black holes crush waves and transmute trapped bullets into XP.',
+    shortDesc: 'Plasma craters · Slow-mo gravity collapse',
+    stillpointShort: 'Pulls foes, detonates on resume',
+    evolvedShort: 'Black holes turn bullets into XP',
     maxLevel: 5
   },
   phase_daggers: {
@@ -77,10 +105,53 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'PHANTOM BARRAGE',
     catalystPassive: 'graze_conduit',
     accent: '#ff66e5',
-    icon: '❖',
-    normalDesc: 'Leaves suspended razor knives along your movement trail.',
-    stillpointDesc: 'Recalls every planted dagger simultaneously into homing boss-seekers.',
-    evolvedDesc: 'Grazing bullets spawns extra Phantom Daggers that execute weakened targets.',
+    shortDesc: 'Trail blades · Slow-mo homing recall',
+    stillpointShort: 'Recalls all knives at elites',
+    evolvedShort: 'Grazes spawn daggers · Executes <20%',
+    maxLevel: 5
+  },
+  chrono_scythe: {
+    id: 'chrono_scythe',
+    name: 'Chrono Scythe',
+    evolvedName: 'REAPER ECLIPSE',
+    catalystPassive: 'momentum_edge',
+    accent: '#ff5c8a',
+    shortDesc: 'Boomerang arcs · Slow-mo frozen buzzsaws',
+    stillpointShort: 'Locks mid-air shredding bullets',
+    evolvedShort: 'Twin crimson saws slice bullets nonstop',
+    maxLevel: 5
+  },
+  ricochet_shard: {
+    id: 'ricochet_shard',
+    name: 'Ricochet Shard',
+    evolvedName: 'KALEIDOSCOPE',
+    catalystPassive: 'echo_chamber',
+    accent: '#5ce1e6',
+    shortDesc: 'Bouncing needles · Slow-mo split on hit',
+    stillpointShort: 'Fractures into 2 shards per bounce',
+    evolvedShort: 'Multi-bounce prism storm fills arena',
+    maxLevel: 5
+  },
+  nova_pulse: {
+    id: 'nova_pulse',
+    name: 'Nova Pulse',
+    evolvedName: 'SUPERNOVA HEART',
+    catalystPassive: 'reactive_plating',
+    accent: '#ff9f43',
+    shortDesc: 'Shockwave aura · Slow-mo implosion burst',
+    stillpointShort: 'Mega blast triggers on touch-down',
+    evolvedShort: 'Continuous dual shockwaves erase bullets',
+    maxLevel: 5
+  },
+  rail_turret: {
+    id: 'rail_turret',
+    name: 'Rail Pylons',
+    evolvedName: 'OBELISK NETWORK',
+    catalystPassive: 'overclock_core',
+    accent: '#f6c453',
+    shortDesc: 'Deploys pylons · Slow-mo laser tripwires',
+    stillpointShort: 'Links pylons with lethal beams',
+    evolvedShort: 'Triangulates plasma fields between nodes',
     maxLevel: 5
   }
 };
@@ -91,9 +162,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Chrono Capacitor',
     pairsWith: 'pulse_lance',
     accent: '#22e6ff',
-    icon: '⧗',
-    desc: 'Expands Kinetic Charge capacity and slows Stillpoint drain.',
-    perLevelLabel: '+18 Max Charge · -10% Drain',
+    shortStat: '+18 Focus · -10% drain',
     maxLevel: 5
   },
   kinetic_thrusters: {
@@ -101,9 +170,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Kinetic Thrusters',
     pairsWith: 'halo_blades',
     accent: '#4effb4',
-    icon: '»',
-    desc: 'Boosts thrust speed and Kinetic Charge generation while weaving.',
-    perLevelLabel: '+9% Move Speed · +16% Charge Rate',
+    shortStat: '+9% Speed · +16% Charge',
     maxLevel: 5
   },
   flux_coil: {
@@ -111,9 +178,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Flux Coil',
     pairsWith: 'arc_tether',
     accent: '#6fa8ff',
-    icon: '∿',
-    desc: 'Accelerates all weapon cycles and refreshes Parry Shockwave faster.',
-    perLevelLabel: '+13% Fire Rate · -12% Parry CD',
+    shortStat: '+13% Fire rate · -12% Parry CD',
     maxLevel: 5
   },
   aether_lens: {
@@ -121,9 +186,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Aether Lens',
     pairsWith: 'prism_drones',
     accent: '#7bf7ff',
-    icon: '◇',
-    desc: 'Widens weapon blast zones, beam thickness, and Parry Shockwave reach.',
-    perLevelLabel: '+15% Area & Parry Radius',
+    shortStat: '+15% Area & Parry radius',
     maxLevel: 5
   },
   singularity_core: {
@@ -131,9 +194,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Singularity Core',
     pairsWith: 'void_mortars',
     accent: '#b97aff',
-    icon: '✦',
-    desc: 'Amplifies all weapon output and reflected Parry Shard damage.',
-    perLevelLabel: '+16% Damage · +24% Parry Shard DMG',
+    shortStat: '+16% DMG · +24% Parry DMG',
     maxLevel: 5
   },
   graze_conduit: {
@@ -141,9 +202,39 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Graze Conduit',
     pairsWith: 'phase_daggers',
     accent: '#ff66e5',
-    icon: '◌',
-    desc: 'Expands Graze halo, XP pull range, and restores HP on multi-parries.',
-    perLevelLabel: '+14px Graze · +22% Magnet · Parry Heal',
+    shortStat: '+14 Graze · Parry heals HP',
+    maxLevel: 5
+  },
+  momentum_edge: {
+    id: 'momentum_edge',
+    name: 'Momentum Edge',
+    pairsWith: 'chrono_scythe',
+    accent: '#ff5c8a',
+    shortStat: '+10% Crit · +12% Shot speed',
+    maxLevel: 5
+  },
+  echo_chamber: {
+    id: 'echo_chamber',
+    name: 'Echo Chamber',
+    pairsWith: 'ricochet_shard',
+    accent: '#5ce1e6',
+    shortStat: '+1 Projectile every 2 lv',
+    maxLevel: 5
+  },
+  reactive_plating: {
+    id: 'reactive_plating',
+    name: 'Reactive Plating',
+    pairsWith: 'nova_pulse',
+    accent: '#ff9f43',
+    shortStat: '+1 Armor · +12 Shield',
+    maxLevel: 5
+  },
+  overclock_core: {
+    id: 'overclock_core',
+    name: 'Overclock Core',
+    pairsWith: 'rail_turret',
+    accent: '#f6c453',
+    shortStat: '+18% XP & Shard gain',
     maxLevel: 5
   }
 };
@@ -170,126 +261,116 @@ export function generateUpgradeChoices(
 ): UpgradeChoice[] {
   const pool: Array<{ choice: UpgradeChoice; weight: number }> = [];
 
-  // 1. Catalyst Evolutions first!
   const evoIds = getEligibleEvolutions(player);
   for (const wid of evoIds) {
     const def = WEAPONS[wid];
-    const pDef = PASSIVES[def.catalystPassive];
     pool.push({
-      weight: preferEvolution ? 100 : 18,
+      weight: preferEvolution ? 120 : 22,
       choice: {
         kind: 'evolution',
         id: `evo:${wid}`,
         title: def.evolvedName,
-        subtitle: def.evolvedDesc,
-        accent: '#ffd166',
-        icon: def.icon,
-        badge: `CATALYST · ${def.name.toUpperCase()} + ${pDef.name.toUpperCase()}`,
+        line: def.evolvedShort,
+        accent: '#f6c453',
+        iconKey: wid,
         weaponId: wid
       }
     });
   }
 
-  // 2. Existing weapons that can level up
   for (const owned of player.weapons) {
     const def = WEAPONS[owned.id];
     if (owned.level < def.maxLevel) {
       const nextLv = owned.level + 1;
       const hasCatalyst = player.passives.some((p) => p.id === def.catalystPassive);
       pool.push({
-        weight: nextLv === def.maxLevel && hasCatalyst ? 9 : 6,
+        weight: nextLv === def.maxLevel && hasCatalyst ? 10 : 6.5,
         choice: {
           kind: 'weapon',
           id: `w:${owned.id}`,
           title: def.name,
-          subtitle: `Upgrade to Lv.${nextLv} — higher output, tighter Stillpoint burst.`,
+          line: def.shortDesc,
           accent: def.accent,
-          icon: def.icon,
-          badge: `WEAPON LV.${nextLv}`,
-          normalNote: def.normalDesc,
-          stillpointNote: def.stillpointDesc,
-          nextLevel: nextLv,
+          iconKey: owned.id,
+          level: nextLv,
+          maxLevel: def.maxLevel,
           weaponId: owned.id
         }
       });
     }
   }
 
-  // 3. New weapons if slots open
   if (player.weapons.length < MAX_WEAPON_SLOTS) {
     for (const wid of WEAPON_IDS) {
       if (player.weapons.some((w) => w.id === wid)) continue;
       const def = WEAPONS[wid];
-      const matchesOwnedPassive = player.passives.some((p) => p.id === def.catalystPassive);
+      const matchesPassive = player.passives.some((p) => p.id === def.catalystPassive);
       pool.push({
-        weight: matchesOwnedPassive ? 7 : 4.5,
+        weight: matchesPassive ? 7.5 : 4.2,
         choice: {
           kind: 'weapon',
           id: `w:${wid}`,
           title: def.name,
-          subtitle: `Pairs with ${PASSIVES[def.catalystPassive].name} → ${def.evolvedName}`,
+          line: def.shortDesc,
           accent: def.accent,
-          icon: def.icon,
-          badge: 'NEW WEAPON',
-          normalNote: def.normalDesc,
-          stillpointNote: def.stillpointDesc,
-          nextLevel: 1,
+          iconKey: wid,
+          level: 1,
+          maxLevel: def.maxLevel,
+          isNew: true,
+          isSynergy: matchesPassive,
           weaponId: wid
         }
       });
     }
   }
 
-  // 4. Existing passives
   for (const owned of player.passives) {
     const def = PASSIVES[owned.id];
     if (owned.level < def.maxLevel) {
-      const nextLv = owned.level + 1;
       pool.push({
         weight: 5,
         choice: {
           kind: 'passive',
           id: `p:${owned.id}`,
           title: def.name,
-          subtitle: `${def.perLevelLabel} · Catalyst for ${WEAPONS[def.pairsWith].name}`,
+          line: def.shortStat,
           accent: def.accent,
-          icon: def.icon,
-          badge: `MODULE LV.${nextLv}`,
-          nextLevel: nextLv,
+          iconKey: owned.id,
+          level: owned.level + 1,
+          maxLevel: def.maxLevel,
           passiveId: owned.id
         }
       });
     }
   }
 
-  // 5. New passives if slots open
   if (player.passives.length < MAX_PASSIVE_SLOTS) {
     for (const pid of PASSIVE_IDS) {
       if (player.passives.some((p) => p.id === pid)) continue;
       const def = PASSIVES[pid];
       const matchesWeapon = player.weapons.some((w) => w.id === def.pairsWith);
       pool.push({
-        weight: matchesWeapon ? 7.5 : 4,
+        weight: matchesWeapon ? 8.5 : 3.5,
         choice: {
           kind: 'passive',
           id: `p:${pid}`,
           title: def.name,
-          subtitle: `${def.perLevelLabel} · Evolves ${WEAPONS[def.pairsWith].name}`,
+          line: def.shortStat,
           accent: def.accent,
-          icon: def.icon,
-          badge: matchesWeapon ? 'SYNERGY MODULE' : 'NEW MODULE',
-          nextLevel: 1,
+          iconKey: pid,
+          level: 1,
+          maxLevel: def.maxLevel,
+          isNew: true,
+          isSynergy: matchesWeapon,
           passiveId: pid
         }
       });
     }
   }
 
-  // Weighted sample without replacement
   const selected: UpgradeChoice[] = [];
   const remaining = [...pool];
 
-  // If boss chest prefers evolution, guarantee one evolution at index 0
   if (preferEvolution && evoIds.length > 0) {
     const evoIdx = remaining.findIndex((item) => item.choice.kind === 'evolution');
     if (evoIdx >= 0) {
@@ -311,16 +392,14 @@ export function generateUpgradeChoices(
     selected.push(remaining.splice(pickIdx, 1)[0].choice);
   }
 
-  // Fallback overdrive heal if everything is maxed!
   while (selected.length < count) {
     selected.push({
       kind: 'heal',
       id: `overdrive:${selected.length}`,
-      title: 'Overclock Surge',
-      subtitle: 'Restore +35% Hull, refill Kinetic Charge, and permanently boost Damage +6%.',
+      title: 'Overclock',
+      line: '+35% HP · +6% DMG · Full Focus',
       accent: '#4effb4',
-      icon: '✚',
-      badge: 'LIMIT BREAK'
+      iconKey: 'heal'
     });
   }
 

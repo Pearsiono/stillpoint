@@ -1,25 +1,25 @@
 # STILLPOINT
 
-A neon cyber-void bullet-hell roguelike built for iPhone (portrait one-thumb + Lift-to-Focus time-dilation).
+A post-apocalyptic relic-wasteland bullet-hell roguelike built for iPhone (portrait one-thumb + Lift-to-Focus time-dilation).
 
-## Signature Mechanic — Lift-to-Focus & Parry Shockwave
-- **Touch & Drag** anywhere on the screen to steer via a dynamic floating joystick. Moving and **grazing** close to enemy fire builds **Kinetic Charge**.
-- **Lift your thumb** (or hold **Space** on desktop) to enter **STILLPOINT**:
-  - Time slows to ~17% speed while your hitbox shrinks to a glowing pinpoint diamond core.
-  - A **Parry Shockwave** erupts around you, transmuting nearby enemy bullets into homing cyan counter-shards.
-  - Parrying **magenta ringed Boss/Elite orbs** triggers massive **Overparry** damage and refunds Kinetic Charge!
-- **Dual-State Time Weapons & Catalyst Evolutions**: All 6 weapons transform behavior between Normal Time and Stillpoint Slow-Mo, and fuse with matching passive modules at Lv.5 into evolved super-forms.
-- **Neon Containment Boss Enclosures**: Every ~2 minutes, a containment arena locks around you for multi-phase bullet-hell boss duels (*Vortex Weaver*, *Prism Seraph*, *Chrono Archon*), followed by optional **Endless Overdrive**.
+## Features
+- **Lift-to-Focus (`STILLPOINT`) + Parry Shockwave**: Drag anywhere to steer your scavenged hover-rig and graze enemy fire for Kinetic Charge; lift your thumb (or hold **Space** on desktop) to drop time to ~17%, reveal your pinpoint relic core, and shatter nearby bullets into homing counter-shards.
+- **Post-Apocalyptic Relic Wasteland Art**: Textured biome floors, scattered ruins (cracked rebar slabs, rusted girders, buried brass gears, pillars), shaded war-automaton sprites with grounded drop shadows, shattering polygon debris, and drifting ash/spores/embers.
+- **6 Unlockable Vessels**: *VESPER*, *AEGIS*, *PHANTOM*, *VOLT*, *NOVA*, and *SERAPH* — each with unique hull geometry, starter weapon, and Stillpoint perk.
+- **10 Unlockable Skins**: *RELIC*, *OXIDE*, *BRASSWORKS*, *HAZARD*, *OVERGROWN*, *FROSTGLASS*, *AMETHYST*, *SUMI BONE*, *SLAG CORE*, and *AURELIA* — transforming hull finish, exhaust wake, UI accents, and Parry Shockwave palettes live.
+- **4 Wasteland Sectors**: *01 ASH FLATS*, *02 SUNKEN METRO*, *03 SLAG FOUNDRY*, and *04 THE MONOLITH*, complete with mid-run **Overclock Rings**, breakable **Relic Shrines**, and risk/reward **Cursed Pact Altars**.
+- **10 Dual-State Weapons + 10 Passives + 10 Catalyst Evolutions**: Every weapon shifts behavior between Normal Time and Stillpoint Slow-Mo.
+- **4 Multi-Phase Bosses + Endless Overdrive**: *Vortex Weaver*, *Prism Seraph*, *Chrono Archon*, and the articulated serpent *Void Leviathan*.
+- **8 Core Upgrades + 16 Unlockable Trophies**.
 
 ## Installing on iPhone via Sideloadly
-1. Download `STILLPOINT-unsigned.ipa` from the **Releases** page (or the latest **Actions** workflow artifact).
+1. Download `STILLPOINT-unsigned.ipa` from the **Releases** page.
 2. Open [Sideloadly](https://sideloadly.io/) on Windows or macOS and connect your iPhone.
 3. Drag `STILLPOINT-unsigned.ipa` into Sideloadly, enter your Apple ID, and click **Start**.
-4. On iPhone: go to **Settings → General → VPN & Device Management** and trust your Apple ID developer certificate, then launch **STILLPOINT**!
+4. On iPhone: **Settings → General → VPN & Device Management** → trust your developer certificate, then launch **STILLPOINT**.
 
-## Local Browser Playtesting (Windows / macOS)
+## Local Browser Playtesting
 ```bash
 npm install
 npm run dev
 ```
-Drag with mouse (release to enter Stillpoint) or use **WASD / Arrow keys** + **Space** (Stillpoint).

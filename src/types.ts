@@ -6,7 +6,21 @@ export type GamePhase =
   | 'gameover'
   | 'victory';
 
-export type VesselId = 'vesper' | 'aegis' | 'phantom';
+export type VesselId = 'vesper' | 'aegis' | 'phantom' | 'volt' | 'nova' | 'seraph';
+
+export type SkinId =
+  | 'cyanide'
+  | 'ronin'
+  | 'gilded'
+  | 'sakura'
+  | 'venom'
+  | 'monolith'
+  | 'ultraviolet'
+  | 'ink'
+  | 'eclipse'
+  | 'prismatic';
+
+export type SectorId = 'drift' | 'helix' | 'furnace' | 'singularity';
 
 export type WeaponId =
   | 'pulse_lance'
@@ -14,7 +28,11 @@ export type WeaponId =
   | 'arc_tether'
   | 'prism_drones'
   | 'void_mortars'
-  | 'phase_daggers';
+  | 'phase_daggers'
+  | 'chrono_scythe'
+  | 'ricochet_shard'
+  | 'nova_pulse'
+  | 'rail_turret';
 
 export type PassiveId =
   | 'chrono_capacitor'
@@ -22,7 +40,11 @@ export type PassiveId =
   | 'flux_coil'
   | 'aether_lens'
   | 'singularity_core'
-  | 'graze_conduit';
+  | 'graze_conduit'
+  | 'momentum_edge'
+  | 'echo_chamber'
+  | 'reactive_plating'
+  | 'overclock_core';
 
 export type MetaUpgradeId =
   | 'hull_integrity'
@@ -30,23 +52,49 @@ export type MetaUpgradeId =
   | 'parry_resonance'
   | 'time_lattice'
   | 'magnet_field'
-  | 'reroll_module';
+  | 'reroll_module'
+  | 'crit_calibration'
+  | 'shard_harvester';
 
-export interface Vec2 {
-  x: number;
-  y: number;
+export type PactId = 'bloodlust' | 'glass_cannon' | 'bullet_magnet' | 'greed';
+
+export interface SkinDef {
+  id: SkinId;
+  name: string;
+  hullFill: string;
+  hullTrim: string;
+  hullCore: string;
+  accent: string;
+  trailColor: string;
+  parryOuter: string;
+  parryInner: string;
+  rainbow?: boolean;
+  unlockCost: number;
+  unlockMilestone?: string;
+}
+
+export interface SectorDef {
+  id: SectorId;
+  code: string;
+  name: string;
+  accent: string;
+  bgBase: string;
+  bgGlow: string;
+  gridColor: string;
+  gridStyle: 'square' | 'hex' | 'diamond' | 'radial';
+  shardMult: number;
+  difficultyMult: number;
+  bossIntervalScale: number;
+  unlockCost: number;
+  unlockBossRequired?: number; // 1 = Boss I, 2 = Boss II, 3 = Boss III
 }
 
 export interface VesselDef {
   id: VesselId;
   name: string;
-  codename: string;
-  tagline: string;
-  accent: string;
-  glow: string;
   starterWeapon: WeaponId;
   unlockCost: number;
-  unlockBossHint: string;
+  unlockMilestone?: string;
   stats: {
     maxHp: number;
     moveSpeed: number;
@@ -55,8 +103,9 @@ export interface VesselDef {
     parryRadiusMult: number;
     grazeRadius: number;
     armor: number;
+    shield: number;
   };
-  perk: string;
+  perkShort: string;
 }
 
 export interface WeaponDef {
@@ -65,10 +114,9 @@ export interface WeaponDef {
   evolvedName: string;
   catalystPassive: PassiveId;
   accent: string;
-  icon: string;
-  normalDesc: string;
-  stillpointDesc: string;
-  evolvedDesc: string;
+  shortDesc: string;
+  stillpointShort: string;
+  evolvedShort: string;
   maxLevel: number;
 }
 
@@ -77,31 +125,48 @@ export interface PassiveDef {
   name: string;
   pairsWith: WeaponId;
   accent: string;
-  icon: string;
-  desc: string;
-  perLevelLabel: string;
+  shortStat: string;
   maxLevel: number;
 }
 
 export interface MetaUpgradeDef {
   id: MetaUpgradeId;
   name: string;
-  desc: string;
   maxLevel: number;
   baseCost: number;
   costStep: number;
-  perLevelText: string;
+  perLevelShort: string;
+}
+
+export interface MilestoneDef {
+  id: string;
+  name: string;
+  goalText: string;
+  rewardShards: number;
+  rewardLabel?: string;
+  check: (save: MetaSave) => { current: number; target: number; done: boolean };
 }
 
 export interface MetaSave {
   shards: number;
   bestTimeSec: number;
   bestScore: number;
+  bestSingleParry: number;
   totalRuns: number;
+  totalKills: number;
   totalParries: number;
+  totalGrazes: number;
   bossesCleared: number;
+  evolutionsCrafted: number;
+  noHitBossClears: number;
+  sectorsCleared: SectorId[];
   unlockedVessels: VesselId[];
   selectedVessel: VesselId;
+  unlockedSkins: SkinId[];
+  selectedSkin: SkinId;
+  unlockedSectors: SectorId[];
+  selectedSector: SectorId;
+  claimedMilestones: string[];
   upgrades: Record<MetaUpgradeId, number>;
   settings: {
     music: boolean;
@@ -128,13 +193,13 @@ export interface UpgradeChoice {
   kind: 'weapon' | 'passive' | 'evolution' | 'heal';
   id: string;
   title: string;
-  subtitle: string;
+  line: string;
   accent: string;
-  icon: string;
-  badge: string;
-  normalNote?: string;
-  stillpointNote?: string;
-  nextLevel?: number;
+  iconKey: string;
+  level?: number;
+  maxLevel?: number;
+  isNew?: boolean;
+  isSynergy?: boolean;
   weaponId?: WeaponId;
   passiveId?: PassiveId;
 }
@@ -149,27 +214,26 @@ export interface PlayerState {
   maxHp: number;
   shield: number;
   maxShield: number;
+  shieldRegenTimer: number;
   invulnTimer: number;
   hitFlash: number;
-  // Stillpoint / Kinetic system
   kineticCharge: number;
   maxKineticCharge: number;
   inStillpoint: boolean;
-  stillpointBlend: number; // 0 = normal time, 1 = full stillpoint
+  stillpointBlend: number;
   stillpointTimeHeld: number;
   parryCooldown: number;
   parryCooldownMax: number;
-  // Progression
   level: number;
   xp: number;
   xpToNext: number;
   rerolls: number;
-  // Graze combo
   grazeCombo: number;
   grazeComboTimer: number;
-  // Stats derived from vessel + passives + meta
+  inOverclockRing: boolean;
   moveSpeed: number;
   damageMult: number;
+  critChance: number;
   fireRateMult: number;
   areaMult: number;
   parryMult: number;
@@ -177,11 +241,14 @@ export interface PlayerState {
   stillpointDrainMult: number;
   grazeRadius: number;
   magnetRadius: number;
+  xpMult: number;
+  shardMult: number;
+  bonusProjectiles: number;
+  projectileSpeedMult: number;
   armor: number;
-  // Loadout
   weapons: OwnedWeapon[];
   passives: OwnedPassive[];
-  // Trail for afterimages & phase daggers
+  pacts: PactId[];
   trail: Array<{ x: number; y: number; alpha: number }>;
   distanceMovedSinceDagger: number;
 }
@@ -195,9 +262,12 @@ export type EnemyKind =
   | 'sniper'
   | 'bulwark'
   | 'spinner'
+  | 'reflector'
+  | 'mine'
   | 'boss_weaver'
   | 'boss_seraph'
-  | 'boss_archon';
+  | 'boss_archon'
+  | 'boss_leviathan';
 
 export interface Enemy {
   id: number;
@@ -223,12 +293,11 @@ export interface Enemy {
   telegraphAngle?: number;
   telegraphTimer?: number;
   accent: string;
-  // Boss display
   bossName?: string;
-  bossTitle?: string;
+  segments?: Array<{ x: number; y: number }>; // Articulated tail for Void Leviathan
 }
 
-export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'parry_orb' | 'ring_pellet';
+export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'parry_orb';
 
 export interface EnemyBullet {
   id: number;
@@ -243,9 +312,8 @@ export interface EnemyBullet {
   maxAge: number;
   grazed: boolean;
   parryable: boolean;
-  isParryBonus: boolean; // Magenta ringed orb -> mega counter + charge refund!
+  isParryBonus: boolean;
   color: string;
-  spin?: number;
 }
 
 export type PlayerBulletKind =
@@ -254,7 +322,9 @@ export type PlayerBulletKind =
   | 'prism_bolt'
   | 'dagger_planted'
   | 'dagger_homing'
-  | 'mortar_shell';
+  | 'mortar_shell'
+  | 'scythe'
+  | 'ricochet';
 
 export interface PlayerBullet {
   id: number;
@@ -266,6 +336,7 @@ export interface PlayerBullet {
   radius: number;
   damage: number;
   pierce: number;
+  bounces?: number;
   age: number;
   maxAge: number;
   color: string;
@@ -274,14 +345,28 @@ export interface PlayerBullet {
   hitSet: Set<number>;
   evolved?: boolean;
   blastRadius?: number;
+  spinAngle?: number;
+  returnPhase?: boolean;
+}
+
+export interface RailPylon {
+  id: number;
+  x: number;
+  y: number;
+  age: number;
+  maxAge: number;
+  fireTimer: number;
+  evolved: boolean;
+  damage: number;
 }
 
 export interface HazardZone {
   id: number;
-  kind: 'crater' | 'singularity' | 'rift';
+  kind: 'crater' | 'singularity' | 'rift' | 'nova_wave';
   x: number;
   y: number;
   radius: number;
+  maxRadius?: number;
   damagePerSec: number;
   age: number;
   maxAge: number;
@@ -289,6 +374,21 @@ export interface HazardZone {
   collapsed: boolean;
   evolved: boolean;
   pullStrength: number;
+}
+
+export interface WorldNode {
+  id: number;
+  kind: 'overclock_ring' | 'shrine' | 'pact_altar';
+  x: number;
+  y: number;
+  radius: number;
+  hp: number;
+  maxHp: number;
+  age: number;
+  maxAge: number;
+  progress: number; // for pact hover activation
+  pactId?: PactId;
+  accent: string;
 }
 
 export interface LaserBeam {
@@ -304,7 +404,6 @@ export interface LaserBeam {
   isEnemy: boolean;
   isTelegraph?: boolean;
   damage?: number;
-  ownerId?: number;
 }
 
 export interface ParryWave {
@@ -316,12 +415,13 @@ export interface ParryWave {
   duration: number;
   parryCount: number;
   bonusParryCount: number;
-  color: string;
+  colorOuter: string;
+  colorInner: string;
 }
 
 export interface Pickup {
   id: number;
-  kind: 'xp_small' | 'xp_mid' | 'xp_large' | 'heal' | 'shard' | 'magnet';
+  kind: 'xp_small' | 'xp_mid' | 'xp_large' | 'heal' | 'shard' | 'magnet' | 'chest';
   x: number;
   y: number;
   vx: number;
@@ -338,11 +438,9 @@ export interface BossEnclosure {
   cy: number;
   halfW: number;
   halfH: number;
-  targetHalfW: number;
-  targetHalfH: number;
-  bossIndex: number; // 0, 1, 2
+  bossIndex: number;
   bossId: number | null;
-  pulse: number;
+  playerHitDuringBoss: boolean;
 }
 
 export interface RunStats {
@@ -354,13 +452,14 @@ export interface RunStats {
   grazes: number;
   bossesDefeated: number;
   shardsEarned: number;
+  sectorId: SectorId;
   endlessMode: boolean;
   victory: boolean;
 }
 
 export interface InputSnapshot {
-  moveX: number; // -1..1
-  moveY: number; // -1..1
+  moveX: number;
+  moveY: number;
   isMoving: boolean;
   wantsStillpoint: boolean;
   hasInteracted: boolean;

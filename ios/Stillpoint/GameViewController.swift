@@ -88,7 +88,7 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 5.0 / 255.0, green: 6.0 / 255.0, blue: 11.0 / 255.0, alpha: 1.0)
+        view.backgroundColor = UIColor(red: 22.0 / 255.0, green: 22.0 / 255.0, blue: 26.0 / 255.0, alpha: 1.0)
 
         lightImpact.prepare()
         mediumImpact.prepare()

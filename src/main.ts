@@ -21,8 +21,11 @@ function bootstrap(): void {
   });
 
   const overlays = new OverlayController(uiRoot, save, {
-    onStartRun: (vessel) => game.startNewRun(vessel),
+    onStartRun: () => game.startNewRun(),
     onSelectVessel: (vessel) => game.setVessel(vessel),
+    onSelectSkin: (skin) => game.setSkin(skin),
+    onSelectSector: (sector) => game.setSector(sector),
+    onSheetToggle: (open) => game.setMenuSheetOpen(open),
     onSelectUpgrade: (choiceId) => game.selectUpgrade(choiceId),
     onReroll: () => game.rerollChoices(),
     onResume: () => game.resumeGame(),
@@ -52,7 +55,6 @@ function bootstrap(): void {
   overlays.renderPhase('menu');
   game.startLoop();
 
-  // Keyboard Escape shortcut to pause/resume on desktop testing
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') {
       if (game.phase === 'playing') game.pauseGame();

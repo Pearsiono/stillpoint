@@ -3,67 +3,111 @@ import { VesselDef, VesselId } from '../types';
 export const VESSELS: Record<VesselId, VesselDef> = {
   vesper: {
     id: 'vesper',
-    name: 'VESPER-01',
-    codename: 'STRIKER',
-    tagline: 'Balanced intercept chassis tuned for crisp Lift-to-Focus counter bursts.',
-    accent: '#22e6ff',
-    glow: 'rgba(34, 230, 255, 0.55)',
+    name: 'VESPER',
     starterWeapon: 'pulse_lance',
     unlockCost: 0,
-    unlockBossHint: 'Unlocked by default',
     stats: {
       maxHp: 100,
-      moveSpeed: 215,
+      moveSpeed: 218,
       maxCharge: 100,
       chargeRateMult: 1.0,
       parryRadiusMult: 1.0,
       grazeRadius: 48,
-      armor: 0
+      armor: 0,
+      shield: 0
     },
-    perk: 'Balanced Stillpoint drain & +15% reflected Parry Shard velocity'
+    perkShort: '+20% Parry Shard speed'
   },
   aegis: {
     id: 'aegis',
-    name: 'AEGIS-04',
-    codename: 'BASTION',
-    tagline: 'Heavy orbital vanguard that turns dense bullet curtains into counter-nova blasts.',
-    accent: '#4effb4',
-    glow: 'rgba(78, 255, 180, 0.55)',
+    name: 'AEGIS',
     starterWeapon: 'halo_blades',
     unlockCost: 160,
-    unlockBossHint: 'Or clear Boss I: Vortex Weaver',
+    unlockMilestone: 'boss_1',
     stats: {
       maxHp: 135,
-      moveSpeed: 196,
+      moveSpeed: 198,
       maxCharge: 115,
-      chargeRateMult: 0.95,
+      chargeRateMult: 0.96,
       parryRadiusMult: 1.32,
       grazeRadius: 46,
-      armor: 2
+      armor: 2,
+      shield: 18
     },
-    perk: '+32% Parry Shockwave radius & regenerates a 12 HP Energy Shield on multi-parry (4+)'
+    perkShort: '+32% Parry radius · Shield on 4× parry'
   },
   phantom: {
     id: 'phantom',
-    name: 'PHANTOM-09',
-    codename: 'WRAITH',
-    tagline: 'Featherweight speed-frame built to skim lethal bullets and flood the void with blades.',
-    accent: '#d96bff',
-    glow: 'rgba(217, 107, 255, 0.55)',
+    name: 'PHANTOM',
     starterWeapon: 'phase_daggers',
-    unlockCost: 340,
-    unlockBossHint: 'Or clear Boss II: Prism Seraph',
+    unlockCost: 300,
+    unlockMilestone: 'boss_2',
     stats: {
       maxHp: 85,
-      moveSpeed: 244,
+      moveSpeed: 246,
       maxCharge: 110,
       chargeRateMult: 1.28,
       parryRadiusMult: 1.08,
       grazeRadius: 68,
-      armor: 0
+      armor: 0,
+      shield: 0
     },
-    perk: 'Huge Graze halo (+42%), +28% Kinetic Charge speed & faster Parry reset'
+    perkShort: '+42% Graze halo · Faster charge'
+  },
+  volt: {
+    id: 'volt',
+    name: 'VOLT',
+    starterWeapon: 'arc_tether',
+    unlockCost: 420,
+    unlockMilestone: 'parry_150',
+    stats: {
+      maxHp: 95,
+      moveSpeed: 228,
+      maxCharge: 105,
+      chargeRateMult: 1.12,
+      parryRadiusMult: 1.12,
+      grazeRadius: 52,
+      armor: 0,
+      shield: 8
+    },
+    perkShort: 'Stillpoint entry arcs lightning to 3 foes'
+  },
+  nova: {
+    id: 'nova',
+    name: 'NOVA',
+    starterWeapon: 'void_mortars',
+    unlockCost: 540,
+    unlockMilestone: 'sector_drift',
+    stats: {
+      maxHp: 120,
+      moveSpeed: 204,
+      maxCharge: 125,
+      chargeRateMult: 1.0,
+      parryRadiusMult: 1.2,
+      grazeRadius: 48,
+      armor: 1,
+      shield: 10
+    },
+    perkShort: 'Parry Waves spawn gravity rifts'
+  },
+  seraph: {
+    id: 'seraph',
+    name: 'SERAPH',
+    starterWeapon: 'prism_drones',
+    unlockCost: 750,
+    unlockMilestone: 'boss_3',
+    stats: {
+      maxHp: 110,
+      moveSpeed: 226,
+      maxCharge: 130,
+      chargeRateMult: 1.16,
+      parryRadiusMult: 1.18,
+      grazeRadius: 56,
+      armor: 1,
+      shield: 24
+    },
+    perkShort: 'Double Parry Shards · High Energy Shield'
   }
 };
 
-export const VESSEL_ORDER: VesselId[] = ['vesper', 'aegis', 'phantom'];
+export const VESSEL_ORDER: VesselId[] = ['vesper', 'aegis', 'phantom', 'volt', 'nova', 'seraph'];

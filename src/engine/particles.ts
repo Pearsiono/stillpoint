@@ -9,7 +9,9 @@ export interface Particle {
   life: number;
   maxLife: number;
   drag: number;
-  shape: 'dot' | 'spark' | 'ring';
+  shape: 'dot' | 'spark' | 'ring' | 'shard';
+  rot?: number;
+  vrot?: number;
 }
 
 export interface GridRipple {
@@ -42,8 +44,8 @@ export interface ArcFlash {
   maxLife: number;
 }
 
-const MAX_PARTICLES = 420;
-const MAX_TEXTS = 40;
+const MAX_PARTICLES = 460;
+const MAX_TEXTS = 36;
 
 export class ParticleSystem {
   particles: Particle[] = [];
@@ -90,6 +92,32 @@ export class ParticleSystem {
     }
   }
 
+  shatter(x: number, y: number, color: string, count = 7, scale = 1): void {
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length >= MAX_PARTICLES) {
+        this.particles.shift();
+      }
+      const ang = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+      const spd = (65 + Math.random() * 140) * scale;
+      const life = 0.38 + Math.random() * 0.28;
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        size: (4.5 + Math.random() * 4.5) * scale,
+        color,
+        alpha: 1,
+        life,
+        maxLife: life,
+        drag: 0.91,
+        shape: 'shard',
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 14
+      });
+    }
+  }
+
   ring(x: number, y: number, color: string, size = 18, life = 0.35): void {
     if (this.particles.length >= MAX_PARTICLES) this.particles.shift();
     this.particles.push({
@@ -107,7 +135,14 @@ export class ParticleSystem {
     });
   }
 
-  ripple(x: number, y: number, maxRadius: number, strength: number, color: string, duration = 0.55): void {
+  ripple(
+    x: number,
+    y: number,
+    maxRadius: number,
+    strength: number,
+    color: string,
+    duration = 0.55
+  ): void {
     this.ripples.push({
       x,
       y,
@@ -121,12 +156,12 @@ export class ParticleSystem {
     if (this.ripples.length > 8) this.ripples.shift();
   }
 
-  callout(x: number, y: number, text: string, color: string, scale = 1, life = 0.85): void {
+  callout(x: number, y: number, text: string, color: string, scale = 1, life = 0.8): void {
     if (this.texts.length >= MAX_TEXTS) this.texts.shift();
     this.texts.push({
       x,
       y,
-      vy: -42,
+      vy: -44,
       text,
       color,
       scale,
@@ -153,7 +188,7 @@ export class ParticleSystem {
     }
     pts.push({ x: x2, y: y2 });
     this.arcs.push({ points: pts, color, width, life, maxLife: life });
-    if (this.arcs.length > 36) this.arcs.shift();
+    if (this.arcs.length > 40) this.arcs.shift();
   }
 
   update(dtWorld: number, dtReal: number): void {
@@ -166,13 +201,16 @@ export class ParticleSystem {
         continue;
       }
       if (p.shape === 'ring') {
-        p.size += 180 * dt;
+        p.size += 185 * dt;
       } else {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         const damp = Math.pow(p.drag, dt * 60);
         p.vx *= damp;
         p.vy *= damp;
+        if (p.rot !== undefined && p.vrot !== undefined) {
+          p.rot += p.vrot * dt;
+        }
       }
       p.alpha = Math.max(0, p.life / p.maxLife);
     }

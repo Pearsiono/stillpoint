@@ -4,18 +4,33 @@ import {
   buyMetaUpgrade,
   getMetaUpgradeCost,
   META_UPGRADES,
+  MILESTONES,
   persistMetaSave
 } from '../data/meta';
-import { WEAPONS } from '../data/upgrades';
+import { SECTOR_ORDER, SECTORS } from '../data/sectors';
+import { SKIN_ORDER, SKINS } from '../data/skins';
 import { VESSEL_ORDER, VESSELS } from '../data/vessels';
-import { GamePhase, MetaSave, MetaUpgradeId, RunStats, UpgradeChoice, VesselId } from '../types';
+import {
+  GamePhase,
+  MetaSave,
+  MetaUpgradeId,
+  RunStats,
+  SectorId,
+  SkinId,
+  UpgradeChoice,
+  VesselId
+} from '../types';
 import { formatTime, renderUpgradeDraftHtml } from './hud';
+import { svgIcon } from './icons';
 
-type MenuTab = 'home' | 'vessels' | 'matrix' | 'settings';
+type MenuSheet = 'none' | 'ships' | 'skins' | 'sectors' | 'upgrades' | 'trophies' | 'settings';
 
 export interface OverlayActions {
-  onStartRun: (vessel: VesselId) => void;
+  onStartRun: () => void;
   onSelectVessel: (vessel: VesselId) => void;
+  onSelectSkin: (skin: SkinId) => void;
+  onSelectSector: (sector: SectorId) => void;
+  onSheetToggle: (open: boolean) => void;
   onSelectUpgrade: (choiceId: string) => void;
   onReroll: () => void;
   onResume: () => void;
@@ -27,7 +42,7 @@ export class OverlayController {
   private container: HTMLDivElement;
   private save: MetaSave;
   private actions: OverlayActions;
-  private tab: MenuTab = 'home';
+  private sheet: MenuSheet = 'none';
   private toastEl: HTMLDivElement | null = null;
   private toastTimer = 0;
 
@@ -49,7 +64,7 @@ export class OverlayController {
     this.toastTimer = window.setTimeout(() => {
       el.remove();
       this.toastEl = null;
-    }, 3200);
+    }, 3000);
   }
 
   renderPhase(
@@ -63,6 +78,8 @@ export class OverlayController {
     }
   ): void {
     if (phase === 'playing') {
+      this.sheet = 'none';
+      this.actions.onSheetToggle(false);
       this.container.innerHTML = '';
       return;
     }
@@ -88,138 +105,122 @@ export class OverlayController {
     }
   }
 
-  private renderMenu(): void {
-    const vessel = VESSELS[this.save.selectedVessel];
-    const starter = WEAPONS[vessel.starterWeapon];
+  private setSheet(next: MenuSheet): void {
+    this.sheet = next;
+    this.actions.onSheetToggle(next !== 'none');
+    this.renderMenu();
+  }
 
-    if (this.tab === 'home') {
+  private renderMenu(): void {
+    const sector = SECTORS[this.save.selectedSector];
+    const canBuyUpgrade = META_UPGRADES.some((u) => {
+      const lv = this.save.upgrades[u.id] ?? 0;
+      return lv < u.maxLevel && this.save.shards >= getMetaUpgradeCost(u, lv);
+    });
+
+    if (this.sheet === 'none') {
       this.container.innerHTML = `
-        <div class="overlay-backdrop menu-bg">
-          <div class="title-hero">
-            <div class="title-kicker">CHRONO BULLET-HELL ROGUELIKE</div>
-            <div class="title-logo">STILLPOINT</div>
-            <div class="title-sub">Weave through the neon storm. Lift your thumb to bend time and shatter bullet curtains back at the void.</div>
-            <div class="shard-pill">❖ ${this.save.shards.toLocaleString()} RESONANCE SHARDS</div>
+        <div class="home-shell">
+          <div>
+            <div class="home-top">
+              <div class="shard-counter">
+                ${svgIcon('shard', 14, 'var(--accent)')}
+                <span>${this.save.shards.toLocaleString()}</span>
+              </div>
+              <button class="icon-square" id="btn-settings" aria-label="Settings">
+                ${svgIcon('gear', 16)}
+              </button>
+            </div>
+            <div class="home-title-block">
+              <div class="wordmark">STILLPOINT</div>
+            </div>
           </div>
 
-          <div class="panel">
-            <div class="item-row">
-              <div>
-                <div class="stat-label">ACTIVE VESSEL</div>
-                <div class="item-title" style="color:${vessel.accent}">${vessel.name} · ${vessel.codename}</div>
-                <div class="item-meta">Starter: ${starter.icon} ${starter.name}</div>
-              </div>
-              <button class="buy-btn" id="btn-open-vessels">SWITCH</button>
-            </div>
+          <div class="home-spacer"></div>
 
-            <div class="control-hint-card">
-              <div><strong>DRAG</strong> anywhere to weave &amp; graze enemy fire for Kinetic Charge.</div>
-              <div><strong>LIFT THUMB</strong> (or hold <strong>SPACE</strong>) to trigger <strong>STILLPOINT</strong> slow-mo &amp; fire a <strong>PARRY SHOCKWAVE</strong>.</div>
-            </div>
-
-            <div class="mini-stats">
-              <div class="stat-box">
-                <div class="stat-label">BEST TIME</div>
-                <div class="stat-value">${formatTime(this.save.bestTimeSec)}</div>
+          <div class="home-dock">
+            <button class="sector-strip" id="btn-sectors">
+              <div class="sector-left">
+                <span class="sector-code" style="border-color:${sector.accent};color:${sector.accent}">${sector.code}</span>
+                <span class="sector-name">${sector.name}</span>
               </div>
-              <div class="stat-box">
-                <div class="stat-label">BEST SCORE</div>
-                <div class="stat-value">${this.save.bestScore.toLocaleString()}</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label">PARRIES</div>
-                <div class="stat-value" style="color:#22e6ff">${this.save.totalParries.toLocaleString()}</div>
-              </div>
-            </div>
+              <span class="sector-mult">${sector.shardMult.toFixed(1)}× ${svgIcon('chevron', 14)}</span>
+            </button>
 
-            <button class="primary-btn" id="btn-play">ENTER THE VOID</button>
+            <button class="cta-btn" id="btn-play">
+              ${svgIcon('play', 16, '#07080d')}
+              <span>PLAY</span>
+            </button>
 
-            <div class="nav-row">
-              <button class="secondary-btn" id="btn-tab-vessels">VESSELS</button>
-              <button class="secondary-btn" id="btn-tab-matrix">MATRIX</button>
-              <button class="secondary-btn" id="btn-tab-settings">AUDIO</button>
+            <div class="dock-nav">
+              <button class="dock-tab" id="btn-ships">
+                ${svgIcon('ships', 18)}
+                <span>SHIPS</span>
+              </button>
+              <button class="dock-tab" id="btn-skins">
+                ${svgIcon('skins', 18)}
+                <span>SKINS</span>
+              </button>
+              <button class="dock-tab" id="btn-upgrades">
+                ${svgIcon('matrix', 17)}
+                <span>UPGRADES</span>
+                ${canBuyUpgrade ? '<span class="pip-alert"></span>' : ''}
+              </button>
+              <button class="dock-tab" id="btn-trophies">
+                ${svgIcon('trophy', 17)}
+                <span>TROPHIES</span>
+              </button>
             </div>
           </div>
         </div>
       `;
 
-      this.container.querySelector('#btn-play')!.addEventListener('click', () => {
-        this.actions.onStartRun(this.save.selectedVessel);
-      });
-      this.container.querySelector('#btn-open-vessels')!.addEventListener('click', () => {
-        this.tab = 'vessels';
-        this.renderMenu();
-      });
-      this.container.querySelector('#btn-tab-vessels')!.addEventListener('click', () => {
-        this.tab = 'vessels';
-        this.renderMenu();
-      });
-      this.container.querySelector('#btn-tab-matrix')!.addEventListener('click', () => {
-        this.tab = 'matrix';
-        this.renderMenu();
-      });
-      this.container.querySelector('#btn-tab-settings')!.addEventListener('click', () => {
-        this.tab = 'settings';
-        this.renderMenu();
-      });
+      this.container.querySelector('#btn-play')!.addEventListener('click', () => this.actions.onStartRun());
+      this.container.querySelector('#btn-sectors')!.addEventListener('click', () => this.setSheet('sectors'));
+      this.container.querySelector('#btn-ships')!.addEventListener('click', () => this.setSheet('ships'));
+      this.container.querySelector('#btn-skins')!.addEventListener('click', () => this.setSheet('skins'));
+      this.container.querySelector('#btn-upgrades')!.addEventListener('click', () => this.setSheet('upgrades'));
+      this.container.querySelector('#btn-trophies')!.addEventListener('click', () => this.setSheet('trophies'));
+      this.container.querySelector('#btn-settings')!.addEventListener('click', () => this.setSheet('settings'));
       return;
     }
 
-    if (this.tab === 'vessels') {
-      const cards = VESSEL_ORDER.map((vid) => {
+    if (this.sheet === 'ships') {
+      const rows = VESSEL_ORDER.map((vid) => {
         const v = VESSELS[vid];
         const unlocked = this.save.unlockedVessels.includes(vid);
-        const selected = this.save.selectedVessel === vid;
-        const starterW = WEAPONS[v.starterWeapon];
+        const active = this.save.selectedVessel === vid;
         const canBuy = !unlocked && this.save.shards >= v.unlockCost;
         return `
-          <div class="item-card ${selected ? 'selected' : ''}">
-            <div class="item-row">
+          <div class="row-card ${active ? 'active' : ''} ${unlocked ? '' : 'locked'}">
+            <div class="row-main">
+              <div class="row-icon">${svgIcon(vid, 18, active ? 'var(--accent)' : '#ebe7dc')}</div>
               <div>
-                <div class="item-title" style="color:${v.accent}">${v.name} · ${v.codename}</div>
-                <div class="item-meta">${starterW.icon} ${starterW.name} · ${v.stats.maxHp} HP · SPD ${v.stats.moveSpeed}</div>
+                <div class="row-title">${v.name}</div>
+                <div class="row-sub">${v.perkShort}</div>
               </div>
-              ${
-                unlocked
-                  ? `<button class="buy-btn" data-select-vessel="${vid}">${selected ? 'EQUIPPED' : 'SELECT'}</button>`
-                  : `<button class="buy-btn" data-unlock-vessel="${vid}" ${canBuy ? '' : 'disabled'}>❖ ${v.unlockCost}</button>`
-              }
             </div>
-            <div class="item-meta">${v.tagline}</div>
-            <div class="item-meta" style="color:#bfefff">✦ ${v.perk}</div>
-            ${!unlocked ? `<div class="item-meta" style="color:#ffd166">${v.unlockBossHint}</div>` : ''}
+            ${
+              unlocked
+                ? `<button class="action-chip ${active ? 'equipped' : ''}" data-ship="${vid}">${active ? svgIcon('check', 13) : 'USE'}</button>`
+                : `<button class="action-chip" data-buy-ship="${vid}" ${canBuy ? '' : 'disabled'}>${svgIcon('shard', 12, 'var(--accent)')}${v.unlockCost}</button>`
+            }
           </div>
         `;
       }).join('');
 
-      this.container.innerHTML = `
-        <div class="overlay-backdrop">
-          <div class="panel">
-            <div class="item-row">
-              <div>
-                <div class="draft-title" style="text-align:left;font-size:17px">VESSEL HANGAR</div>
-                <div class="item-meta">Select your intercept hull</div>
-              </div>
-              <div class="shard-pill">❖ ${this.save.shards}</div>
-            </div>
-            <div class="scroll-list">${cards}</div>
-            <button class="secondary-btn" id="btn-back-home">← BACK</button>
-          </div>
-        </div>
-      `;
+      this.renderSheet('SHIPS', rows, true);
 
-      this.container.querySelectorAll<HTMLButtonElement>('[data-select-vessel]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const vid = btn.dataset.selectVessel as VesselId;
-          this.actions.onSelectVessel(vid);
+      this.container.querySelectorAll<HTMLButtonElement>('[data-ship]').forEach((b) => {
+        b.addEventListener('click', () => {
+          this.actions.onSelectVessel(b.dataset.ship as VesselId);
           bridge.haptic('light');
           this.renderMenu();
         });
       });
-
-      this.container.querySelectorAll<HTMLButtonElement>('[data-unlock-vessel]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const vid = btn.dataset.unlockVessel as VesselId;
+      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ship]').forEach((b) => {
+        b.addEventListener('click', () => {
+          const vid = b.dataset.buyShip as VesselId;
           const v = VESSELS[vid];
           if (this.save.shards >= v.unlockCost && !this.save.unlockedVessels.includes(vid)) {
             this.save.shards -= v.unlockCost;
@@ -232,122 +233,225 @@ export class OverlayController {
           }
         });
       });
-
-      this.container.querySelector('#btn-back-home')!.addEventListener('click', () => {
-        this.tab = 'home';
-        this.renderMenu();
-      });
       return;
     }
 
-    if (this.tab === 'matrix') {
-      const items = META_UPGRADES.map((u) => {
-        const lv = this.save.upgrades[u.id] ?? 0;
-        const maxed = lv >= u.maxLevel;
-        const cost = getMetaUpgradeCost(u, lv);
-        const canBuy = !maxed && this.save.shards >= cost;
-        const pips = Array.from({ length: u.maxLevel }, (_, idx) =>
-          `<span class="pip ${idx < lv ? 'filled' : ''}"></span>`
-        ).join('');
-
+    if (this.sheet === 'skins') {
+      const tiles = SKIN_ORDER.map((sid) => {
+        const s = SKINS[sid];
+        const unlocked = this.save.unlockedSkins.includes(sid);
+        const active = this.save.selectedSkin === sid;
+        const canBuy = !unlocked && this.save.shards >= s.unlockCost;
+        const actionBtn = unlocked
+          ? `<span class="action-chip ${active ? 'equipped' : ''}">${active ? svgIcon('check', 12) : 'USE'}</span>`
+          : `<span class="action-chip" style="opacity:${canBuy ? 1 : 0.4}">${svgIcon('shard', 11, 'var(--accent)')}${s.unlockCost}</span>`;
         return `
-          <div class="item-card">
-            <div class="item-row">
-              <div>
-                <div class="item-title">${u.name} <span style="color:#22e6ff;font-size:11px">LV.${lv}/${u.maxLevel}</span></div>
-                <div class="item-meta">${u.perLevelText} — ${u.desc}</div>
-                <div class="pip-bar">${pips}</div>
+          <button class="skin-tile ${active ? 'active' : ''}" data-skin="${sid}">
+            <div class="swatch-row">
+              <div class="swatch">
+                <span class="swatch-bar" style="background:${s.hullFill}"></span>
+                <span class="swatch-bar" style="background:${s.hullTrim}"></span>
+                <span class="swatch-bar" style="background:${s.accent}"></span>
               </div>
-              <button class="buy-btn" data-buy-meta="${u.id}" ${canBuy ? '' : 'disabled'}>
-                ${maxed ? 'MAXED' : `❖ ${cost}`}
-              </button>
+              ${actionBtn}
             </div>
-          </div>
+            <div class="row-title">${s.name}</div>
+          </button>
         `;
       }).join('');
 
       this.container.innerHTML = `
-        <div class="overlay-backdrop">
-          <div class="panel">
-            <div class="item-row">
-              <div>
-                <div class="draft-title" style="text-align:left;font-size:17px">CORE MATRIX</div>
-                <div class="item-meta">Permanent vessel tuning</div>
+        <div class="sheet-backdrop preview-open" id="sheet-bg">
+          <div class="sheet">
+            <div class="sheet-head">
+              <div class="sheet-title">SKINS</div>
+              <div class="shard-counter" style="padding:4px 8px;font-size:12px">
+                ${svgIcon('shard', 12, 'var(--accent)')} ${this.save.shards.toLocaleString()}
               </div>
-              <div class="shard-pill">❖ ${this.save.shards}</div>
             </div>
-            <div class="scroll-list">${items}</div>
-            <button class="secondary-btn" id="btn-back-home">← BACK</button>
+            <div class="skin-grid">${tiles}</div>
+            <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
           </div>
         </div>
       `;
 
-      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-meta]').forEach((btn) => {
+      this.bindSheetClose();
+      this.container.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const id = btn.dataset.buyMeta as MetaUpgradeId;
-          if (buyMetaUpgrade(this.save, id)) {
+          const sid = btn.dataset.skin as SkinId;
+          const s = SKINS[sid];
+          if (this.save.unlockedSkins.includes(sid)) {
+            this.actions.onSelectSkin(sid);
+            bridge.haptic('light');
+            this.renderMenu();
+          } else if (this.save.shards >= s.unlockCost) {
+            this.save.shards -= s.unlockCost;
+            this.save.unlockedSkins.push(sid);
+            this.actions.onSelectSkin(sid);
+            persistMetaSave(this.save);
             bridge.haptic('success');
             sound.playLevelUp();
             this.renderMenu();
           }
         });
       });
+      return;
+    }
 
-      this.container.querySelector('#btn-back-home')!.addEventListener('click', () => {
-        this.tab = 'home';
-        this.renderMenu();
+    if (this.sheet === 'sectors') {
+      const rows = SECTOR_ORDER.map((secId) => {
+        const sc = SECTORS[secId];
+        const unlocked = this.save.unlockedSectors.includes(secId);
+        const active = this.save.selectedSector === secId;
+        const canBuy = !unlocked && this.save.shards >= sc.unlockCost;
+        return `
+          <div class="row-card ${active ? 'active' : ''} ${unlocked ? '' : 'locked'}">
+            <div class="row-main">
+              <span class="sector-code" style="border-color:${sc.accent};color:${sc.accent}">${sc.code}</span>
+              <div>
+                <div class="row-title">${sc.name}</div>
+                <div class="row-sub">${sc.shardMult.toFixed(1)}× Shards</div>
+              </div>
+            </div>
+            ${
+              unlocked
+                ? `<button class="action-chip ${active ? 'equipped' : ''}" data-sector="${secId}">${active ? svgIcon('check', 13) : 'SELECT'}</button>`
+                : `<button class="action-chip" data-buy-sector="${secId}" ${canBuy ? '' : 'disabled'}>${svgIcon('shard', 12, 'var(--accent)')}${sc.unlockCost}</button>`
+            }
+          </div>
+        `;
+      }).join('');
+
+      this.renderSheet('SECTORS', rows, true);
+
+      this.container.querySelectorAll<HTMLButtonElement>('[data-sector]').forEach((b) => {
+        b.addEventListener('click', () => {
+          this.actions.onSelectSector(b.dataset.sector as SectorId);
+          bridge.haptic('light');
+          this.renderMenu();
+        });
+      });
+      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-sector]').forEach((b) => {
+        b.addEventListener('click', () => {
+          const secId = b.dataset.buySector as SectorId;
+          const sc = SECTORS[secId];
+          if (this.save.shards >= sc.unlockCost && !this.save.unlockedSectors.includes(secId)) {
+            this.save.shards -= sc.unlockCost;
+            this.save.unlockedSectors.push(secId);
+            this.actions.onSelectSector(secId);
+            persistMetaSave(this.save);
+            bridge.haptic('success');
+            sound.playLevelUp();
+            this.renderMenu();
+          }
+        });
       });
       return;
     }
 
-    // Settings tab
+    if (this.sheet === 'upgrades') {
+      const rows = META_UPGRADES.map((u) => {
+        const lv = this.save.upgrades[u.id] ?? 0;
+        const maxed = lv >= u.maxLevel;
+        const cost = getMetaUpgradeCost(u, lv);
+        const canBuy = !maxed && this.save.shards >= cost;
+        const pips = Array.from({ length: u.maxLevel }, (_, i) =>
+          `<span class="pip ${i < lv ? 'on' : ''}"></span>`
+        ).join('');
+        return `
+          <div class="row-card">
+            <div>
+              <div class="row-title">${u.name}</div>
+              <div class="row-sub">${u.perLevelShort}</div>
+              <div class="pips">${pips}</div>
+            </div>
+            <button class="action-chip" data-buy-meta="${u.id}" ${canBuy ? '' : 'disabled'}>
+              ${maxed ? 'MAX' : `${svgIcon('shard', 12, 'var(--accent)')}${cost}`}
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      this.renderSheet('UPGRADES', rows, false);
+
+      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-meta]').forEach((b) => {
+        b.addEventListener('click', () => {
+          if (buyMetaUpgrade(this.save, b.dataset.buyMeta as MetaUpgradeId)) {
+            bridge.haptic('success');
+            sound.playLevelUp();
+            this.renderMenu();
+          }
+        });
+      });
+      return;
+    }
+
+    if (this.sheet === 'trophies') {
+      const doneCount = this.save.claimedMilestones.length;
+      const rows = MILESTONES.map((m) => {
+        const st = m.check(this.save);
+        const done = this.save.claimedMilestones.includes(m.id) || st.done;
+        const reward = m.rewardLabel ? `${m.rewardLabel} · +${m.rewardShards}` : `+${m.rewardShards}`;
+        return `
+          <div class="row-card ${done ? 'active' : ''}">
+            <div class="row-main">
+              <div class="row-icon">${svgIcon(done ? 'check' : 'trophy', 15, done ? 'var(--gold)' : '#6d7588')}</div>
+              <div>
+                <div class="row-title">${m.name}</div>
+                <div class="row-sub">${m.goalText} · ${Math.min(st.current, st.target).toLocaleString()}/${st.target.toLocaleString()}</div>
+              </div>
+            </div>
+            <span class="row-sub" style="color:${done ? 'var(--gold)' : 'var(--muted)'};font-weight:800">${reward}</span>
+          </div>
+        `;
+      }).join('');
+
+      this.container.innerHTML = `
+        <div class="sheet-backdrop" id="sheet-bg">
+          <div class="sheet">
+            <div class="sheet-head">
+              <div class="sheet-title">TROPHIES</div>
+              <span class="row-sub" style="color:var(--gold);font-weight:800">${doneCount} / ${MILESTONES.length}</span>
+            </div>
+            <div class="scroll-zone">${rows}</div>
+            <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
+          </div>
+        </div>
+      `;
+      this.bindSheetClose();
+      return;
+    }
+
+    // Settings sheet
     const s = this.save.settings;
     this.container.innerHTML = `
-      <div class="overlay-backdrop">
-        <div class="panel">
-          <div class="draft-title" style="text-align:left;font-size:17px">AUDIO &amp; HAPTICS</div>
-          <div class="item-meta">iOS Ambient mode is active — your own Spotify or Apple Music will keep playing uninterrupted.</div>
-
-          <div class="toggle-row">
-            <div>
-              <div class="item-title">Reactive Synth Music</div>
-              <div class="item-meta">Low-pass muffles during Stillpoint slow-mo</div>
-            </div>
-            <button class="toggle-pill ${s.music ? 'on' : ''}" data-toggle="music">${s.music ? 'ON' : 'OFF'}</button>
+      <div class="sheet-backdrop center" id="sheet-bg">
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title">SETTINGS</div>
           </div>
-
-          <div class="toggle-row">
-            <div>
-              <div class="item-title">Sound Effects</div>
-              <div class="item-meta">Graze ticks, parry shatter &amp; weapon cues</div>
-            </div>
-            <button class="toggle-pill ${s.sfx ? 'on' : ''}" data-toggle="sfx">${s.sfx ? 'ON' : 'OFF'}</button>
+          <div class="toggle-grid">
+            <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">
+              ${svgIcon('music', 16)} <span>MUSIC</span>
+            </button>
+            <button class="toggle-tile ${s.sfx ? 'on' : ''}" data-toggle="sfx">
+              ${svgIcon('sfx', 16)} <span>SFX</span>
+            </button>
+            <button class="toggle-tile ${s.haptics ? 'on' : ''}" data-toggle="haptics">
+              ${svgIcon('haptics', 16)} <span>HAPTICS</span>
+            </button>
+            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">
+              ${svgIcon('flash', 16)} <span>LOW FLASH</span>
+            </button>
           </div>
-
-          <div class="toggle-row">
-            <div>
-              <div class="item-title">iOS Native Haptics</div>
-              <div class="item-meta">Tactile feedback on grazes, parries &amp; bosses</div>
-            </div>
-            <button class="toggle-pill ${s.haptics ? 'on' : ''}" data-toggle="haptics">${s.haptics ? 'ON' : 'OFF'}</button>
-          </div>
-
-          <div class="toggle-row">
-            <div>
-              <div class="item-title">Reduced Screen Flash</div>
-              <div class="item-meta">Softer Stillpoint vignette &amp; pulse FX</div>
-            </div>
-            <button class="toggle-pill ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">${s.reduceFlash ? 'ON' : 'OFF'}</button>
-          </div>
-
-          <button class="secondary-btn" id="btn-back-home">← BACK</button>
+          <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
         </div>
       </div>
     `;
-
-    this.container.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.toggle as keyof MetaSave['settings'];
+    this.bindSheetClose();
+    this.container.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const key = b.dataset.toggle as keyof MetaSave['settings'];
         this.save.settings[key] = !this.save.settings[key];
         sound.setSettings(this.save.settings.music, this.save.settings.sfx);
         bridge.setHapticsEnabled(this.save.settings.haptics);
@@ -356,10 +460,30 @@ export class OverlayController {
         this.renderMenu();
       });
     });
+  }
 
-    this.container.querySelector('#btn-back-home')!.addEventListener('click', () => {
-      this.tab = 'home';
-      this.renderMenu();
+  private renderSheet(title: string, rowsHtml: string, previewOpen: boolean): void {
+    this.container.innerHTML = `
+      <div class="sheet-backdrop ${previewOpen ? 'preview-open' : ''}" id="sheet-bg">
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title">${title}</div>
+            <div class="shard-counter" style="padding:4px 8px;font-size:12px">
+              ${svgIcon('shard', 12, 'var(--accent)')} ${this.save.shards.toLocaleString()}
+            </div>
+          </div>
+          <div class="scroll-zone">${rowsHtml}</div>
+          <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
+        </div>
+      </div>
+    `;
+    this.bindSheetClose();
+  }
+
+  private bindSheetClose(): void {
+    this.container.querySelector('#btn-close-sheet')?.addEventListener('click', () => this.setSheet('none'));
+    this.container.querySelector('#sheet-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'sheet-bg') this.setSheet('none');
     });
   }
 
@@ -371,68 +495,48 @@ export class OverlayController {
   ): void {
     this.container.innerHTML = renderUpgradeDraftHtml(choices, level, rerolls, isBossChest);
     this.container.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        this.actions.onSelectUpgrade(btn.dataset.choice!);
-      });
+      btn.addEventListener('click', () => this.actions.onSelectUpgrade(btn.dataset.choice!));
     });
-    const rerollBtn = this.container.querySelector('#btn-reroll');
-    if (rerollBtn) {
-      rerollBtn.addEventListener('click', () => this.actions.onReroll());
-    }
+    this.container.querySelector('#btn-reroll')?.addEventListener('click', () => this.actions.onReroll());
   }
 
   private renderPause(): void {
     const s = this.save.settings;
     this.container.innerHTML = `
-      <div class="overlay-backdrop">
-        <div class="panel">
-          <div class="draft-header">
-            <div class="draft-title">STASIS PAUSED</div>
-            <div class="draft-sub">Time field suspended</div>
+      <div class="sheet-backdrop center">
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="sheet-title">PAUSED</div>
           </div>
-
-          <div class="toggle-row">
-            <div class="item-title">Synth Music</div>
-            <button class="toggle-pill ${s.music ? 'on' : ''}" id="p-music">${s.music ? 'ON' : 'OFF'}</button>
+          <div class="toggle-grid">
+            <button class="toggle-tile ${s.music ? 'on' : ''}" id="p-music">${svgIcon('music', 15)} <span>MUSIC</span></button>
+            <button class="toggle-tile ${s.sfx ? 'on' : ''}" id="p-sfx">${svgIcon('sfx', 15)} <span>SFX</span></button>
+            <button class="toggle-tile ${s.haptics ? 'on' : ''}" id="p-haptics">${svgIcon('haptics', 15)} <span>HAPTICS</span></button>
+            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" id="p-flash">${svgIcon('flash', 15)} <span>LOW FLASH</span></button>
           </div>
-          <div class="toggle-row">
-            <div class="item-title">SFX</div>
-            <button class="toggle-pill ${s.sfx ? 'on' : ''}" id="p-sfx">${s.sfx ? 'ON' : 'OFF'}</button>
-          </div>
-          <div class="toggle-row">
-            <div class="item-title">Haptics</div>
-            <button class="toggle-pill ${s.haptics ? 'on' : ''}" id="p-haptics">${s.haptics ? 'ON' : 'OFF'}</button>
-          </div>
-
-          <button class="primary-btn" id="btn-resume">RESUME RUN</button>
-          <button class="secondary-btn" id="btn-abandon">ABORT TO HANGAR</button>
+          <button class="cta-btn" id="btn-resume">RESUME</button>
+          <button class="ghost-btn" id="btn-quit">QUIT</button>
         </div>
       </div>
     `;
-
     this.container.querySelector('#btn-resume')!.addEventListener('click', () => this.actions.onResume());
-    this.container.querySelector('#btn-abandon')!.addEventListener('click', () => {
-      this.tab = 'home';
+    this.container.querySelector('#btn-quit')!.addEventListener('click', () => {
+      this.sheet = 'none';
       this.actions.onQuitToMenu();
     });
-    this.container.querySelector('#p-music')!.addEventListener('click', () => {
-      s.music = !s.music;
-      sound.setSettings(s.music, s.sfx);
-      persistMetaSave(this.save);
-      this.renderPause();
-    });
-    this.container.querySelector('#p-sfx')!.addEventListener('click', () => {
-      s.sfx = !s.sfx;
-      sound.setSettings(s.music, s.sfx);
-      persistMetaSave(this.save);
-      this.renderPause();
-    });
-    this.container.querySelector('#p-haptics')!.addEventListener('click', () => {
-      s.haptics = !s.haptics;
-      bridge.setHapticsEnabled(s.haptics);
-      persistMetaSave(this.save);
-      this.renderPause();
-    });
+    const wire = (id: string, key: keyof MetaSave['settings']) => {
+      this.container.querySelector(id)!.addEventListener('click', () => {
+        s[key] = !s[key];
+        sound.setSettings(s.music, s.sfx);
+        bridge.setHapticsEnabled(s.haptics);
+        persistMetaSave(this.save);
+        this.renderPause();
+      });
+    };
+    wire('#p-music', 'music');
+    wire('#p-sfx', 'sfx');
+    wire('#p-haptics', 'haptics');
+    wire('#p-flash', 'reduceFlash');
   }
 
   private renderRunEnd(isVictory: boolean, stats?: RunStats): void {
@@ -445,80 +549,44 @@ export class OverlayController {
       grazes: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
+      sectorId: this.save.selectedSector,
       endlessMode: false,
       victory: false
     };
 
     this.container.innerHTML = `
-      <div class="overlay-backdrop">
-        <div class="panel">
-          <div class="draft-header">
-            <div class="title-kicker" style="color:${isVictory ? '#ffd166' : '#ff4d6d'}">
-              ${isVictory ? 'CHRONO ARCHON SHATTERED' : 'VESSEL SIGNAL LOST'}
+      <div class="sheet-backdrop center">
+        <div class="sheet" style="border-top-color:${isVictory ? 'var(--gold)' : 'var(--danger)'}">
+          <div class="sheet-head">
+            <div class="sheet-title" style="color:${isVictory ? 'var(--gold)' : '#ebe7dc'}">
+              ${isVictory ? 'VICTORY' : 'DEFEATED'}
             </div>
-            <div class="draft-title" style="font-size:24px;color:${isVictory ? '#ffd166' : '#ffffff'}">
-              ${isVictory ? 'STILLPOINT MASTERED' : 'RUN TERMINATED'}
+            <div class="shard-counter" style="padding:4px 8px;color:var(--gold)">
+              ${svgIcon('shard', 12, 'var(--gold)')} +${st.shardsEarned}
             </div>
           </div>
 
-          <div style="text-align:center">
-            <span class="shard-pill">❖ +${st.shardsEarned} RESONANCE SHARDS EARNED</span>
-          </div>
-
-          <div class="mini-stats">
-            <div class="stat-box">
-              <div class="stat-label">TIME</div>
-              <div class="stat-value">${formatTime(st.elapsed)}</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">SCORE</div>
-              <div class="stat-value">${st.score.toLocaleString()}</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">BOSSES</div>
-              <div class="stat-value" style="color:#ffd166">${st.bossesDefeated}</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">PARRIES</div>
-              <div class="stat-value" style="color:#22e6ff">${st.parries}</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">MAX BURST</div>
-              <div class="stat-value" style="color:#ff66e5">×${st.bestSingleParry}</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-label">GRAZES</div>
-              <div class="stat-value" style="color:#4effb4">${st.grazes}</div>
-            </div>
+          <div class="summary-grid">
+            <div class="summary-cell">${svgIcon('timer', 16, 'var(--muted)')}<span class="summary-num">${formatTime(st.elapsed)}</span></div>
+            <div class="summary-cell">${svgIcon('trophy', 16, 'var(--muted)')}<span class="summary-num">${st.score.toLocaleString()}</span></div>
+            <div class="summary-cell">${svgIcon('skull', 16, 'var(--muted)')}<span class="summary-num">${st.kills}</span></div>
+            <div class="summary-cell">${svgIcon('parry', 16, 'var(--accent)')}<span class="summary-num" style="color:var(--accent)">${st.parries}</span></div>
           </div>
 
           ${
             isVictory
-              ? `<button class="primary-btn gold" id="btn-endless">CONTINUE ENDLESS OVERDRIVE</button>`
-              : `<button class="primary-btn" id="btn-retry">RE-ENTER THE VOID</button>`
+              ? `<button class="cta-btn gold" id="btn-endless">ENDLESS</button>`
+              : `<button class="cta-btn" id="btn-retry">RETRY</button>`
           }
-          <div class="nav-row" style="grid-template-columns:1fr 1fr">
-            <button class="secondary-btn" id="btn-go-matrix">CORE MATRIX</button>
-            <button class="secondary-btn" id="btn-go-home">HANGAR</button>
-          </div>
+          <button class="ghost-btn" id="btn-home">HANGAR</button>
         </div>
       </div>
     `;
 
-    const endlessBtn = this.container.querySelector('#btn-endless');
-    if (endlessBtn) {
-      endlessBtn.addEventListener('click', () => this.actions.onContinueEndless());
-    }
-    const retryBtn = this.container.querySelector('#btn-retry');
-    if (retryBtn) {
-      retryBtn.addEventListener('click', () => this.actions.onStartRun(this.save.selectedVessel));
-    }
-    this.container.querySelector('#btn-go-matrix')!.addEventListener('click', () => {
-      this.tab = 'matrix';
-      this.actions.onQuitToMenu();
-    });
-    this.container.querySelector('#btn-go-home')!.addEventListener('click', () => {
-      this.tab = 'home';
+    this.container.querySelector('#btn-endless')?.addEventListener('click', () => this.actions.onContinueEndless());
+    this.container.querySelector('#btn-retry')?.addEventListener('click', () => this.actions.onStartRun());
+    this.container.querySelector('#btn-home')!.addEventListener('click', () => {
+      this.sheet = 'none';
       this.actions.onQuitToMenu();
     });
   }
