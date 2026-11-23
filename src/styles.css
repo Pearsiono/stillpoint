@@ -199,6 +199,11 @@ button {
   background: #ffffff;
 }
 
+.focus-fill.overcharged {
+  background: linear-gradient(90deg, var(--gold), #fff4c2);
+  box-shadow: 0 0 8px rgba(229, 179, 76, 0.75);
+}
+
 .hud-meta-line {
   display: flex;
   align-items: center;
@@ -644,7 +649,8 @@ button {
 .hero-stats {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .stat-chip {
@@ -989,6 +995,8 @@ button {
 
 .modal-box {
   width: min(400px, 100%);
+  max-height: calc(100% - 8px);
+  overflow-y: auto;
   border-radius: 12px;
   border: 2px solid var(--line-strong);
   background: var(--panel);
@@ -1031,6 +1039,12 @@ button {
   border-color: #ff4858;
   background: linear-gradient(135deg, rgba(56, 18, 22, 0.94), rgba(26, 18, 28, 0.95));
   box-shadow: 0 0 20px rgba(255, 72, 88, 0.25);
+}
+
+.draft-card.relic {
+  border-color: var(--gold);
+  background: linear-gradient(135deg, rgba(54, 40, 14, 0.94), rgba(24, 21, 16, 0.95));
+  box-shadow: 0 0 18px rgba(229, 179, 76, 0.24);
 }
 
 .draft-icon-box {

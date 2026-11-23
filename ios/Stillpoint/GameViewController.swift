@@ -23,7 +23,8 @@ private final class StillpointSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         let fileURL = rootURL.appendingPathComponent(relPath).standardizedFileURL
-        guard fileURL.path.hasPrefix(rootURL.path),
+        let rootPrefix = rootURL.path.hasSuffix("/") ? rootURL.path : rootURL.path + "/"
+        guard fileURL.path.hasPrefix(rootPrefix),
               let data = try? Data(contentsOf: fileURL) else {
             let notFound = HTTPURLResponse(
                 url: reqURL,
@@ -45,7 +46,7 @@ private final class StillpointSchemeHandler: NSObject, WKURLSchemeHandler {
                 "Content-Type": mime,
                 "Content-Length": "\(data.count)",
                 "Access-Control-Allow-Origin": "*",
-                "Cache-Control": "no-cache"
+                "Cache-Control": "public, max-age=3600"
             ]
         )!
 

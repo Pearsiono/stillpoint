@@ -35,6 +35,7 @@ export class SoundEngine {
   private delayNode: DelayNode | null = null;
   private delayGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
 
   private musicEnabled = true;
   private sfxEnabled = true;
@@ -90,6 +91,15 @@ export class SoundEngine {
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.value = this.sfxEnabled ? 0.56 : 0;
       this.sfxGain.connect(this.masterGain);
+
+      // Pre-allocate a single reusable white-noise buffer to avoid per-hit GC churn on iOS
+      const noiseLen = Math.max(1, Math.floor(this.ctx.sampleRate * 0.2));
+      const nb = this.ctx.createBuffer(1, noiseLen, this.ctx.sampleRate);
+      const data = nb.getChannelData(0);
+      for (let i = 0; i < noiseLen; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      this.noiseBuffer = nb;
     }
 
     if (this.ctx.state === 'suspended') {
@@ -100,6 +110,15 @@ export class SoundEngine {
       this.startSequencer();
     }
     this.syncGains();
+  }
+
+  setSuspended(hidden: boolean): void {
+    if (!this.ctx) return;
+    if (hidden) {
+      if (this.ctx.state === 'running') this.ctx.suspend().catch(() => {});
+    } else if (this.unlocked && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
   }
 
   setGameState(inGame: boolean, inBoss: boolean): void {
@@ -316,16 +335,10 @@ export class SoundEngine {
   }
 
   private playSnare(startTime: number, vol: number): void {
-    if (!this.ctx || !this.musicGain) return;
+    if (!this.ctx || !this.musicGain || !this.noiseBuffer) return;
     const dur = 0.095;
-    const bufSize = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
-    const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.5);
-    }
     const src = this.ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = this.noiseBuffer;
 
     const flt = this.ctx.createBiquadFilter();
     flt.type = 'bandpass';
@@ -340,20 +353,15 @@ export class SoundEngine {
     flt.connect(g);
     g.connect(this.musicGain);
     src.start(startTime);
+    src.stop(startTime + dur + 0.01);
   }
 
   private playNoiseTick(dur: number, vol: number, startTime: number, toMusic = false): void {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.noiseBuffer) return;
     const dest = toMusic ? this.musicGain : this.sfxGain;
     if (!dest) return;
-    const bufSize = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
-    const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
-    }
     const src = this.ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = this.noiseBuffer;
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'highpass';
@@ -367,6 +375,7 @@ export class SoundEngine {
     filter.connect(g);
     g.connect(dest);
     src.start(startTime);
+    src.stop(startTime + dur + 0.01);
   }
 
   // ---------- SFX ----------

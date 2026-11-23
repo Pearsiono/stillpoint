@@ -432,14 +432,22 @@ export function generateUpgradeChoices(
   const remaining = [...pool];
 
   if (preferEvolution && evoIds.length > 0) {
-    const evoIdx = remaining.findIndex((item) => item.choice.kind === 'evolution');
-    if (evoIdx >= 0) {
-      selected.push(remaining.splice(evoIdx, 1)[0].choice);
+    const evoIndices: number[] = [];
+    remaining.forEach((item, idx) => {
+      if (item.choice.kind === 'evolution') evoIndices.push(idx);
+    });
+    if (evoIndices.length > 0) {
+      const pick = evoIndices[Math.floor(Math.random() * evoIndices.length)];
+      selected.push(remaining.splice(pick, 1)[0].choice);
     }
   } else if (preferEvolution && unownedRelics.length > 0) {
-    const relIdx = remaining.findIndex((item) => item.choice.kind === 'relic');
-    if (relIdx >= 0) {
-      selected.push(remaining.splice(relIdx, 1)[0].choice);
+    const relIndices: number[] = [];
+    remaining.forEach((item, idx) => {
+      if (item.choice.kind === 'relic') relIndices.push(idx);
+    });
+    if (relIndices.length > 0) {
+      const pick = relIndices[Math.floor(Math.random() * relIndices.length)];
+      selected.push(remaining.splice(pick, 1)[0].choice);
     }
   }
 

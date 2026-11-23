@@ -51,7 +51,6 @@ const ENEMY_ART_MAP: Partial<Record<EnemyKind, string>> = {
 
 class SpriteBank {
   private bank = new Map<SpriteKey, HTMLCanvasElement>();
-  private fallbackEnemies = new Map<EnemyKind, HTMLCanvasElement>();
   private biomeTiles = new Map<SectorId, HTMLCanvasElement>();
   private ruinProps = new Map<RuinPropKey, HTMLCanvasElement>();
 

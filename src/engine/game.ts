@@ -129,6 +129,7 @@ export class StillpointGame {
   private nextBossIdx = 0;
   private endlessBossTimer = 85;
   private nextEventIdx = 0;
+  private endlessEventTimer = 75;
   private eventBanner: string | null = null;
   private eventBannerTimer = 0;
   private meteorWavesLeft = 0;
@@ -140,6 +141,12 @@ export class StillpointGame {
   private hudThrottle = 0;
   private lastFrameTs = 0;
   private alchemyCounter = 0;
+  private bonusHealDmg = 0;
+  private metaCommitted = { shards: 0, kills: 0, parries: 0, grazes: 0, runCounted: false };
+
+  get isBossDraft(): boolean {
+    return this.pendingBossDraft;
+  }
 
   constructor(canvas: HTMLCanvasElement, save: MetaSave, callbacks: GameCallbacks) {
     this.canvas = canvas;
@@ -157,6 +164,7 @@ export class StillpointGame {
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
     document.addEventListener('visibilitychange', () => {
+      sound.setSuspended(document.hidden);
       if (document.hidden && this.phase === 'playing') this.pauseGame();
     });
   }
@@ -226,9 +234,22 @@ export class StillpointGame {
     const vPool = this.save.unlockedVessels;
     const cPool = this.save.unlockedCores;
     const sPool = this.save.unlockedSkins;
-    this.setVessel(vPool[Math.floor(Math.random() * vPool.length)]);
-    this.setCore(cPool[Math.floor(Math.random() * cPool.length)]);
-    this.setSkin(sPool[Math.floor(Math.random() * sPool.length)]);
+    const pick = <T,>(arr: T[], cur: T): T => {
+      if (arr.length <= 1) return arr[0] ?? cur;
+      const others = arr.filter((x) => x !== cur);
+      return others[Math.floor(Math.random() * others.length)];
+    };
+    let nextV = vPool[Math.floor(Math.random() * vPool.length)];
+    let nextC = cPool[Math.floor(Math.random() * cPool.length)];
+    let nextS = sPool[Math.floor(Math.random() * sPool.length)];
+    if (nextV === this.vesselId && nextC === this.coreId && nextS === this.skinId) {
+      if (vPool.length > 1) nextV = pick(vPool, this.vesselId);
+      else if (cPool.length > 1) nextC = pick(cPool, this.coreId);
+      else if (sPool.length > 1) nextS = pick(sPool, this.skinId);
+    }
+    this.setVessel(nextV);
+    this.setCore(nextC);
+    this.setSkin(nextS);
   }
 
   private applyAccentCss(): void {
@@ -265,6 +286,7 @@ export class StillpointGame {
   resumeGame(): void {
     if (this.phase !== 'paused') return;
     this.phase = 'playing';
+    this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.35);
     this.input.setEnabled(true);
     this.callbacks.onPhaseChange('playing');
   }
@@ -331,7 +353,7 @@ export class StillpointGame {
     } else if (picked.kind === 'heal') {
       this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.35);
       this.player.kineticCharge = this.player.maxKineticCharge;
-      this.player.damageMult += 0.06;
+      this.bonusHealDmg += 0.06;
     }
 
     this.recomputePlayerStats();
@@ -340,7 +362,18 @@ export class StillpointGame {
 
     this.currentChoices = [];
     this.pendingBossDraft = false;
+
+    // Cascade any overflow multi-level XP cleanly instead of stalling until next gem
+    if (this.player.xp >= this.player.xpToNext) {
+      this.player.xp -= this.player.xpToNext;
+      this.player.level++;
+      this.player.xpToNext = Math.round(26 + this.player.level * 16 + Math.pow(this.player.level, 1.46) * 5);
+      this.openUpgradeDraft(false);
+      return;
+    }
+
     this.phase = 'playing';
+    this.player.invulnTimer = Math.max(this.player.invulnTimer, 0.35);
     this.input.setEnabled(true);
     this.callbacks.onPhaseChange('playing');
     this.emitHud();
@@ -481,11 +514,14 @@ export class StillpointGame {
     this.nextBossIdx = 0;
     this.endlessBossTimer = 85;
     this.nextEventIdx = 0;
+    this.endlessEventTimer = 75;
     this.eventBanner = null;
     this.eventBannerTimer = 0;
     this.meteorWavesLeft = 0;
     this.meteorSpawnTimer = 0;
     this.alchemyCounter = 0;
+    this.bonusHealDmg = 0;
+    this.metaCommitted = { shards: 0, kills: 0, parries: 0, grazes: 0, runCounted: false };
     this.hasUsedStillpoint = false;
     this.tutorialTimer = 9;
   }
@@ -547,7 +583,7 @@ export class StillpointGame {
     this.player.parryCooldownMax =
       (this.vesselId === 'phantom' ? 0.36 : 0.46) * Math.pow(0.88, coilLv);
     this.player.areaMult = 1 + lensLv * 0.15;
-    this.player.damageMult = Math.max(1, (1 + coreLv * 0.16) * dmgBonus);
+    this.player.damageMult = Math.max(1, (1 + coreLv * 0.16 + this.bonusHealDmg) * dmgBonus);
     this.player.bossDmgMult = 1 + tgtLv * 0.16;
     this.player.parryMult =
       (1 + coreLv * 0.24) * (1 + (u.parry_resonance ?? 0) * 0.12) * glassParryMult;
@@ -631,7 +667,7 @@ export class StillpointGame {
     const minToEnter = wasStillpoint ? 0.5 : 5;
     player.inStillpoint = input.wantsStillpoint && player.kineticCharge > minToEnter;
     const justEntered = !wasStillpoint && player.inStillpoint;
-    const justExited = wasStillpoint && !player.inStillpoint;
+    let justExited = wasStillpoint && !player.inStillpoint;
 
     if (player.parryCooldown > 0) {
       player.parryCooldown = Math.max(0, player.parryCooldown - dtReal);
@@ -647,7 +683,7 @@ export class StillpointGame {
       if (player.relics.includes('ghost_step') && player.trail.length >= 2) {
         const origin = player.trail[0];
         this.particles.arc(origin.x, origin.y, player.x, player.y, '#cf7dff', 3, 0.28);
-        for (const e of this.enemies) {
+        for (const e of [...this.enemies]) {
           if (e.hp > 0 && pointToSegmentDist(e.x, e.y, origin.x, origin.y, player.x, player.y) <= e.radius + 16) {
             this.damageEnemy(e, 42 * player.damageMult, '#cf7dff', true);
           }
@@ -670,7 +706,26 @@ export class StillpointGame {
           }
         }
       }
-    } else if (justExited) {
+    }
+
+    // 3. Kinetic Charge (checked before exit triggers so drain-to-0 also fires Swarm Missiles & Siphon!)
+    if (player.inStillpoint) {
+      player.stillpointTimeHeld += dtReal;
+      player.kineticCharge = Math.max(0, player.kineticCharge - 25 * player.stillpointDrainMult * dtReal);
+      if (player.kineticCharge <= 0.1) {
+        player.inStillpoint = false;
+        justExited = true;
+      }
+    } else {
+      const ocBonus = player.inOverclockRing ? 2.0 : 1.0;
+      const moveBonus = input.isMoving ? 15.5 : 4.2;
+      player.kineticCharge = Math.min(
+        player.maxKineticCharge,
+        player.kineticCharge + moveBonus * player.chargeRateMult * ocBonus * dtReal
+      );
+    }
+
+    if (justExited) {
       sound.playStillpointExit();
       this.activateStillpointCoreExit();
     }
@@ -710,24 +765,6 @@ export class StillpointGame {
           eb.y += (dy / d) * 110 * dtReal;
         }
       }
-    }
-
-    // 3. Kinetic Charge
-    if (player.inStillpoint) {
-      player.stillpointTimeHeld += dtReal;
-      player.kineticCharge = Math.max(0, player.kineticCharge - 25 * player.stillpointDrainMult * dtReal);
-      if (player.kineticCharge <= 0.1) {
-        player.inStillpoint = false;
-        sound.playStillpointExit();
-        this.activateStillpointCoreExit();
-      }
-    } else {
-      const ocBonus = player.inOverclockRing ? 2.0 : 1.0;
-      const moveBonus = input.isMoving ? 15.5 : 4.2;
-      player.kineticCharge = Math.min(
-        player.maxKineticCharge,
-        player.kineticCharge + moveBonus * player.chargeRateMult * ocBonus * dtReal
-      );
     }
 
     const plateLv = player.passives.find((p) => p.id === 'reactive_plating')?.level ?? 0;
@@ -819,8 +856,6 @@ export class StillpointGame {
 
     if (this.coreId === 'blink') {
       // PHANTOM BLINK: Leave an exploding decoy hologram & teleport forward!
-      p.kineticCharge = Math.max(0, p.kineticCharge - 16);
-      p.parryCooldown = p.parryCooldownMax;
       const oldX = p.x;
       const oldY = p.y;
       this.decoys.push({ x: oldX, y: oldY, age: 0, maxAge: 2.2, radius: 52 * p.areaMult });
@@ -834,7 +869,7 @@ export class StillpointGame {
       p.x = nx;
       p.y = ny;
       p.invulnTimer = Math.max(p.invulnTimer, 0.22);
-      this.triggerParryShockwave(0.75, false);
+      this.triggerParryShockwave(0.75, false, 16);
       return;
     }
 
@@ -848,20 +883,18 @@ export class StillpointGame {
 
     if (this.coreId === 'overclock') {
       // OVERCLOCK: Small defensive clear + hyper-DPS turret mode!
-      p.kineticCharge = Math.max(0, p.kineticCharge - 8);
-      p.parryCooldown = p.parryCooldownMax;
-      this.triggerParryShockwave(0.68, false);
+      this.triggerParryShockwave(0.68, false, 8);
       this.particles.callout(p.x, p.y - 36, 'OVERCLOCK', '#e5b34c', 1.05, 0.7);
       return;
     }
 
     if (this.coreId === 'berserk') {
       // RAZOR REFLEX: Wide crimson counter-slash executing <30% HP & granting Shield!
-      this.triggerParryShockwave(1.18, true);
+      this.triggerParryShockwave(1.18, true, 16);
       const slashR = 152 * p.areaMult;
       const dmg = 46 * p.damageMult * p.parryMult;
       let execs = 0;
-      for (const e of this.enemies) {
+      for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= slashR + e.radius) {
           const isExec = !e.isBoss && e.hp / e.maxHp <= 0.32;
@@ -876,10 +909,8 @@ export class StillpointGame {
     }
 
     // Default DEFLECTOR Core
-    this.triggerParryShockwave(1.0, false);
-    if (skin.accent) {
-      // keep skin reference warm
-    }
+    this.triggerParryShockwave(1.0, false, 16);
+    void skin;
   }
 
   private activateStillpointCoreExit(): void {
@@ -914,7 +945,7 @@ export class StillpointGame {
       }
 
       const dmg = (48 + cleared * 9) * p.damageMult * p.parryMult;
-      for (const e of this.enemies) {
+      for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         const dx = e.x - p.x;
         const dy = e.y - p.y;
@@ -940,7 +971,7 @@ export class StillpointGame {
     sound.playShoot('mortar');
     this.particles.shatter(d.x, d.y, '#cf7dff', 10, 1.3);
     this.particles.ripple(d.x, d.y, blastR * 1.2, 14, '#cf7dff', 0.4);
-    for (const e of this.enemies) {
+    for (const e of [...this.enemies]) {
       if (e.hp > 0 && Math.hypot(e.x - d.x, e.y - d.y) <= blastR + e.radius) {
         this.damageEnemy(e, dmg, '#cf7dff', true);
       }
@@ -973,6 +1004,12 @@ export class StillpointGame {
     if (this.nextEventIdx < eventTimes.length && this.stats.elapsed >= eventTimes[this.nextEventIdx]) {
       const idx = this.nextEventIdx++;
       this.triggerTacticalEvent(idx % 3);
+    } else if (this.nextEventIdx >= eventTimes.length) {
+      this.endlessEventTimer -= dtWorld;
+      if (this.endlessEventTimer <= 0) {
+        this.endlessEventTimer = 75;
+        this.triggerTacticalEvent(Math.floor(Math.random() * 3));
+      }
     }
 
     if (this.meteorWavesLeft > 0) {
@@ -1060,12 +1097,13 @@ export class StillpointGame {
           });
         }
         // Meteor also blasts enemies inside!
-        for (const e of this.enemies) {
+        for (const e of [...this.enemies]) {
           if (e.hp > 0 && Math.hypot(e.x - m.x, e.y - m.y) <= m.radius + e.radius) {
             this.damageEnemy(e, 45, '#ff6a26');
           }
         }
         this.meteors.splice(i, 1);
+        if (this.phase !== 'playing') return;
       }
     }
     void dtReal;
@@ -1112,7 +1150,7 @@ export class StillpointGame {
     this.particles.callout(x, y - 24, `PACT: ${def.name}`, def.accent, 1.2, 1.2);
   }
 
-  private triggerParryShockwave(radiusScale = 1.0, isBerserkSlash = false): void {
+  private triggerParryShockwave(radiusScale = 1.0, isBerserkSlash = false, chargeCost = 16): void {
     const p = this.player;
     const v = VESSELS[this.vesselId];
     const skin = resolveSkinColors(SKINS[this.skinId], this.realTime);
@@ -1120,7 +1158,7 @@ export class StillpointGame {
     const overcharged = p.overchargeReady;
     if (overcharged) p.overchargeReady = false;
 
-    p.kineticCharge = Math.max(0, p.kineticCharge - 16);
+    p.kineticCharge = Math.max(0, p.kineticCharge - chargeCost);
     p.parryCooldown = p.parryCooldownMax;
 
     const maxR =
@@ -1359,7 +1397,9 @@ export class StillpointGame {
         this.enemyBullets.length = 0;
 
         const sched = BOSS_SCHEDULE[enc.bossIndex % BOSS_SCHEDULE.length];
-        const endlessScale = this.stats.endlessMode ? 1 + (this.stats.elapsed - 340) / 140 : 1;
+        const endlessScale = this.stats.endlessMode
+          ? Math.max(1.25, 1 + Math.max(0, this.stats.elapsed - 260) / 130)
+          : 1;
         const boss = spawnEnemy(
           this.makeEnemyCtx(),
           sched.kind,
@@ -1403,15 +1443,16 @@ export class StillpointGame {
       }
       if (h.kind === 'nova_wave' || h.kind === 'frost_burst') continue;
 
-      for (const e of this.enemies) {
+      for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         const dx = h.x - e.x;
         const dy = h.y - e.y;
         const d = Math.hypot(dx, dy) || 1;
         if (d <= h.radius + e.radius) {
           this.damageEnemy(e, h.damagePerSec * dtWorld, h.color);
+          if (this.phase !== 'playing') return;
         }
-        if (h.pullStrength > 0 && d <= h.radius * 1.9 && !e.isBoss) {
+        if (h.pullStrength > 0 && d <= h.radius * 1.9 && !e.isBoss && e.hp > 0) {
           const pull = h.pullStrength * dtReal * (1 - d / (h.radius * 2));
           e.x += (dx / d) * pull;
           e.y += (dy / d) * pull;
@@ -1460,6 +1501,7 @@ export class StillpointGame {
         const dist = pointToSegmentDist(p.x, p.y, l.x1, l.y1, l.x2, l.y2);
         if (dist <= hurtR + l.width * 0.42) {
           this.damagePlayer(l.damage);
+          if (this.phase !== 'playing') return;
         } else if (dist <= p.grazeRadius + l.width * 0.5 && Math.random() < 0.22) {
           this.registerGraze(p.x, p.y);
         }
@@ -1528,7 +1570,7 @@ export class StillpointGame {
             const r = b.blastRadius ?? 68;
             this.particles.burst(b.x, b.y, '#d387ff', 12, 50, 180, 3.2, 0.36);
             this.particles.ring(b.x, b.y, '#d387ff', 16, 0.28);
-            for (const e of this.enemies) {
+            for (const e of [...this.enemies]) {
               if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
                 this.damageEnemy(e, b.damage, '#d387ff');
               }
@@ -1616,7 +1658,8 @@ export class StillpointGame {
       }
 
       // Enemy collision
-      for (const e of this.enemies) {
+      for (const e of [...this.enemies]) {
+        if (this.phase !== 'playing') return;
         if (e.hp <= 0 || b.hitSet.has(e.id)) continue;
         const dx = e.x - b.x;
         const dy = e.y - b.y;
@@ -1657,7 +1700,7 @@ export class StillpointGame {
           // Missile AoE splash!
           if (b.kind === 'missile' && b.blastRadius) {
             this.particles.burst(b.x, b.y, '#ff7b47', 8, 40, 150, 2.8, 0.3);
-            for (const other of this.enemies) {
+            for (const other of [...this.enemies]) {
               if (other.id !== e.id && other.hp > 0 && Math.hypot(other.x - b.x, other.y - b.y) <= b.blastRadius + other.radius) {
                 this.damageEnemy(other, finalDmg * 0.55, '#ff7b47');
               }
@@ -2122,15 +2165,16 @@ export class StillpointGame {
       if (!this.save.sectorsCleared.includes(this.sectorId)) {
         this.save.sectorsCleared.push(this.sectorId);
       }
-      this.finalizeMetaProgress(true);
+      const finalStats = this.finalizeMetaProgress(true);
       this.phase = 'victory';
       this.input.setEnabled(false);
       sound.setStillpointBlend(0);
-      this.callbacks.onPhaseChange('victory', undefined, { ...this.stats });
+      this.callbacks.onPhaseChange('victory', undefined, finalStats);
       this.emitHud();
       return;
     }
 
+    persistMetaSave(this.save);
     this.checkAndToastMilestones();
     this.openUpgradeDraft(true);
   }
@@ -2186,22 +2230,32 @@ export class StillpointGame {
   }
 
   private handleGameOver(): void {
-    this.finalizeMetaProgress(false);
+    const finalStats = this.finalizeMetaProgress(false);
     this.phase = 'gameover';
     this.input.setEnabled(false);
     this.player.inStillpoint = false;
     sound.setGameState(false, false);
     sound.setStillpointBlend(0);
-    this.callbacks.onPhaseChange('gameover', undefined, { ...this.stats });
+    this.callbacks.onPhaseChange('gameover', undefined, finalStats);
   }
 
-  private finalizeMetaProgress(isVictory: boolean): void {
+  private finalizeMetaProgress(isVictory: boolean): RunStats {
+    const hasVictory = isVictory || this.stats.victory;
     const runBonus = Math.round(
-      (this.stats.elapsed * 0.28 + this.stats.parries * 0.5 + (isVictory ? 140 : 0)) *
+      (this.stats.elapsed * 0.28 + this.stats.parries * 0.5 + (hasVictory ? 140 : 0)) *
         this.player.shardMult
     );
     const totalPayout = Math.max(12, this.stats.shardsEarned + runBonus);
-    this.stats.shardsEarned = totalPayout;
+    const deltaShards = Math.max(0, totalPayout - this.metaCommitted.shards);
+    const deltaKills = Math.max(0, this.stats.kills - this.metaCommitted.kills);
+    const deltaParries = Math.max(0, this.stats.parries - this.metaCommitted.parries);
+    const deltaGrazes = Math.max(0, this.stats.grazes - this.metaCommitted.grazes);
+
+    this.metaCommitted.shards += deltaShards;
+    this.metaCommitted.kills += deltaKills;
+    this.metaCommitted.parries += deltaParries;
+    this.metaCommitted.grazes += deltaGrazes;
+
     this.stats.weapons = this.player.weapons.map((w) => ({
       id: w.id,
       level: w.level,
@@ -2213,11 +2267,14 @@ export class StillpointGame {
     this.stats.skinId = this.skinId;
     this.stats.heatCount = this.save.activeHeat.length;
 
-    this.save.shards += totalPayout;
-    this.save.totalRuns += 1;
-    this.save.totalKills += this.stats.kills;
-    this.save.totalParries += this.stats.parries;
-    this.save.totalGrazes += this.stats.grazes;
+    this.save.shards += deltaShards;
+    if (!this.metaCommitted.runCounted) {
+      this.save.totalRuns += 1;
+      this.metaCommitted.runCounted = true;
+    }
+    this.save.totalKills += deltaKills;
+    this.save.totalParries += deltaParries;
+    this.save.totalGrazes += deltaGrazes;
     if (this.stats.bestSingleParry > this.save.bestSingleParry) {
       this.save.bestSingleParry = this.stats.bestSingleParry;
     }
@@ -2229,6 +2286,7 @@ export class StillpointGame {
     }
     persistMetaSave(this.save);
     this.checkAndToastMilestones();
+    return { ...this.stats, shardsEarned: totalPayout };
   }
 
   private checkAndToastMilestones(): void {

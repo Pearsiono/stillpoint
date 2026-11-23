@@ -182,7 +182,7 @@ export function spawnEnemy(
     case 'boss_weaver':
       isBoss = true;
       radius = 34;
-      hp = 2300 * difficultyScale * sector.difficultyMult;
+      hp = 2300 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 68;
       xpValue = 160;
       scoreValue = 2500;
@@ -192,7 +192,7 @@ export function spawnEnemy(
     case 'boss_seraph':
       isBoss = true;
       radius = 36;
-      hp = 4600 * difficultyScale * sector.difficultyMult;
+      hp = 4600 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 82;
       xpValue = 240;
       scoreValue = 4500;
@@ -202,7 +202,7 @@ export function spawnEnemy(
     case 'boss_archon':
       isBoss = true;
       radius = 40;
-      hp = 8200 * difficultyScale * sector.difficultyMult;
+      hp = 8200 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 76;
       xpValue = 400;
       scoreValue = 9000;
@@ -212,7 +212,7 @@ export function spawnEnemy(
     case 'boss_leviathan':
       isBoss = true;
       radius = 36;
-      hp = 11500 * difficultyScale * sector.difficultyMult;
+      hp = 11500 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 118;
       xpValue = 500;
       scoreValue = 14000;
@@ -305,7 +305,7 @@ export function updateWaveDirector(
   const t = ctx.elapsed;
   const swarmHeat = ctx.activeHeat.includes('swarm') ? 1.4 : 1.0;
   const greedEliteRate = ctx.player.pacts.includes('greed') ? 1.35 : 1.0;
-  const diffScale = 1 + t / 112 + (ctx.endlessMode ? (t - 350) / 85 : 0);
+  const diffScale = 1 + t / 112 + (ctx.endlessMode ? Math.max(0.35, (t - 260) / 85) : 0);
   const maxEnemies = Math.min(96, Math.round((18 + Math.floor(t * 0.19)) * swarmHeat));
   const rate = Math.min(6.4, (1.95 + t * 0.013) * swarmHeat);
 
@@ -338,9 +338,13 @@ export function updateWaveDirector(
     const dist = 250 + Math.random() * 90;
     const nx = ctx.player.x + Math.cos(ang) * dist;
     const ny = ctx.player.y + Math.sin(ang) * dist;
+    const cursedHeat = ctx.activeHeat.includes('cursed_void');
+    const ringCut = cursedHeat ? 0.28 : 0.44;
+    const shrineCut = cursedHeat ? 0.54 : 0.76;
     const roll = Math.random();
 
-    if (roll < 0.44) {
+    const availablePacts = PACT_IDS.filter((p) => !ctx.player.pacts.includes(p));
+    if (roll < ringCut) {
       ctx.nodes.push({
         id: ctx.nextId(),
         kind: 'overclock_ring',
@@ -354,7 +358,7 @@ export function updateWaveDirector(
         progress: 0,
         accent: '#4effb4'
       });
-    } else if (roll < 0.76) {
+    } else if (roll < shrineCut || availablePacts.length === 0) {
       ctx.nodes.push({
         id: ctx.nextId(),
         kind: 'shrine',
@@ -369,24 +373,21 @@ export function updateWaveDirector(
         accent: '#f6c453'
       });
     } else {
-      const available = PACT_IDS.filter((p) => !ctx.player.pacts.includes(p));
-      if (available.length > 0) {
-        const pactId = available[Math.floor(Math.random() * available.length)];
-        ctx.nodes.push({
-          id: ctx.nextId(),
-          kind: 'pact_altar',
-          x: nx,
-          y: ny,
-          radius: 42,
-          hp: 1,
-          maxHp: 1,
-          age: 0,
-          maxAge: 28,
-          progress: 0,
-          pactId,
-          accent: '#ff3b5c'
-        });
-      }
+      const pactId = availablePacts[Math.floor(Math.random() * availablePacts.length)];
+      ctx.nodes.push({
+        id: ctx.nextId(),
+        kind: 'pact_altar',
+        x: nx,
+        y: ny,
+        radius: 42,
+        hp: 1,
+        maxHp: 1,
+        age: 0,
+        maxAge: 28,
+        progress: 0,
+        pactId,
+        accent: '#ff3b5c'
+      });
     }
   }
 }
@@ -432,7 +433,7 @@ function pickWaveEnemy(t: number, isElite: boolean, sectorId: SectorId): EnemyKi
 export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
   const { player, enemies, enclosure } = ctx;
 
-  for (const e of enemies) {
+  for (const e of [...enemies]) {
     if (e.hp <= 0) continue;
     e.stateTimer += dtWorld;
     e.fireTimer -= dtWorld;
@@ -686,7 +687,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
       }
       case 'hauler': {
         // Golden Treasure Hauler races laterally across arena; hunt it down before it escapes!
-        if (e.stateTimer < 0.1 && e.vx === 0 && e.vy === 0) {
+        if (e.vx === 0 && e.vy === 0) {
           const dir = e.x < player.x ? 1 : -1;
           e.vx = dir * e.speed;
           e.vy = (Math.random() - 0.5) * 40;
@@ -706,6 +707,11 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
       e.x = player.x - (dx / dist) * 440;
       e.y = player.y - (dy / dist) * 440;
     }
+  }
+
+  // Prune self-detonated mines & escaped haulers so zero zombie entities linger
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    if (enemies[i].hp <= 0) enemies.splice(i, 1);
   }
 }
 

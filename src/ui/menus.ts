@@ -141,7 +141,10 @@ export class OverlayController {
     }
   }
 
-  private renderHub(): void {
+  private renderHub(preserveScroll = false): void {
+    const prevScroll = preserveScroll
+      ? this.container.querySelector('.hub-content')?.scrollTop ?? 0
+      : 0;
     const canBuyTalent = META_UPGRADES.some((u) => {
       const lv = this.save.upgrades[u.id] ?? 0;
       return lv < u.maxLevel && this.save.shards >= getMetaUpgradeCost(u, lv);
@@ -212,6 +215,10 @@ export class OverlayController {
     `;
 
     this.bindHubEvents();
+    if (preserveScroll && prevScroll > 0) {
+      const content = this.container.querySelector('.hub-content');
+      if (content) content.scrollTop = prevScroll;
+    }
   }
 
   private buildBattleTab(): string {
@@ -530,27 +537,28 @@ export class OverlayController {
     });
 
     this.container.querySelector('#btn-quick-mute')?.addEventListener('click', () => {
+      sound.unlock();
       this.save.settings.music = !this.save.settings.music;
       sound.setSettings(this.save.settings.music, this.save.settings.sfx);
       persistMetaSave(this.save);
       bridge.haptic('light');
-      this.renderHub();
+      this.renderHub(true);
     });
 
     this.container.querySelector('#btn-settings')?.addEventListener('click', () => {
       this.settingsOpen = true;
-      this.renderHub();
+      this.renderHub(true);
     });
 
     this.container.querySelector('#btn-close-settings')?.addEventListener('click', () => {
       this.settingsOpen = false;
-      this.renderHub();
+      this.renderHub(true);
     });
 
     this.container.querySelector('#settings-bg')?.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).id === 'settings-bg') {
         this.settingsOpen = false;
-        this.renderHub();
+        this.renderHub(true);
       }
     });
 
@@ -558,18 +566,18 @@ export class OverlayController {
       e.stopPropagation();
       this.heatOpen = true;
       bridge.haptic('light');
-      this.renderHub();
+      this.renderHub(true);
     });
 
     this.container.querySelector('#btn-close-heat')?.addEventListener('click', () => {
       this.heatOpen = false;
-      this.renderHub();
+      this.renderHub(true);
     });
 
     this.container.querySelector('#heat-bg')?.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).id === 'heat-bg') {
         this.heatOpen = false;
-        this.renderHub();
+        this.renderHub(true);
       }
     });
 
@@ -577,7 +585,7 @@ export class OverlayController {
       b.addEventListener('click', () => {
         this.actions.onToggleHeat(b.dataset.heat as HeatId);
         bridge.haptic('light');
-        this.renderHub();
+        this.renderHub(true);
       });
     });
 
@@ -585,18 +593,19 @@ export class OverlayController {
       this.actions.onRandomizeBuild();
       bridge.haptic('medium');
       sound.playXp();
-      this.renderHub();
+      this.renderHub(true);
     });
 
     this.container.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((b) => {
       b.addEventListener('click', () => {
+        sound.unlock();
         const key = b.dataset.toggle as keyof MetaSave['settings'];
         this.save.settings[key] = !this.save.settings[key];
         sound.setSettings(this.save.settings.music, this.save.settings.sfx);
         bridge.setHapticsEnabled(this.save.settings.haptics);
         persistMetaSave(this.save);
         bridge.haptic('light');
-        this.renderHub();
+        this.renderHub(true);
       });
     });
 
@@ -671,7 +680,7 @@ export class OverlayController {
         if (this.save.unlockedCores.includes(cid)) {
           this.actions.onSelectCore(cid);
           bridge.haptic('light');
-          this.renderHub();
+          this.renderHub(true);
         } else if (this.save.shards >= c.unlockCost) {
           this.save.shards -= c.unlockCost;
           this.save.unlockedCores.push(cid);
@@ -679,7 +688,7 @@ export class OverlayController {
           persistMetaSave(this.save);
           bridge.haptic('success');
           sound.playLevelUp();
-          this.renderHub();
+          this.renderHub(true);
         }
       });
     });
@@ -691,7 +700,7 @@ export class OverlayController {
         if (this.save.unlockedSkins.includes(sid)) {
           this.actions.onSelectSkin(sid);
           bridge.haptic('light');
-          this.renderHub();
+          this.renderHub(true);
         } else if (this.save.shards >= s.unlockCost) {
           this.save.shards -= s.unlockCost;
           this.save.unlockedSkins.push(sid);
@@ -699,7 +708,7 @@ export class OverlayController {
           persistMetaSave(this.save);
           bridge.haptic('success');
           sound.playLevelUp();
-          this.renderHub();
+          this.renderHub(true);
         }
       });
     });
@@ -709,7 +718,7 @@ export class OverlayController {
         if (buyMetaUpgrade(this.save, b.dataset.buyMeta as MetaUpgradeId)) {
           bridge.haptic('success');
           sound.playLevelUp();
-          this.renderHub();
+          this.renderHub(true);
         }
       });
     });

@@ -12,6 +12,7 @@ export class InputController {
   private currentX = 0;
   private currentY = 0;
   private hasInteracted = false;
+  private awaitingTouchAfterResume = false;
   private mode: 'touch' | 'keyboard' = 'touch';
   private keys = new Set<string>();
   private enabled = false;
@@ -29,6 +30,7 @@ export class InputController {
       this.pointerDown = false;
       this.activePointerId = null;
       this.keys.clear();
+      this.awaitingTouchAfterResume = true;
     }
   }
 
@@ -36,6 +38,7 @@ export class InputController {
     this.pointerDown = false;
     this.activePointerId = null;
     this.hasInteracted = false;
+    this.awaitingTouchAfterResume = false;
     this.keys.clear();
   }
 
@@ -83,6 +86,7 @@ export class InputController {
     this.activePointerId = e.pointerId;
     this.pointerDown = true;
     this.hasInteracted = true;
+    this.awaitingTouchAfterResume = false;
     this.originX = e.clientX;
     this.originY = e.clientY;
     this.currentX = e.clientX;
@@ -208,7 +212,7 @@ export class InputController {
       moveX: mx,
       moveY: my,
       isMoving,
-      wantsStillpoint: this.hasInteracted && !this.pointerDown,
+      wantsStillpoint: this.hasInteracted && !this.awaitingTouchAfterResume && !this.pointerDown,
       hasInteracted: this.hasInteracted,
       joystickActive: this.pointerDown,
       joyOriginX: this.originX,

@@ -21,6 +21,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         configureAmbientAudioSession()
+        application.isIdleTimerDisabled = true
+    }
+
+    func applicationWillResignActive(_ application: UIApplication) {
+        application.isIdleTimerDisabled = false
     }
 
     private func configureAmbientAudioSession() {

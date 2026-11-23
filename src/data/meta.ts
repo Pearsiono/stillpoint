@@ -1,4 +1,5 @@
 import { bridge } from '../bridge';
+import { HEAT_ORDER } from './builds';
 import {
   CoreId,
   HeatId,
@@ -301,10 +302,15 @@ export function loadMetaSave(): MetaSave {
       unlockedSectors: Array.isArray(parsed.unlockedSectors)
         ? (Array.from(new Set(['drift', ...parsed.unlockedSectors])) as SectorId[])
         : ['drift'],
-      activeHeat: Array.isArray(parsed.activeHeat) ? (parsed.activeHeat as HeatId[]) : [],
+      activeHeat: Array.isArray(parsed.activeHeat)
+        ? (Array.from(new Set(parsed.activeHeat)).filter((h) =>
+            HEAT_ORDER.includes(h as HeatId)
+          ) as HeatId[])
+        : [],
       sectorsCleared: Array.isArray(parsed.sectorsCleared) ? parsed.sectorsCleared : [],
       claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : []
     };
+    if (!Number.isFinite(merged.shards) || merged.shards < 0) merged.shards = 0;
     if (!merged.unlockedVessels.includes(merged.selectedVessel)) merged.selectedVessel = 'vesper';
     if (!merged.unlockedCores.includes(merged.selectedCore)) merged.selectedCore = 'deflector';
     if (!merged.unlockedSkins.includes(merged.selectedSkin)) merged.selectedSkin = 'cyanide';

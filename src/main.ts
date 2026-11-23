@@ -43,7 +43,7 @@ function bootstrap(): void {
         choices,
         level: game.player.level,
         rerolls: game.player.rerolls,
-        isBossChest: Boolean(choices?.some((c) => c.kind === 'evolution')),
+        isBossChest: game.isBossDraft,
         stats
       });
     },
@@ -54,6 +54,9 @@ function bootstrap(): void {
       overlays.showToast(text);
     }
   });
+
+  // Unlock WebAudio cleanly on very first menu tap on iOS
+  document.addEventListener('pointerdown', () => sound.unlock(), { passive: true });
 
   overlays.renderPhase('menu');
   game.startLoop();

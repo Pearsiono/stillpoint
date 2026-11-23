@@ -78,7 +78,8 @@ export function getHaloBladesPositions(player: PlayerState, time: number): HaloB
   const blend = player.stillpointBlend;
   const baseCount = w.evolved ? 5 : 2 + Math.floor((w.level + 1) / 2);
   const orbitRadius = (56 + blend * 30) * player.areaMult;
-  const speed = 2.8 + w.level * 0.35 + blend * 3.8;
+  const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
+  const speed = (2.8 + w.level * 0.35 + blend * 3.8) * orbSpin;
   const bladeRadius = (13 + w.level * 1.4 + blend * 5) * Math.min(1.5, player.areaMult);
 
   for (let i = 0; i < baseCount; i++) {
@@ -117,9 +118,10 @@ export function getPrismDronePositions(player: PlayerState, time: number): Prism
   const count = w.evolved ? 6 : 1 + Math.ceil(w.level / 2);
   const blend = player.stillpointBlend;
   const dist = (46 - blend * 14) * Math.min(1.3, player.areaMult);
+  const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
   const result: PrismDroneRender[] = [];
   for (let i = 0; i < count; i++) {
-    const ang = time * (1.8 + blend * 2.2) + (i * Math.PI * 2) / count;
+    const ang = time * (1.8 + blend * 2.2) * orbSpin + (i * Math.PI * 2) / count;
     result.push({
       x: player.x + Math.cos(ang) * dist,
       y: player.y + Math.sin(ang) * dist,
@@ -181,7 +183,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
         particles.burst(h.x, h.y, '#d96bff', 18, 80, 260, 4, 0.45);
         particles.ripple(h.x, h.y, blastR * 1.4, 14, '#d96bff', 0.4);
         sound.playShoot('mortar');
-        for (const e of enemies) {
+        for (const e of [...enemies]) {
           if (e.hp <= 0) continue;
           if (Math.hypot(e.x - h.x, e.y - h.y) <= blastR + e.radius) {
             ctx.damageEnemy(e, burstDmg, '#e09eff', true);
@@ -295,7 +297,7 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
         isEnemy: false
       });
 
-      for (const e of enemies) {
+      for (const e of [...enemies]) {
         if (e.hp <= 0) continue;
         if (pointToSegmentDist(e.x, e.y, sx, sy, ex, ey) <= e.radius + beamWidth * 0.65) {
           ctx.damageEnemy(e, dmg, w.evolved ? '#f6c453' : ctx.accentColor, true);
@@ -378,10 +380,12 @@ function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   if (w.auxTimer < tickInterval) return;
   w.auxTimer = 0;
 
+  const orbDmg = player.relics.includes('orbital_overdrive') ? 1.45 : 1.0;
   const dmg =
-    (w.evolved ? 34 : 14 + w.level * 5) * (player.inStillpoint ? 1.35 : 1) * player.damageMult;
+    (w.evolved ? 34 : 14 + w.level * 5) * (player.inStillpoint ? 1.35 : 1) * player.damageMult * orbDmg;
+  const snap = [...enemies];
   for (const blade of blades) {
-    for (const e of enemies) {
+    for (const e of snap) {
       if (e.hp <= 0) continue;
       const dx = e.x - blade.x;
       const dy = e.y - blade.y;
@@ -686,7 +690,7 @@ function fireNovaWave(
     pullStrength: 0
   });
 
-  for (const e of enemies) {
+  for (const e of [...enemies]) {
     if (e.hp <= 0) continue;
     const dx = e.x - player.x;
     const dy = e.y - player.y;
@@ -726,6 +730,7 @@ function updateRailTurret(ctx: WeaponWorldContext, w: OwnedWeapon): void {
     pylons.shift();
   }
   const ang = Math.random() * Math.PI * 2;
+  const orbDmg = player.relics.includes('orbital_overdrive') ? 1.45 : 1.0;
   pylons.push({
     id: ctx.nextId(),
     x: player.x + Math.cos(ang) * 42,
@@ -734,7 +739,7 @@ function updateRailTurret(ctx: WeaponWorldContext, w: OwnedWeapon): void {
     maxAge: w.evolved ? 14 : 10,
     fireTimer: 0.2,
     evolved: w.evolved,
-    damage: (w.evolved ? 34 : 15 + w.level * 5) * player.damageMult
+    damage: (w.evolved ? 34 : 15 + w.level * 5) * player.damageMult * orbDmg
   });
   ctx.particles.ring(player.x + Math.cos(ang) * 42, player.y + Math.sin(ang) * 42, '#f6c453', 14, 0.26);
 }
@@ -768,7 +773,7 @@ function updateActivePylons(ctx: WeaponWorldContext, dtWorld: number, dtReal: nu
           maxLife: 0.22,
           isEnemy: false
         });
-        for (const e of enemies) {
+        for (const e of [...enemies]) {
           if (e.hp <= 0) continue;
           if (pointToSegmentDist(e.x, e.y, py.x, py.y, next.x, next.y) <= e.radius + 10) {
             ctx.damageEnemy(e, py.damage * 1.4, '#f6c453', true);
@@ -837,7 +842,7 @@ function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
     let shattered = 0;
     const range = (310 + w.level * 24) * player.areaMult;
     const shatterDmg = (w.evolved ? 82 : 34 + w.level * 11) * player.damageMult;
-    for (const e of enemies) {
+    for (const e of [...enemies]) {
       if (e.hp <= 0 || !(e.chillTimer && e.chillTimer > 0)) continue;
       if (Math.hypot(e.x - player.x, e.y - player.y) <= range) {
         shattered++;

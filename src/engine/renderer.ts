@@ -161,7 +161,7 @@ export class WastelandRenderer {
 
     this.drawScreenAtmosphere(ctx, w, h, state, skin);
 
-    if (!state.menuMode && state.nodes.length > 0) {
+    if (!state.menuMode) {
       this.drawOffscreenNodePips(ctx, w, h, state);
     }
 
@@ -642,8 +642,14 @@ export class WastelandRenderer {
     ctx.stroke();
 
     if (chargeRatio > 0.01) {
-      ctx.strokeStyle = blend > 0.25 ? '#ffffff' : parryReady ? skin.accent : 'rgba(235,231,220,0.45)';
-      ctx.lineWidth = parryReady ? 3 : 2.2;
+      ctx.strokeStyle = player.overchargeReady
+        ? '#f6c453'
+        : blend > 0.25
+          ? '#ffffff'
+          : parryReady
+            ? skin.accent
+            : 'rgba(235,231,220,0.45)';
+      ctx.lineWidth = player.overchargeReady ? 3.8 : parryReady ? 3 : 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * chargeRatio);
       ctx.stroke();
@@ -965,6 +971,11 @@ export class WastelandRenderer {
         ctx.fill();
       }
       ctx.restore();
+    } else {
+      ctx.fillStyle = boss.accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, boss.radius, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -1354,23 +1365,40 @@ export class WastelandRenderer {
     state: RenderState
   ): void {
     const pad = 20;
+    const targets: Array<{ x: number; y: number; color: string; big?: boolean }> = [];
     for (const n of state.nodes) {
-      const sx = w * 0.5 + (n.x - state.cameraX) * this.worldScale;
-      const sy = h * 0.5 + (n.y - state.cameraY) * this.worldScale;
+      targets.push({ x: n.x, y: n.y, color: n.accent });
+    }
+    for (const e of state.enemies) {
+      if (e.hp > 0 && e.kind === 'hauler') {
+        targets.push({ x: e.x, y: e.y, color: '#f6c453', big: true });
+      }
+    }
+    for (const pk of state.pickups) {
+      if (pk.kind === 'chest') {
+        targets.push({ x: pk.x, y: pk.y, color: '#e5b34c', big: true });
+      }
+    }
+    if (targets.length === 0) return;
+
+    for (const t of targets) {
+      const sx = w * 0.5 + (t.x - state.cameraX) * this.worldScale;
+      const sy = h * 0.5 + (t.y - state.cameraY) * this.worldScale;
       if (sx > pad && sx < w - pad && sy > pad + 40 && sy < h - pad) continue;
 
       const ang = Math.atan2(sy - h * 0.5, sx - w * 0.5);
       const ex = Math.max(pad, Math.min(w - pad, sx));
       const ey = Math.max(pad + 54, Math.min(h - pad, sy));
+      const sz = t.big ? 9 : 7;
 
       ctx.save();
       ctx.translate(ex, ey);
       ctx.rotate(ang);
-      ctx.fillStyle = n.accent;
+      ctx.fillStyle = t.color;
       ctx.beginPath();
-      ctx.moveTo(7, 0);
-      ctx.lineTo(-5, -5);
-      ctx.lineTo(-5, 5);
+      ctx.moveTo(sz, 0);
+      ctx.lineTo(-sz * 0.72, -sz * 0.72);
+      ctx.lineTo(-sz * 0.72, sz * 0.72);
       ctx.closePath();
       ctx.fill();
       ctx.restore();

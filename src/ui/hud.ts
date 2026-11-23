@@ -104,6 +104,7 @@ export class HudView {
     const focusPct = Math.max(0, Math.min(100, (h.charge / Math.max(1, h.maxCharge)) * 100));
     this.focusFill.style.width = `${focusPct.toFixed(1)}%`;
     this.focusFill.classList.toggle('active', h.inStillpoint);
+    this.focusFill.classList.toggle('overcharged', h.overchargeReady);
 
     this.lvTag.textContent = `LV ${h.level}`;
     this.timerEl.textContent = h.endlessMode ? `∞ ${formatTime(h.elapsed)}` : formatTime(h.elapsed);
@@ -211,13 +212,13 @@ export function renderUpgradeDraftHtml(
                 ? 'NEW'
                 : '';
       return `
-        <button class="draft-card ${c.kind === 'evolution' ? 'evo' : ''}" data-choice="${c.id}">
+        <button class="draft-card ${c.kind === 'evolution' ? 'evo' : c.kind === 'relic' ? 'relic' : ''}" data-choice="${c.id}">
           <div class="r-frame draft-icon-box ${tier}">
             ${artIconImg(c.iconKey, 36)}
           </div>
           <div class="draft-body">
             <div class="draft-top">
-              <span class="draft-name" style="color:${c.kind === 'evolution' ? '#ff7c86' : '#efece3'}">${c.title}</span>
+              <span class="draft-name" style="color:${c.kind === 'evolution' ? '#ff7c86' : c.kind === 'relic' ? 'var(--gold)' : '#efece3'}">${c.title}</span>
               ${tag ? `<span class="draft-tag">${tag}</span>` : ''}
             </div>
             <div class="draft-line">${c.line}</div>
