@@ -20,10 +20,31 @@ import {
   UpgradeChoice,
   VesselId
 } from '../types';
+import {
+  artIconImg,
+  bossArtForSector,
+  rarityForLevel,
+  rarityForSkin,
+  rarityForVessel,
+  sectorBannerUrl,
+  shipArtUrl,
+  skinCssFilter
+} from './artIcons';
 import { formatTime, renderUpgradeDraftHtml } from './hud';
 import { svgIcon } from './icons';
 
-type MenuSheet = 'none' | 'ships' | 'skins' | 'sectors' | 'upgrades' | 'trophies' | 'settings';
+type HubTab = 'skins' | 'hangar' | 'battle' | 'talents' | 'trials';
+
+const TALENT_ICON_KEYS: Record<MetaUpgradeId, string> = {
+  hull_integrity: 'reactive_plating',
+  kinetic_core: 'kinetic_thrusters',
+  parry_resonance: 'nova_pulse',
+  time_lattice: 'chrono_capacitor',
+  crit_calibration: 'momentum_edge',
+  magnet_field: 'prism_drones',
+  shard_harvester: 'shard',
+  reroll_module: 'echo_chamber'
+};
 
 export interface OverlayActions {
   onStartRun: () => void;
@@ -42,7 +63,9 @@ export class OverlayController {
   private container: HTMLDivElement;
   private save: MetaSave;
   private actions: OverlayActions;
-  private sheet: MenuSheet = 'none';
+  private tab: HubTab = 'battle';
+  private browsingSectorIdx = 0;
+  private settingsOpen = false;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer = 0;
 
@@ -50,6 +73,7 @@ export class OverlayController {
     this.container = document.createElement('div');
     this.save = save;
     this.actions = actions;
+    this.browsingSectorIdx = Math.max(0, SECTOR_ORDER.indexOf(save.selectedSector));
     parent.appendChild(this.container);
   }
 
@@ -78,13 +102,13 @@ export class OverlayController {
     }
   ): void {
     if (phase === 'playing') {
-      this.sheet = 'none';
-      this.actions.onSheetToggle(false);
+      this.settingsOpen = false;
       this.container.innerHTML = '';
       return;
     }
     if (phase === 'menu') {
-      this.renderMenu();
+      this.browsingSectorIdx = Math.max(0, SECTOR_ORDER.indexOf(this.save.selectedSector));
+      this.renderHub();
       return;
     }
     if (phase === 'levelup') {
@@ -105,350 +129,344 @@ export class OverlayController {
     }
   }
 
-  private setSheet(next: MenuSheet): void {
-    this.sheet = next;
-    this.actions.onSheetToggle(next !== 'none');
-    this.renderMenu();
-  }
-
-  private renderMenu(): void {
-    const sector = SECTORS[this.save.selectedSector];
-    const canBuyUpgrade = META_UPGRADES.some((u) => {
+  private renderHub(): void {
+    const canBuyTalent = META_UPGRADES.some((u) => {
       const lv = this.save.upgrades[u.id] ?? 0;
       return lv < u.maxLevel && this.save.shards >= getMetaUpgradeCost(u, lv);
     });
 
-    if (this.sheet === 'none') {
-      this.container.innerHTML = `
-        <div class="home-shell">
-          <div>
-            <div class="home-top">
-              <div class="shard-counter">
-                ${svgIcon('shard', 14, 'var(--accent)')}
-                <span>${this.save.shards.toLocaleString()}</span>
-              </div>
-              <button class="icon-square" id="btn-settings" aria-label="Settings">
-                ${svgIcon('gear', 16)}
-              </button>
-            </div>
-            <div class="home-title-block">
-              <div class="wordmark">STILLPOINT</div>
-            </div>
-          </div>
+    const bodyHtml =
+      this.tab === 'battle'
+        ? this.buildBattleTab()
+        : this.tab === 'hangar'
+          ? this.buildHangarTab()
+          : this.tab === 'skins'
+            ? this.buildSkinsTab()
+            : this.tab === 'talents'
+              ? this.buildTalentsTab()
+              : this.buildTrialsTab();
 
-          <div class="home-spacer"></div>
+    const settingsModal = this.settingsOpen ? this.buildSettingsModal() : '';
 
-          <div class="home-dock">
-            <button class="sector-strip" id="btn-sectors">
-              <div class="sector-left">
-                <span class="sector-code" style="border-color:${sector.accent};color:${sector.accent}">${sector.code}</span>
-                <span class="sector-name">${sector.name}</span>
-              </div>
-              <span class="sector-mult">${sector.shardMult.toFixed(1)}× ${svgIcon('chevron', 14)}</span>
-            </button>
-
-            <button class="cta-btn" id="btn-play">
-              ${svgIcon('play', 16, '#07080d')}
-              <span>PLAY</span>
-            </button>
-
-            <div class="dock-nav">
-              <button class="dock-tab" id="btn-ships">
-                ${svgIcon('ships', 18)}
-                <span>SHIPS</span>
-              </button>
-              <button class="dock-tab" id="btn-skins">
-                ${svgIcon('skins', 18)}
-                <span>SKINS</span>
-              </button>
-              <button class="dock-tab" id="btn-upgrades">
-                ${svgIcon('matrix', 17)}
-                <span>UPGRADES</span>
-                ${canBuyUpgrade ? '<span class="pip-alert"></span>' : ''}
-              </button>
-              <button class="dock-tab" id="btn-trophies">
-                ${svgIcon('trophy', 17)}
-                <span>TROPHIES</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-
-      this.container.querySelector('#btn-play')!.addEventListener('click', () => this.actions.onStartRun());
-      this.container.querySelector('#btn-sectors')!.addEventListener('click', () => this.setSheet('sectors'));
-      this.container.querySelector('#btn-ships')!.addEventListener('click', () => this.setSheet('ships'));
-      this.container.querySelector('#btn-skins')!.addEventListener('click', () => this.setSheet('skins'));
-      this.container.querySelector('#btn-upgrades')!.addEventListener('click', () => this.setSheet('upgrades'));
-      this.container.querySelector('#btn-trophies')!.addEventListener('click', () => this.setSheet('trophies'));
-      this.container.querySelector('#btn-settings')!.addEventListener('click', () => this.setSheet('settings'));
-      return;
-    }
-
-    if (this.sheet === 'ships') {
-      const rows = VESSEL_ORDER.map((vid) => {
-        const v = VESSELS[vid];
-        const unlocked = this.save.unlockedVessels.includes(vid);
-        const active = this.save.selectedVessel === vid;
-        const canBuy = !unlocked && this.save.shards >= v.unlockCost;
-        return `
-          <div class="row-card ${active ? 'active' : ''} ${unlocked ? '' : 'locked'}">
-            <div class="row-main">
-              <div class="row-icon">${svgIcon(vid, 18, active ? 'var(--accent)' : '#ebe7dc')}</div>
-              <div>
-                <div class="row-title">${v.name}</div>
-                <div class="row-sub">${v.perkShort}</div>
-              </div>
-            </div>
-            ${
-              unlocked
-                ? `<button class="action-chip ${active ? 'equipped' : ''}" data-ship="${vid}">${active ? svgIcon('check', 13) : 'USE'}</button>`
-                : `<button class="action-chip" data-buy-ship="${vid}" ${canBuy ? '' : 'disabled'}>${svgIcon('shard', 12, 'var(--accent)')}${v.unlockCost}</button>`
-            }
-          </div>
-        `;
-      }).join('');
-
-      this.renderSheet('SHIPS', rows, true);
-
-      this.container.querySelectorAll<HTMLButtonElement>('[data-ship]').forEach((b) => {
-        b.addEventListener('click', () => {
-          this.actions.onSelectVessel(b.dataset.ship as VesselId);
-          bridge.haptic('light');
-          this.renderMenu();
-        });
-      });
-      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-ship]').forEach((b) => {
-        b.addEventListener('click', () => {
-          const vid = b.dataset.buyShip as VesselId;
-          const v = VESSELS[vid];
-          if (this.save.shards >= v.unlockCost && !this.save.unlockedVessels.includes(vid)) {
-            this.save.shards -= v.unlockCost;
-            this.save.unlockedVessels.push(vid);
-            this.actions.onSelectVessel(vid);
-            persistMetaSave(this.save);
-            bridge.haptic('success');
-            sound.playLevelUp();
-            this.renderMenu();
-          }
-        });
-      });
-      return;
-    }
-
-    if (this.sheet === 'skins') {
-      const tiles = SKIN_ORDER.map((sid) => {
-        const s = SKINS[sid];
-        const unlocked = this.save.unlockedSkins.includes(sid);
-        const active = this.save.selectedSkin === sid;
-        const canBuy = !unlocked && this.save.shards >= s.unlockCost;
-        const actionBtn = unlocked
-          ? `<span class="action-chip ${active ? 'equipped' : ''}">${active ? svgIcon('check', 12) : 'USE'}</span>`
-          : `<span class="action-chip" style="opacity:${canBuy ? 1 : 0.4}">${svgIcon('shard', 11, 'var(--accent)')}${s.unlockCost}</span>`;
-        return `
-          <button class="skin-tile ${active ? 'active' : ''}" data-skin="${sid}">
-            <div class="swatch-row">
-              <div class="swatch">
-                <span class="swatch-bar" style="background:${s.hullFill}"></span>
-                <span class="swatch-bar" style="background:${s.hullTrim}"></span>
-                <span class="swatch-bar" style="background:${s.accent}"></span>
-              </div>
-              ${actionBtn}
-            </div>
-            <div class="row-title">${s.name}</div>
-          </button>
-        `;
-      }).join('');
-
-      this.container.innerHTML = `
-        <div class="sheet-backdrop preview-open" id="sheet-bg">
-          <div class="sheet">
-            <div class="sheet-head">
-              <div class="sheet-title">SKINS</div>
-              <div class="shard-counter" style="padding:4px 8px;font-size:12px">
-                ${svgIcon('shard', 12, 'var(--accent)')} ${this.save.shards.toLocaleString()}
-              </div>
-            </div>
-            <div class="skin-grid">${tiles}</div>
-            <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
-          </div>
-        </div>
-      `;
-
-      this.bindSheetClose();
-      this.container.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const sid = btn.dataset.skin as SkinId;
-          const s = SKINS[sid];
-          if (this.save.unlockedSkins.includes(sid)) {
-            this.actions.onSelectSkin(sid);
-            bridge.haptic('light');
-            this.renderMenu();
-          } else if (this.save.shards >= s.unlockCost) {
-            this.save.shards -= s.unlockCost;
-            this.save.unlockedSkins.push(sid);
-            this.actions.onSelectSkin(sid);
-            persistMetaSave(this.save);
-            bridge.haptic('success');
-            sound.playLevelUp();
-            this.renderMenu();
-          }
-        });
-      });
-      return;
-    }
-
-    if (this.sheet === 'sectors') {
-      const rows = SECTOR_ORDER.map((secId) => {
-        const sc = SECTORS[secId];
-        const unlocked = this.save.unlockedSectors.includes(secId);
-        const active = this.save.selectedSector === secId;
-        const canBuy = !unlocked && this.save.shards >= sc.unlockCost;
-        return `
-          <div class="row-card ${active ? 'active' : ''} ${unlocked ? '' : 'locked'}">
-            <div class="row-main">
-              <span class="sector-code" style="border-color:${sc.accent};color:${sc.accent}">${sc.code}</span>
-              <div>
-                <div class="row-title">${sc.name}</div>
-                <div class="row-sub">${sc.shardMult.toFixed(1)}× Shards</div>
-              </div>
-            </div>
-            ${
-              unlocked
-                ? `<button class="action-chip ${active ? 'equipped' : ''}" data-sector="${secId}">${active ? svgIcon('check', 13) : 'SELECT'}</button>`
-                : `<button class="action-chip" data-buy-sector="${secId}" ${canBuy ? '' : 'disabled'}>${svgIcon('shard', 12, 'var(--accent)')}${sc.unlockCost}</button>`
-            }
-          </div>
-        `;
-      }).join('');
-
-      this.renderSheet('SECTORS', rows, true);
-
-      this.container.querySelectorAll<HTMLButtonElement>('[data-sector]').forEach((b) => {
-        b.addEventListener('click', () => {
-          this.actions.onSelectSector(b.dataset.sector as SectorId);
-          bridge.haptic('light');
-          this.renderMenu();
-        });
-      });
-      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-sector]').forEach((b) => {
-        b.addEventListener('click', () => {
-          const secId = b.dataset.buySector as SectorId;
-          const sc = SECTORS[secId];
-          if (this.save.shards >= sc.unlockCost && !this.save.unlockedSectors.includes(secId)) {
-            this.save.shards -= sc.unlockCost;
-            this.save.unlockedSectors.push(secId);
-            this.actions.onSelectSector(secId);
-            persistMetaSave(this.save);
-            bridge.haptic('success');
-            sound.playLevelUp();
-            this.renderMenu();
-          }
-        });
-      });
-      return;
-    }
-
-    if (this.sheet === 'upgrades') {
-      const rows = META_UPGRADES.map((u) => {
-        const lv = this.save.upgrades[u.id] ?? 0;
-        const maxed = lv >= u.maxLevel;
-        const cost = getMetaUpgradeCost(u, lv);
-        const canBuy = !maxed && this.save.shards >= cost;
-        const pips = Array.from({ length: u.maxLevel }, (_, i) =>
-          `<span class="pip ${i < lv ? 'on' : ''}"></span>`
-        ).join('');
-        return `
-          <div class="row-card">
-            <div>
-              <div class="row-title">${u.name}</div>
-              <div class="row-sub">${u.perLevelShort}</div>
-              <div class="pips">${pips}</div>
-            </div>
-            <button class="action-chip" data-buy-meta="${u.id}" ${canBuy ? '' : 'disabled'}>
-              ${maxed ? 'MAX' : `${svgIcon('shard', 12, 'var(--accent)')}${cost}`}
-            </button>
-          </div>
-        `;
-      }).join('');
-
-      this.renderSheet('UPGRADES', rows, false);
-
-      this.container.querySelectorAll<HTMLButtonElement>('[data-buy-meta]').forEach((b) => {
-        b.addEventListener('click', () => {
-          if (buyMetaUpgrade(this.save, b.dataset.buyMeta as MetaUpgradeId)) {
-            bridge.haptic('success');
-            sound.playLevelUp();
-            this.renderMenu();
-          }
-        });
-      });
-      return;
-    }
-
-    if (this.sheet === 'trophies') {
-      const doneCount = this.save.claimedMilestones.length;
-      const rows = MILESTONES.map((m) => {
-        const st = m.check(this.save);
-        const done = this.save.claimedMilestones.includes(m.id) || st.done;
-        const reward = m.rewardLabel ? `${m.rewardLabel} · +${m.rewardShards}` : `+${m.rewardShards}`;
-        return `
-          <div class="row-card ${done ? 'active' : ''}">
-            <div class="row-main">
-              <div class="row-icon">${svgIcon(done ? 'check' : 'trophy', 15, done ? 'var(--gold)' : '#6d7588')}</div>
-              <div>
-                <div class="row-title">${m.name}</div>
-                <div class="row-sub">${m.goalText} · ${Math.min(st.current, st.target).toLocaleString()}/${st.target.toLocaleString()}</div>
-              </div>
-            </div>
-            <span class="row-sub" style="color:${done ? 'var(--gold)' : 'var(--muted)'};font-weight:800">${reward}</span>
-          </div>
-        `;
-      }).join('');
-
-      this.container.innerHTML = `
-        <div class="sheet-backdrop" id="sheet-bg">
-          <div class="sheet">
-            <div class="sheet-head">
-              <div class="sheet-title">TROPHIES</div>
-              <span class="row-sub" style="color:var(--gold);font-weight:800">${doneCount} / ${MILESTONES.length}</span>
-            </div>
-            <div class="scroll-zone">${rows}</div>
-            <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
-          </div>
-        </div>
-      `;
-      this.bindSheetClose();
-      return;
-    }
-
-    // Settings sheet
-    const s = this.save.settings;
     this.container.innerHTML = `
-      <div class="sheet-backdrop center" id="sheet-bg">
-        <div class="sheet">
-          <div class="sheet-head">
-            <div class="sheet-title">SETTINGS</div>
+      <div class="hub-shell">
+        <div class="hub-topbar">
+          <div class="currency-pill">
+            ${artIconImg('shard', 20)}
+            <span>${this.save.shards.toLocaleString()}</span>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-square ${this.save.settings.music ? '' : 'muted'}" id="btn-quick-mute" aria-label="Mute Music">
+              ${svgIcon('music', 16)}
+            </button>
+            <button class="icon-square" id="btn-settings" aria-label="Settings">
+              ${svgIcon('gear', 16)}
+            </button>
+          </div>
+        </div>
+
+        <div class="hub-content">${bodyHtml}</div>
+
+        <nav class="bottom-nav">
+          <button class="nav-item ${this.tab === 'skins' ? 'active' : ''}" data-tab="skins">
+            ${svgIcon('skins', 19)}
+            <span>SKINS</span>
+          </button>
+          <button class="nav-item ${this.tab === 'hangar' ? 'active' : ''}" data-tab="hangar">
+            ${svgIcon('ships', 19)}
+            <span>HANGAR</span>
+          </button>
+          <button class="nav-item battle-center ${this.tab === 'battle' ? 'active' : ''}" data-tab="battle">
+            ${svgIcon('play', 19)}
+            <span>BATTLE</span>
+          </button>
+          <button class="nav-item ${this.tab === 'talents' ? 'active' : ''}" data-tab="talents">
+            ${svgIcon('matrix', 18)}
+            <span>TALENTS</span>
+            ${canBuyTalent ? '<span class="red-dot"></span>' : ''}
+          </button>
+          <button class="nav-item ${this.tab === 'trials' ? 'active' : ''}" data-tab="trials">
+            ${svgIcon('trophy', 18)}
+            <span>TRIALS</span>
+          </button>
+        </nav>
+
+        ${settingsModal}
+      </div>
+    `;
+
+    this.bindHubEvents();
+  }
+
+  private buildBattleTab(): string {
+    const secId = SECTOR_ORDER[this.browsingSectorIdx];
+    const sector = SECTORS[secId];
+    const secUnlocked = this.save.unlockedSectors.includes(secId);
+    const secCleared = this.save.sectorsCleared.includes(secId);
+    const canUnlockSec = !secUnlocked && this.save.shards >= sector.unlockCost;
+
+    const vessel = VESSELS[this.save.selectedVessel];
+    const skinFilter = skinCssFilter(this.save.selectedSkin);
+    const maxHp = vessel.stats.maxHp + (this.save.upgrades.hull_integrity ?? 0) * 14;
+
+    return `
+      <div class="battle-tab">
+        <div class="brand-wordmark">STILLPOINT</div>
+
+        <div class="chapter-carousel">
+          <button class="carousel-arrow" id="btn-sec-prev" aria-label="Previous Sector">
+            ${svgIcon('back', 16)}
+          </button>
+
+          <div class="chapter-card" style="border-color:${secUnlocked ? sector.accent : 'var(--line)'}">
+            <div class="chapter-art-wrap">
+              <img src="${sectorBannerUrl(secId)}" class="chapter-art ${secUnlocked ? '' : 'locked'}" alt="${sector.name}" draggable="false" />
+              <div class="chapter-grad"></div>
+              <div class="chapter-top-badges">
+                <span class="ch-pill" style="color:${sector.accent};border-color:${sector.accent}">${sector.code}</span>
+                <span class="ch-pill" style="color:var(--gold)">
+                  ${secCleared ? '★ ' : ''}${sector.shardMult.toFixed(1)}×
+                </span>
+              </div>
+            </div>
+            <div class="chapter-footer">
+              <div class="chapter-title">${sector.name}</div>
+              <div class="boss-mini">
+                <div class="boss-thumb">
+                  <img src="${bossArtForSector(secId)}" width="22" height="22" class="art-img" alt="" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="carousel-arrow" id="btn-sec-next" aria-label="Next Sector">
+            ${svgIcon('chevron', 16)}
+          </button>
+        </div>
+
+        <div class="hero-stage" id="btn-go-hangar">
+          <div class="hero-ship-wrap">
+            <img src="${shipArtUrl(vessel.id)}" class="hero-ship-img" style="filter:${skinFilter}" alt="${vessel.name}" />
+          </div>
+          <div class="hero-info">
+            <div class="hero-name-row">
+              <span class="hero-name">${vessel.name}</span>
+              <div class="r-frame ${rarityForVessel(vessel.id)}" style="width:34px;height:34px">
+                ${artIconImg(vessel.starterWeapon, 24)}
+              </div>
+            </div>
+            <div class="hero-stats">
+              <span class="stat-chip">HP ${maxHp}</span>
+              <span class="stat-chip">SPD ${vessel.stats.moveSpeed}</span>
+              <span class="stat-chip" style="color:var(--accent)">${SKINS[this.save.selectedSkin].name}</span>
+            </div>
+          </div>
+        </div>
+
+        ${
+          secUnlocked
+            ? `<button class="battle-btn" id="btn-play">${svgIcon('play', 18, '#171004')}<span>PLAY</span></button>`
+            : `<button class="battle-btn unlock-btn" id="btn-unlock-sec" ${canUnlockSec ? '' : 'disabled'}>
+                 ${artIconImg('shard', 20)}<span>UNLOCK · ${sector.unlockCost}</span>
+               </button>`
+        }
+      </div>
+    `;
+  }
+
+  private buildHangarTab(): string {
+    const vessel = VESSELS[this.save.selectedVessel];
+    const skinFilter = skinCssFilter(this.save.selectedSkin);
+    const maxHp = vessel.stats.maxHp + (this.save.upgrades.hull_integrity ?? 0) * 14;
+
+    const cards = VESSEL_ORDER.map((vid) => {
+      const v = VESSELS[vid];
+      const unlocked = this.save.unlockedVessels.includes(vid);
+      const selected = this.save.selectedVessel === vid;
+      const tier = rarityForVessel(vid);
+      return `
+        <button class="r-frame equip-card ${tier} ${selected ? 'selected' : ''} ${unlocked ? '' : 'locked'}" data-ship="${vid}">
+          <img src="${shipArtUrl(vid)}" class="equip-thumb" style="${unlocked ? `filter:${skinFilter}` : ''}" alt="${v.name}" />
+          <div class="equip-name">${v.name}</div>
+          <div class="equip-cost">
+            ${unlocked ? (selected ? svgIcon('check', 12, '#ffffff') : '') : `${artIconImg('shard', 12)}${v.unlockCost}`}
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    return `
+      <div class="bay-preview">
+        <img src="${shipArtUrl(vessel.id)}" class="bay-ship-big" style="filter:${skinFilter}" alt="${vessel.name}" />
+        <div class="hero-info">
+          <div class="hero-name-row">
+            <span class="hero-name">${vessel.name}</span>
+            <div class="r-frame ${rarityForVessel(vessel.id)}" style="width:36px;height:36px">
+              ${artIconImg(vessel.starterWeapon, 26)}
+            </div>
+          </div>
+          <div class="talent-stat">${vessel.perkShort}</div>
+          <div class="hero-stats">
+            <span class="stat-chip">HP ${maxHp}</span>
+            <span class="stat-chip">SPD ${vessel.stats.moveSpeed}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="equip-grid">${cards}</div>
+    `;
+  }
+
+  private buildSkinsTab(): string {
+    const vessel = VESSELS[this.save.selectedVessel];
+    const activeSkin = SKINS[this.save.selectedSkin];
+    const activeFilter = skinCssFilter(activeSkin.id);
+
+    const tiles = SKIN_ORDER.map((sid) => {
+      const s = SKINS[sid];
+      const unlocked = this.save.unlockedSkins.includes(sid);
+      const selected = this.save.selectedSkin === sid;
+      const tier = rarityForSkin(sid);
+      return `
+        <button class="r-frame skin-card ${tier} ${selected ? 'selected' : ''}" data-skin="${sid}">
+          <img src="${shipArtUrl(vessel.id)}" class="skin-ship-mini" style="filter:${skinCssFilter(sid)}" alt="${s.name}" />
+          <div style="flex:1;min-width:0">
+            <div class="equip-name">${s.name}</div>
+            <div class="equip-cost" style="margin-top:3px">
+              ${unlocked ? (selected ? 'EQUIPPED' : 'OWNED') : `${artIconImg('shard', 12)}${s.unlockCost}`}
+            </div>
+          </div>
+        </button>
+      `;
+    }).join('');
+
+    return `
+      <div class="bay-preview">
+        <img src="${shipArtUrl(vessel.id)}" class="bay-ship-big" style="filter:${activeFilter}" alt="${activeSkin.name}" />
+        <div class="hero-info">
+          <div class="hero-name">${activeSkin.name}</div>
+          <div class="hero-stats">
+            <span class="stat-chip" style="border-color:${activeSkin.accent};color:${activeSkin.accent}">${vessel.name}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="skin-cards-grid">${tiles}</div>
+    `;
+  }
+
+  private buildTalentsTab(): string {
+    const rows = META_UPGRADES.map((u) => {
+      const lv = this.save.upgrades[u.id] ?? 0;
+      const maxed = lv >= u.maxLevel;
+      const cost = getMetaUpgradeCost(u, lv);
+      const canBuy = !maxed && this.save.shards >= cost;
+      const tier = rarityForLevel(Math.max(1, lv), maxed);
+      const pips = Array.from({ length: u.maxLevel }, (_, i) =>
+        `<span class="pip ${i < lv ? 'on' : ''}"></span>`
+      ).join('');
+      return `
+        <div class="talent-row ${lv > 0 ? 'unlocked' : ''}">
+          <div class="r-frame talent-node ${tier}">
+            ${artIconImg(TALENT_ICON_KEYS[u.id], 28)}
+          </div>
+          <div class="talent-body">
+            <div class="talent-name">${u.name}</div>
+            <div class="talent-stat">${u.perLevelShort}</div>
+            <div class="pips">${pips}</div>
+          </div>
+          <button class="buy-pill ${canBuy ? 'ready' : ''}" data-buy-meta="${u.id}" ${canBuy ? '' : 'disabled'}>
+            ${maxed ? 'MAX' : `${artIconImg('shard', 13)}${cost}`}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    return `<div class="talent-tree">${rows}</div>`;
+  }
+
+  private buildTrialsTab(): string {
+    const rows = MILESTONES.map((m) => {
+      const st = m.check(this.save);
+      const done = this.save.claimedMilestones.includes(m.id) || st.done;
+      const pct = Math.min(100, (st.current / Math.max(1, st.target)) * 100);
+      const reward = m.rewardLabel ? `${m.rewardLabel} · +${m.rewardShards}` : `+${m.rewardShards}`;
+      return `
+        <div class="trial-card ${done ? 'done' : ''}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="r-frame ${done ? 'gold' : 'common'}" style="width:36px;height:36px">
+              ${svgIcon(done ? 'check' : 'trophy', 16, done ? '#ebb644' : '#8b8f9c')}
+            </div>
+            <div>
+              <div class="talent-name">${m.name}</div>
+              <div class="talent-stat">${m.goalText} · ${Math.min(st.current, st.target).toLocaleString()}/${st.target.toLocaleString()}</div>
+              <div class="trial-bar"><div class="trial-bar-fill" style="width:${pct.toFixed(0)}%"></div></div>
+            </div>
+          </div>
+          <span class="talent-stat" style="color:${done ? 'var(--gold)' : 'var(--muted)'};font-weight:900">${reward}</span>
+        </div>
+      `;
+    }).join('');
+
+    return `<div class="trial-list">${rows}</div>`;
+  }
+
+  private buildSettingsModal(): string {
+    const s = this.save.settings;
+    return `
+      <div class="modal-backdrop" id="settings-bg">
+        <div class="modal-box">
+          <div class="modal-head">
+            <div class="modal-title">SETTINGS</div>
           </div>
           <div class="toggle-grid">
-            <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">
-              ${svgIcon('music', 16)} <span>MUSIC</span>
-            </button>
-            <button class="toggle-tile ${s.sfx ? 'on' : ''}" data-toggle="sfx">
-              ${svgIcon('sfx', 16)} <span>SFX</span>
-            </button>
-            <button class="toggle-tile ${s.haptics ? 'on' : ''}" data-toggle="haptics">
-              ${svgIcon('haptics', 16)} <span>HAPTICS</span>
-            </button>
-            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">
-              ${svgIcon('flash', 16)} <span>LOW FLASH</span>
-            </button>
+            <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">${svgIcon('music', 16)} <span>MUSIC</span></button>
+            <button class="toggle-tile ${s.sfx ? 'on' : ''}" data-toggle="sfx">${svgIcon('sfx', 16)} <span>SFX</span></button>
+            <button class="toggle-tile ${s.haptics ? 'on' : ''}" data-toggle="haptics">${svgIcon('haptics', 16)} <span>HAPTICS</span></button>
+            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">${svgIcon('flash', 16)} <span>LOW FLASH</span></button>
           </div>
-          <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
+          <button class="ghost-btn" id="btn-close-settings">DONE</button>
         </div>
       </div>
     `;
-    this.bindSheetClose();
+  }
+
+  private bindHubEvents(): void {
+    // Bottom 5 tabs
+    this.container.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.tab = btn.dataset.tab as HubTab;
+        bridge.haptic('light');
+        this.renderHub();
+      });
+    });
+
+    // Quick 1-tap Music Mute right in top bar!
+    this.container.querySelector('#btn-quick-mute')?.addEventListener('click', () => {
+      this.save.settings.music = !this.save.settings.music;
+      sound.setSettings(this.save.settings.music, this.save.settings.sfx);
+      persistMetaSave(this.save);
+      bridge.haptic('light');
+      this.renderHub();
+    });
+
+    this.container.querySelector('#btn-settings')?.addEventListener('click', () => {
+      this.settingsOpen = true;
+      this.renderHub();
+    });
+
+    this.container.querySelector('#btn-close-settings')?.addEventListener('click', () => {
+      this.settingsOpen = false;
+      this.renderHub();
+    });
+
+    this.container.querySelector('#settings-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'settings-bg') {
+        this.settingsOpen = false;
+        this.renderHub();
+      }
+    });
+
     this.container.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((b) => {
       b.addEventListener('click', () => {
         const key = b.dataset.toggle as keyof MetaSave['settings'];
@@ -457,33 +475,106 @@ export class OverlayController {
         bridge.setHapticsEnabled(this.save.settings.haptics);
         persistMetaSave(this.save);
         bridge.haptic('light');
-        this.renderMenu();
+        this.renderHub();
       });
     });
-  }
 
-  private renderSheet(title: string, rowsHtml: string, previewOpen: boolean): void {
-    this.container.innerHTML = `
-      <div class="sheet-backdrop ${previewOpen ? 'preview-open' : ''}" id="sheet-bg">
-        <div class="sheet">
-          <div class="sheet-head">
-            <div class="sheet-title">${title}</div>
-            <div class="shard-counter" style="padding:4px 8px;font-size:12px">
-              ${svgIcon('shard', 12, 'var(--accent)')} ${this.save.shards.toLocaleString()}
-            </div>
-          </div>
-          <div class="scroll-zone">${rowsHtml}</div>
-          <button class="ghost-btn" id="btn-close-sheet">${svgIcon('back', 14)} DONE</button>
-        </div>
-      </div>
-    `;
-    this.bindSheetClose();
-  }
+    // Battle tab controls
+    this.container.querySelector('#btn-sec-prev')?.addEventListener('click', () => {
+      this.browsingSectorIdx = (this.browsingSectorIdx - 1 + SECTOR_ORDER.length) % SECTOR_ORDER.length;
+      const id = SECTOR_ORDER[this.browsingSectorIdx];
+      if (this.save.unlockedSectors.includes(id)) this.actions.onSelectSector(id);
+      bridge.haptic('light');
+      this.renderHub();
+    });
 
-  private bindSheetClose(): void {
-    this.container.querySelector('#btn-close-sheet')?.addEventListener('click', () => this.setSheet('none'));
-    this.container.querySelector('#sheet-bg')?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).id === 'sheet-bg') this.setSheet('none');
+    this.container.querySelector('#btn-sec-next')?.addEventListener('click', () => {
+      this.browsingSectorIdx = (this.browsingSectorIdx + 1) % SECTOR_ORDER.length;
+      const id = SECTOR_ORDER[this.browsingSectorIdx];
+      if (this.save.unlockedSectors.includes(id)) this.actions.onSelectSector(id);
+      bridge.haptic('light');
+      this.renderHub();
+    });
+
+    this.container.querySelector('#btn-go-hangar')?.addEventListener('click', () => {
+      this.tab = 'hangar';
+      bridge.haptic('light');
+      this.renderHub();
+    });
+
+    this.container.querySelector('#btn-play')?.addEventListener('click', () => {
+      const id = SECTOR_ORDER[this.browsingSectorIdx];
+      if (this.save.unlockedSectors.includes(id)) {
+        this.actions.onSelectSector(id);
+        this.actions.onStartRun();
+      }
+    });
+
+    this.container.querySelector('#btn-unlock-sec')?.addEventListener('click', () => {
+      const id = SECTOR_ORDER[this.browsingSectorIdx];
+      const sc = SECTORS[id];
+      if (this.save.shards >= sc.unlockCost && !this.save.unlockedSectors.includes(id)) {
+        this.save.shards -= sc.unlockCost;
+        this.save.unlockedSectors.push(id);
+        this.actions.onSelectSector(id);
+        persistMetaSave(this.save);
+        bridge.haptic('success');
+        sound.playLevelUp();
+        this.renderHub();
+      }
+    });
+
+    // Hangar ships
+    this.container.querySelectorAll<HTMLButtonElement>('[data-ship]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const vid = b.dataset.ship as VesselId;
+        const v = VESSELS[vid];
+        if (this.save.unlockedVessels.includes(vid)) {
+          this.actions.onSelectVessel(vid);
+          bridge.haptic('light');
+          this.renderHub();
+        } else if (this.save.shards >= v.unlockCost) {
+          this.save.shards -= v.unlockCost;
+          this.save.unlockedVessels.push(vid);
+          this.actions.onSelectVessel(vid);
+          persistMetaSave(this.save);
+          bridge.haptic('success');
+          sound.playLevelUp();
+          this.renderHub();
+        }
+      });
+    });
+
+    // Skins
+    this.container.querySelectorAll<HTMLButtonElement>('[data-skin]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const sid = b.dataset.skin as SkinId;
+        const s = SKINS[sid];
+        if (this.save.unlockedSkins.includes(sid)) {
+          this.actions.onSelectSkin(sid);
+          bridge.haptic('light');
+          this.renderHub();
+        } else if (this.save.shards >= s.unlockCost) {
+          this.save.shards -= s.unlockCost;
+          this.save.unlockedSkins.push(sid);
+          this.actions.onSelectSkin(sid);
+          persistMetaSave(this.save);
+          bridge.haptic('success');
+          sound.playLevelUp();
+          this.renderHub();
+        }
+      });
+    });
+
+    // Talent upgrades
+    this.container.querySelectorAll<HTMLButtonElement>('[data-buy-meta]').forEach((b) => {
+      b.addEventListener('click', () => {
+        if (buyMetaUpgrade(this.save, b.dataset.buyMeta as MetaUpgradeId)) {
+          bridge.haptic('success');
+          sound.playLevelUp();
+          this.renderHub();
+        }
+      });
     });
   }
 
@@ -503,25 +594,23 @@ export class OverlayController {
   private renderPause(): void {
     const s = this.save.settings;
     this.container.innerHTML = `
-      <div class="sheet-backdrop center">
-        <div class="sheet">
-          <div class="sheet-head">
-            <div class="sheet-title">PAUSED</div>
-          </div>
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-head"><div class="modal-title">PAUSED</div></div>
           <div class="toggle-grid">
             <button class="toggle-tile ${s.music ? 'on' : ''}" id="p-music">${svgIcon('music', 15)} <span>MUSIC</span></button>
             <button class="toggle-tile ${s.sfx ? 'on' : ''}" id="p-sfx">${svgIcon('sfx', 15)} <span>SFX</span></button>
             <button class="toggle-tile ${s.haptics ? 'on' : ''}" id="p-haptics">${svgIcon('haptics', 15)} <span>HAPTICS</span></button>
             <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" id="p-flash">${svgIcon('flash', 15)} <span>LOW FLASH</span></button>
           </div>
-          <button class="cta-btn" id="btn-resume">RESUME</button>
+          <button class="battle-btn" id="btn-resume">RESUME</button>
           <button class="ghost-btn" id="btn-quit">QUIT</button>
         </div>
       </div>
     `;
     this.container.querySelector('#btn-resume')!.addEventListener('click', () => this.actions.onResume());
     this.container.querySelector('#btn-quit')!.addEventListener('click', () => {
-      this.sheet = 'none';
+      this.tab = 'battle';
       this.actions.onQuitToMenu();
     });
     const wire = (id: string, key: keyof MetaSave['settings']) => {
@@ -555,14 +644,14 @@ export class OverlayController {
     };
 
     this.container.innerHTML = `
-      <div class="sheet-backdrop center">
-        <div class="sheet" style="border-top-color:${isVictory ? 'var(--gold)' : 'var(--danger)'}">
-          <div class="sheet-head">
-            <div class="sheet-title" style="color:${isVictory ? 'var(--gold)' : '#ebe7dc'}">
+      <div class="modal-backdrop">
+        <div class="modal-box" style="border-color:${isVictory ? 'var(--gold)' : 'var(--danger)'}">
+          <div class="modal-head">
+            <div class="modal-title" style="color:${isVictory ? 'var(--gold)' : '#efece3'}">
               ${isVictory ? 'VICTORY' : 'DEFEATED'}
             </div>
-            <div class="shard-counter" style="padding:4px 8px;color:var(--gold)">
-              ${svgIcon('shard', 12, 'var(--gold)')} +${st.shardsEarned}
+            <div class="currency-pill" style="padding:4px 9px;color:var(--gold)">
+              ${artIconImg('shard', 16)} +${st.shardsEarned}
             </div>
           </div>
 
@@ -575,10 +664,10 @@ export class OverlayController {
 
           ${
             isVictory
-              ? `<button class="cta-btn gold" id="btn-endless">ENDLESS</button>`
-              : `<button class="cta-btn" id="btn-retry">RETRY</button>`
+              ? `<button class="battle-btn" id="btn-endless">ENDLESS</button>`
+              : `<button class="battle-btn" id="btn-retry">RETRY</button>`
           }
-          <button class="ghost-btn" id="btn-home">HANGAR</button>
+          <button class="ghost-btn" id="btn-home">MENU</button>
         </div>
       </div>
     `;
@@ -586,7 +675,7 @@ export class OverlayController {
     this.container.querySelector('#btn-endless')?.addEventListener('click', () => this.actions.onContinueEndless());
     this.container.querySelector('#btn-retry')?.addEventListener('click', () => this.actions.onStartRun());
     this.container.querySelector('#btn-home')!.addEventListener('click', () => {
-      this.sheet = 'none';
+      this.tab = 'battle';
       this.actions.onQuitToMenu();
     });
   }

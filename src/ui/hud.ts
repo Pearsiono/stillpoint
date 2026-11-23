@@ -1,6 +1,6 @@
-import { PASSIVES, WEAPONS } from '../data/upgrades';
 import { HudSnapshot } from '../engine/game';
 import { UpgradeChoice } from '../types';
+import { artIconImg, rarityForLevel } from './artIcons';
 import { svgIcon } from './icons';
 
 export function formatTime(sec: number): string {
@@ -124,18 +124,14 @@ export class HudView {
       this.lastLoadoutKey = loadoutKey;
       const wHtml = h.weapons
         .map((w) => {
-          const def = WEAPONS[w.id];
-          return `<span class="slot-pip ${w.evolved ? 'evolved' : ''}">${svgIcon(
-            w.id,
-            12,
-            w.evolved ? '#e5b34c' : def.accent
-          )}<span class="slot-lv">${w.evolved ? '★' : w.level}</span></span>`;
+          const tier = rarityForLevel(w.level, w.evolved);
+          return `<span class="r-frame hud-slot ${tier}">${artIconImg(w.id, 18)}<span class="slot-lv">${w.evolved ? '★' : w.level}</span></span>`;
         })
         .join('');
       const pHtml = h.passives
         .map((p) => {
-          const def = PASSIVES[p.id];
-          return `<span class="slot-pip">${svgIcon(p.id, 11, def.accent)}<span class="slot-lv">${p.level}</span></span>`;
+          const tier = rarityForLevel(p.level, false);
+          return `<span class="r-frame hud-slot ${tier}">${artIconImg(p.id, 16)}<span class="slot-lv">${p.level}</span></span>`;
         })
         .join('');
       this.slotsWrap.innerHTML = wHtml + pHtml;
@@ -173,26 +169,32 @@ export function renderUpgradeDraftHtml(
 ): string {
   const cards = choices
     .map((c) => {
+      const tier =
+        c.kind === 'evolution'
+          ? 'mythic'
+          : c.kind === 'heal'
+            ? 'good'
+            : rarityForLevel(c.level ?? 1, false);
       const pips =
         c.level && c.maxLevel
           ? `<div class="pips">${Array.from({ length: c.maxLevel }, (_, i) => `<span class="pip ${i < c.level! ? 'on' : ''}"></span>`).join('')}</div>`
           : '';
       const tag =
         c.kind === 'evolution'
-          ? 'EVOLVE'
+          ? 'EVO'
           : c.isSynergy
-            ? 'SYNERGY'
+            ? 'EVO PAIR'
             : c.isNew
               ? 'NEW'
               : '';
       return `
         <button class="draft-card ${c.kind === 'evolution' ? 'evo' : ''}" data-choice="${c.id}">
-          <div class="draft-icon" style="border-color:${c.accent}66">
-            ${svgIcon(c.iconKey, 20, c.accent)}
+          <div class="r-frame draft-icon-box ${tier}">
+            ${artIconImg(c.iconKey, 36)}
           </div>
           <div class="draft-body">
             <div class="draft-top">
-              <span class="draft-name" style="color:${c.kind === 'evolution' ? '#e5b34c' : '#ebe7dc'}">${c.title}</span>
+              <span class="draft-name" style="color:${c.kind === 'evolution' ? '#ff7c86' : '#efece3'}">${c.title}</span>
               ${tag ? `<span class="draft-tag">${tag}</span>` : ''}
             </div>
             <div class="draft-line">${c.line}</div>
@@ -204,10 +206,10 @@ export function renderUpgradeDraftHtml(
     .join('');
 
   return `
-    <div class="sheet-backdrop center">
-      <div class="sheet">
-        <div class="sheet-head">
-          <div class="sheet-title" style="color:${isBossChest ? '#e5b34c' : '#ebe7dc'}">
+    <div class="modal-backdrop">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div class="modal-title" style="color:${isBossChest ? 'var(--gold)' : '#efece3'}">
             ${isBossChest ? 'RELIC CACHE' : `LV ${level}`}
           </div>
         </div>

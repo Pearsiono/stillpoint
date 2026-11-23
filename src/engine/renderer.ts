@@ -93,7 +93,6 @@ export class WastelandRenderer {
     ctx.fillStyle = sector.bgBase;
     ctx.fillRect(0, 0, w, h);
 
-    // Enter World Coordinate Space
     ctx.save();
     ctx.translate(w * 0.5 + state.shakeX, h * 0.5 + state.shakeY);
     ctx.scale(this.worldScale, this.worldScale);
@@ -102,18 +101,16 @@ export class WastelandRenderer {
     const viewHalfW = w / (2 * this.worldScale) + 120;
     const viewHalfH = h / (2 * this.worldScale) + 120;
 
-    // 2. Seamless Painted Wasteland Biome Floor Tiles
+    // 2. Seamless Wasteland Biome Floor Tiles & Grounded Ruins
     this.drawBiomeTerrain(ctx, state, viewHalfW, viewHalfH);
-
-    // 3. Grounded Environmental Ruins (slabs, rusted girders, buried gears, pillars)
     this.drawRuinProps(ctx, state, viewHalfW, viewHalfH);
 
-    // 4. Subtle Shockwave Distortion Rings (only visible during active shockwaves)
+    // 3. Shockwave distortion ripples
     if (state.particles.ripples.length > 0) {
       this.drawShockwaveRipples(ctx, state);
     }
 
-    // 5. Stillpoint Ash-Silence Ground Dimmer (makes bullets & relics pop!)
+    // 4. Stillpoint Ash-Silence Ground Dimmer
     if (!state.menuMode && blend > 0.02) {
       ctx.fillStyle = `rgba(9, 10, 14, ${blend * 0.52})`;
       ctx.fillRect(
@@ -124,73 +121,40 @@ export class WastelandRenderer {
       );
     }
 
-    // 6. Interactive World Nodes (Overclock Rings, Shrines, Cursed Pacts)
     if (!state.menuMode) {
       this.drawWorldNodes(ctx, state.nodes, state.realTime);
-    }
+      if (state.enclosure.active || state.enclosure.warningTimer > 0) {
+        this.drawBossEnclosure(ctx, state.enclosure, state.realTime);
+      }
+      this.drawHazards(ctx, state.hazards, state.realTime);
+      this.drawPylons(ctx, state.pylons, state.realTime);
+      this.drawPickups(ctx, state.pickups, state.realTime);
 
-    // 7. Boss Containment Perimeter (rusted laser stanchions & warning rails)
-    if (state.enclosure.active || state.enclosure.warningTimer > 0) {
-      this.drawBossEnclosure(ctx, state.enclosure, state.realTime);
-    }
-
-    // 8. Ground Hazards (Void Craters, Singularities, Nova Waves)
-    this.drawHazards(ctx, state.hazards, state.realTime);
-
-    // 9. Rail Pylons
-    this.drawPylons(ctx, state.pylons, state.realTime);
-
-    // 10. Pickups
-    this.drawPickups(ctx, state.pickups, state.realTime);
-
-    if (state.menuMode) {
-      // LIVE HERO VESSEL SHOWCASE floating right over the drifting wasteland!
-      this.drawMenuShowcase(ctx, state, skin);
-    } else {
-      // 11. Player Hover-Rig + Drop Shadow + Relic Stillpoint Ring
       this.drawPlayer(ctx, state, skin);
-
-      // 12. Orbital Sawblades & Prism Drones
       this.drawOrbitalWeapons(ctx, state);
-
-      // 13. Corrupted War-Automatons & Colossal Bosses
       this.drawEnemies(ctx, state.enemies, state.realTime);
-
-      // 14. Lasers & Sniper Rangefinders
       this.drawLasers(ctx, state.lasers, state.enemies, state.realTime);
-
-      // 15. Lightning Arcs
       this.drawArcs(ctx, state.particles);
-
-      // 16. Projectiles, Parry Shockwaves & Shatter Debris
       this.drawPlayerBullets(ctx, state.playerBullets, state.realTime);
       this.drawEnemyBullets(ctx, state.enemyBullets, state.realTime);
       this.drawParryWaves(ctx, state.parryWaves);
       this.drawParticles(ctx, state.particles);
-
-      // 17. Floating Combat Callouts
       this.drawCallouts(ctx, state.particles);
 
-      // 18. Minimal 2-word control cue for first seconds only
       if (state.showHint) {
         this.drawMinimalHint(ctx, state);
       }
     }
 
-    // 19. Atmospheric Drifting Wasteland Ash / Spores / Embers
     this.drawAtmosphericAsh(ctx, state, viewHalfW, viewHalfH);
+    ctx.restore();
 
-    ctx.restore(); // Exit World Space
-
-    // 20. Subtle Wasteland Edge Vignette & Stillpoint Relic Frame
     this.drawScreenAtmosphere(ctx, w, h, state, skin);
 
-    // 21. Off-screen World Node Directional Pips (Shrines / Overclock Rings)
     if (!state.menuMode && state.nodes.length > 0) {
       this.drawOffscreenNodePips(ctx, w, h, state);
     }
 
-    // 22. Minimal Floating Joystick (tactile hairline ring)
     if (!state.menuMode && state.input.joystickActive) {
       this.drawFloatingJoystick(ctx, state.input, skin.accent);
     }
@@ -230,10 +194,9 @@ export class WastelandRenderer {
 
     for (let cx = minCx; cx <= maxCx; cx++) {
       for (let cy = minCy; cy <= maxCy; cy++) {
-        // Stable deterministic hash per world cell
         const h1 = Math.sin(cx * 127.1 + cy * 311.7) * 43758.5453;
         const f1 = h1 - Math.floor(h1);
-        if (f1 < 0.28) continue; // Keep open sightlines
+        if (f1 < 0.3) continue;
 
         const h2 = Math.sin(cx * 269.5 + cy * 183.3) * 43758.5453;
         const f2 = h2 - Math.floor(h2);
@@ -243,7 +206,6 @@ export class WastelandRenderer {
         const px = (cx + 0.15 + f1 * 0.7) * RUIN_CELL;
         const py = (cy + 0.15 + f2 * 0.7) * RUIN_CELL;
 
-        // Bias props gently per biome
         let propKey: RuinPropKey = RUIN_KEYS[Math.floor(f3 * RUIN_KEYS.length)];
         if (state.sectorId === 'singularity' && f3 > 0.45) propKey = 'gear';
         else if (state.sectorId === 'furnace' && f3 > 0.55) propKey = 'hazard_plate';
@@ -253,7 +215,7 @@ export class WastelandRenderer {
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate((f1 - 0.5) * Math.PI * 2);
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = 0.82;
         ctx.drawImage(img, -img.width / 2, -img.height / 2);
         ctx.restore();
       }
@@ -274,60 +236,6 @@ export class WastelandRenderer {
       ctx.setLineDash([]);
       ctx.restore();
     }
-  }
-
-  private drawMenuShowcase(
-    ctx: CanvasRenderingContext2D,
-    state: RenderState,
-    skin: SkinDef
-  ): void {
-    const t = state.realTime;
-    const hoverX = state.cameraX;
-    // Lift vessel up slightly when a bottom drawer (Ships/Skins) is open so you see it live!
-    const hoverY = state.cameraY + (state.menuSheetOpen ? -145 : -28) + Math.sin(t * 2.2) * 7;
-    const scale = state.menuSheetOpen ? 2.15 : 2.35;
-
-    ctx.save();
-    ctx.translate(hoverX, hoverY);
-
-    // Ancient rotating relic astrolabe halo behind showcase ship
-    ctx.save();
-    ctx.rotate(t * 0.28);
-    ctx.strokeStyle = skin.accent + '44';
-    ctx.lineWidth = 1.4;
-    ctx.setLineDash([16, 10, 4, 10]);
-    ctx.beginPath();
-    ctx.arc(0, 0, 74, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-
-    ctx.save();
-    ctx.rotate(-t * 0.18);
-    ctx.strokeStyle = 'rgba(235, 231, 220, 0.14)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, 96, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    // Grounded shadow below hovering showcase rig
-    ctx.save();
-    ctx.translate(12, 26);
-    ctx.scale(scale * 0.92, scale * 0.92);
-    ctx.rotate(-Math.PI / 2 + Math.sin(t * 1.1) * 0.08);
-    this.drawVesselSilhouette(ctx, state.vesselId, 'rgba(0,0,0,0.42)', 'transparent', 'transparent', true);
-    ctx.restore();
-
-    // Live scaled Hover-Rig with pulsing exhaust flame!
-    ctx.save();
-    ctx.scale(scale, scale);
-    ctx.rotate(-Math.PI / 2 + Math.sin(t * 1.1) * 0.08);
-    this.drawThrusterPlume(ctx, state.vesselId, skin.trailColor, 0.8 + Math.sin(t * 18) * 0.2);
-    this.drawDetailedVessel(ctx, state.vesselId, skin, false);
-    ctx.restore();
-
-    ctx.restore();
   }
 
   private drawWorldNodes(ctx: CanvasRenderingContext2D, nodes: WorldNode[], realTime: number): void {
@@ -353,41 +261,32 @@ export class WastelandRenderer {
         ctx.restore();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(216, 255, 200, 0.75)';
+        ctx.fillStyle = 'rgba(216, 255, 200, 0.82)';
         ctx.font = '800 9px -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('2× OVERCLOCK', 0, 4);
       } else if (n.kind === 'shrine') {
-        // Ground shadow
+        const art = sprites.getNodeArt('shrine');
         ctx.fillStyle = 'rgba(0,0,0,0.45)';
         ctx.beginPath();
-        ctx.ellipse(5, 10, 20, 14, 0, 0, Math.PI * 2);
+        ctx.ellipse(5, 10, 22, 16, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Carved relic obelisk
-        ctx.fillStyle = '#2d2820';
-        ctx.strokeStyle = '#e5b34c';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, -24);
-        ctx.lineTo(16, 0);
-        ctx.lineTo(0, 22);
-        ctx.lineTo(-16, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        if (art) {
+          ctx.drawImage(art, -30, -30, 60, 60);
+        } else {
+          ctx.fillStyle = '#2d2820';
+          ctx.strokeStyle = '#e5b34c';
+          ctx.lineWidth = 2;
+          ctx.fillRect(-16, -16, 32, 32);
+          ctx.strokeRect(-16, -16, 32, 32);
+        }
 
-        ctx.fillStyle = '#45e8d8';
-        ctx.beginPath();
-        ctx.arc(0, 0, 5 + Math.sin(realTime * 7) * 1.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Compact HP bar
         const pct = Math.max(0, n.hp / n.maxHp);
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(-18, 28, 36, 4);
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(-20, 32, 40, 4);
         ctx.fillStyle = '#e5b34c';
-        ctx.fillRect(-18, 28, 36 * pct, 4);
+        ctx.fillRect(-20, 32, 40 * pct, 4);
       } else if (n.kind === 'pact_altar' && n.pactId) {
         const pact = PACTS[n.pactId];
         ctx.fillStyle = 'rgba(227, 75, 66, 0.08)';
@@ -409,12 +308,15 @@ export class WastelandRenderer {
           ctx.stroke();
         }
 
-        // Altar monolith center
-        ctx.fillStyle = '#261417';
-        ctx.strokeStyle = pact.accent;
-        ctx.lineWidth = 2;
-        ctx.fillRect(-9, -14, 18, 28);
-        ctx.strokeRect(-9, -14, 18, 28);
+        const art = sprites.getNodeArt('pact_altar');
+        if (art) {
+          ctx.drawImage(art, -26, -26, 52, 52);
+        } else {
+          ctx.fillStyle = '#261417';
+          ctx.strokeStyle = pact.accent;
+          ctx.fillRect(-10, -14, 20, 28);
+          ctx.strokeRect(-10, -14, 20, 28);
+        }
 
         ctx.textAlign = 'center';
         ctx.font = '800 9px -apple-system, sans-serif';
@@ -449,7 +351,6 @@ export class WastelandRenderer {
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
 
-    // Heavy industrial corner stanchions
     const cLen = 22;
     ctx.strokeStyle = '#ebe7dc';
     ctx.lineWidth = 2.5;
@@ -522,17 +423,17 @@ export class WastelandRenderer {
       ctx.translate(py.x, py.y);
       ctx.fillStyle = 'rgba(0,0,0,0.42)';
       ctx.beginPath();
-      ctx.ellipse(4, 7, 10, 7, 0, 0, Math.PI * 2);
+      ctx.ellipse(4, 7, 11, 7, 0, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = '#2c2924';
       ctx.strokeStyle = py.evolved ? '#45e8d8' : '#e5b34c';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(0, -12);
-      ctx.lineTo(9, 2);
-      ctx.lineTo(0, 10);
-      ctx.lineTo(-9, 2);
+      ctx.moveTo(0, -13);
+      ctx.lineTo(10, 2);
+      ctx.lineTo(0, 11);
+      ctx.lineTo(-10, 2);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -574,19 +475,19 @@ export class WastelandRenderer {
   }
 
   private drawPlayer(ctx: CanvasRenderingContext2D, state: RenderState, skin: SkinDef): void {
-    const { player, vesselId, realTime } = state;
+    const { player, vesselId, skinId, realTime } = state;
     const blend = player.stillpointBlend;
     const chargeRatio = Math.max(0, Math.min(1, player.kineticCharge / player.maxKineticCharge));
     const parryReady = player.parryCooldown <= 0 && player.kineticCharge >= 18;
 
-    // 1. Thruster Exhaust Trail
+    // 1. Thruster exhaust wake
     for (const t of player.trail) {
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.globalAlpha = t.alpha * 0.42;
       ctx.fillStyle = skin.trailColor;
       ctx.beginPath();
-      ctx.arc(0, 0, 5.5 * t.alpha, 0, Math.PI * 2);
+      ctx.arc(0, 0, 5.2 * t.alpha, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -594,14 +495,11 @@ export class WastelandRenderer {
     ctx.save();
     ctx.translate(player.x, player.y);
 
-    // 2. Subtle Graze Ring
+    // 2. Subtle Graze Halo
     ctx.save();
     ctx.rotate(realTime * (0.35 + blend * 1.2));
-    ctx.strokeStyle =
-      player.grazeCombo > 0
-        ? skin.accent
-        : 'rgba(235, 231, 220, 0.14)';
-    ctx.globalAlpha = player.grazeCombo > 0 ? 0.5 : 1;
+    ctx.strokeStyle = player.grazeCombo > 0 ? skin.accent : 'rgba(235, 231, 220, 0.14)';
+    ctx.globalAlpha = player.grazeCombo > 0 ? 0.52 : 1;
     ctx.lineWidth = 1.1;
     ctx.setLineDash([4, 9]);
     ctx.beginPath();
@@ -610,31 +508,30 @@ export class WastelandRenderer {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // 3. Ancient Chrono-Relic Astrolabe Ring during Stillpoint!
+    // 3. Chrono-Relic Astrolabe Ring during Stillpoint
     if (blend > 0.08) {
       ctx.save();
-      ctx.globalAlpha = blend * 0.72;
+      ctx.globalAlpha = blend * 0.78;
       ctx.rotate(-realTime * 0.9);
       ctx.strokeStyle = skin.accent;
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.25;
       ctx.setLineDash([12, 8, 2, 8]);
       ctx.beginPath();
-      ctx.arc(0, 0, 42, 0, Math.PI * 2);
+      ctx.arc(0, 0, 44, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      // 4 cardinal relic ticks
       for (let i = 0; i < 4; i++) {
         const a = (i * Math.PI) / 2;
         ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * 36, Math.sin(a) * 36);
-        ctx.lineTo(Math.cos(a) * 48, Math.sin(a) * 48);
+        ctx.moveTo(Math.cos(a) * 38, Math.sin(a) * 38);
+        ctx.lineTo(Math.cos(a) * 50, Math.sin(a) * 50);
         ctx.stroke();
       }
       ctx.restore();
     }
 
     // 4. Diegetic Kinetic Charge Ring around vessel
-    const ringR = 25 + blend * 4;
+    const ringR = 28 + blend * 4;
     ctx.strokeStyle = 'rgba(235, 231, 220, 0.14)';
     ctx.lineWidth = 2.6;
     ctx.beginPath();
@@ -653,203 +550,115 @@ export class WastelandRenderer {
       ctx.strokeStyle = 'rgba(235, 245, 255, 0.65)';
       ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.arc(0, 0, 20, 0, Math.PI * 2);
+      ctx.arc(0, 0, 23, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    // 5. Grounded Drop Shadow beneath hovering vessel!
-    ctx.save();
-    ctx.translate(6, 11);
-    ctx.rotate(player.facingAngle);
-    this.drawVesselSilhouette(ctx, vesselId, 'rgba(0,0,0,0.48)', 'transparent', 'transparent', true);
-    ctx.restore();
+    const shipArt = sprites.getShipArt(vesselId, skinId);
+    const shipShadow = sprites.getShipShadow(vesselId);
+    const shipSize = vesselId === 'aegis' || vesselId === 'nova' ? 50 : 48;
+    const rot = player.facingAngle + Math.PI / 2; // PNGs point straight UP (-PI/2)
 
-    // 6. Layered Shaded Hover-Rig Hull
-    ctx.save();
-    ctx.rotate(player.facingAngle);
-    const invulnBlink = player.invulnTimer > 0 && Math.floor(realTime * 22) % 2 === 0;
-    ctx.globalAlpha = invulnBlink ? 0.35 : 1 - blend * 0.45;
-    if (Math.hypot(player.vx, player.vy) > 20 && !player.inStillpoint) {
-      this.drawThrusterPlume(ctx, vesselId, skin.trailColor, 0.8 + Math.random() * 0.3);
+    // 5. Exact Silhouette Grounded Hover Shadow!
+    if (shipShadow) {
+      ctx.save();
+      ctx.translate(7, 12);
+      ctx.rotate(rot);
+      ctx.drawImage(shipShadow, -shipSize / 2, -shipSize / 2, shipSize, shipSize);
+      ctx.restore();
     }
-    this.drawDetailedVessel(ctx, vesselId, skin, player.hitFlash > 0);
+
+    // 6. Rendered Hover-Rig Sprite + Thruster Jet Plumes!
+    ctx.save();
+    ctx.rotate(rot);
+    const invulnBlink = player.invulnTimer > 0 && Math.floor(realTime * 22) % 2 === 0;
+    ctx.globalAlpha = invulnBlink ? 0.35 : 1 - blend * 0.42;
+
+    if (Math.hypot(player.vx, player.vy) > 20 && !player.inStillpoint) {
+      this.drawThrusterPlumeVertical(ctx, vesselId, skin.trailColor, 0.8 + Math.random() * 0.3);
+    }
+
+    if (shipArt) {
+      ctx.drawImage(shipArt, -shipSize / 2, -shipSize / 2, shipSize, shipSize);
+      if (player.hitFlash > 0.1) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = player.hitFlash * 0.7;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = skin.hullFill;
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.lineTo(13, 14);
+      ctx.lineTo(0, 8);
+      ctx.lineTo(-13, 14);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
 
-    // 7. Pinpoint Core Hitbox (blazes crisply in Stillpoint!)
-    const coreR = blend > 0.2 ? 4.5 : 3.0;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(0, -coreR * 1.45);
-    ctx.lineTo(coreR * 1.45, 0);
-    ctx.lineTo(0, coreR * 1.45);
-    ctx.lineTo(-coreR * 1.45, 0);
-    ctx.closePath();
-    ctx.fill();
+    // 7. Pinpoint Core Hitbox (illuminates crisply in Stillpoint!)
+    if (blend > 0.12) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, blend * 1.2);
+      const coreR = 4.6;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(0, -coreR * 1.45);
+      ctx.lineTo(coreR * 1.45, 0);
+      ctx.lineTo(0, coreR * 1.45);
+      ctx.lineTo(-coreR * 1.45, 0);
+      ctx.closePath();
+      ctx.fill();
 
-    if (blend > 0.15) {
       ctx.strokeStyle = skin.accent;
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.arc(0, 0, 8.5, 0, Math.PI * 2);
+      ctx.arc(0, 0, 8.8, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore();
   }
 
-  private drawThrusterPlume(
+  private drawThrusterPlumeVertical(
     ctx: CanvasRenderingContext2D,
     vesselId: VesselId,
     color: string,
     intensity: number
   ): void {
-    const len = (10 + intensity * 10);
-    const drawFlame = (x: number, y: number, w: number) => {
+    const len = 10 + intensity * 12;
+    const drawJet = (x: number, y: number, w: number) => {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.75;
+      ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.moveTo(x, y - w);
-      ctx.lineTo(x - len, y);
-      ctx.lineTo(x, y + w);
+      ctx.moveTo(x - w, y);
+      ctx.lineTo(x, y + len);
+      ctx.lineTo(x + w, y);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.moveTo(x, y - w * 0.45);
-      ctx.lineTo(x - len * 0.55, y);
-      ctx.lineTo(x, y + w * 0.45);
+      ctx.moveTo(x - w * 0.45, y);
+      ctx.lineTo(x, y + len * 0.55);
+      ctx.lineTo(x + w * 0.45, y);
       ctx.closePath();
       ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.restore();
     };
 
     if (vesselId === 'aegis' || vesselId === 'nova' || vesselId === 'volt') {
-      drawFlame(-10, -5, 2.8);
-      drawFlame(-10, 5, 2.8);
+      drawJet(-7, 17, 3.2);
+      drawJet(7, 17, 3.2);
     } else {
-      drawFlame(-9, 0, 3.4);
+      drawJet(0, 17, 3.8);
     }
-  }
-
-  private drawVesselSilhouette(
-    ctx: CanvasRenderingContext2D,
-    vesselId: VesselId,
-    fill: string,
-    stroke: string,
-    _trim: string,
-    shadowOnly = false
-  ): void {
-    ctx.fillStyle = fill;
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = shadowOnly ? 0 : 1.7;
-    ctx.beginPath();
-    switch (vesselId) {
-      case 'vesper':
-        ctx.moveTo(17, 0);
-        ctx.lineTo(2, -7);
-        ctx.lineTo(-10, -13);
-        ctx.lineTo(-13, -7);
-        ctx.lineTo(-7, 0);
-        ctx.lineTo(-13, 7);
-        ctx.lineTo(-10, 13);
-        ctx.lineTo(2, 7);
-        break;
-      case 'aegis':
-        ctx.moveTo(15, -6);
-        ctx.lineTo(18, 0);
-        ctx.lineTo(15, 6);
-        ctx.lineTo(4, 14);
-        ctx.lineTo(-11, 12);
-        ctx.lineTo(-14, 0);
-        ctx.lineTo(-11, -12);
-        ctx.lineTo(4, -14);
-        break;
-      case 'phantom':
-        ctx.moveTo(20, 0);
-        ctx.lineTo(-13, -12);
-        ctx.lineTo(-7, -3);
-        ctx.lineTo(-11, 0);
-        ctx.lineTo(-7, 3);
-        ctx.lineTo(-13, 12);
-        break;
-      case 'volt':
-        ctx.moveTo(18, -7);
-        ctx.lineTo(5, -2);
-        ctx.lineTo(5, 2);
-        ctx.lineTo(18, 7);
-        ctx.lineTo(-10, 13);
-        ctx.lineTo(-13, 4);
-        ctx.lineTo(-8, 0);
-        ctx.lineTo(-13, -4);
-        ctx.lineTo(-10, -13);
-        break;
-      case 'nova':
-        ctx.moveTo(16, 0);
-        ctx.lineTo(4, -14);
-        ctx.lineTo(-12, -14);
-        ctx.lineTo(-15, -5);
-        ctx.lineTo(-11, 0);
-        ctx.lineTo(-15, 5);
-        ctx.lineTo(-12, 14);
-        ctx.lineTo(4, 14);
-        break;
-      case 'seraph':
-        ctx.moveTo(18, 0);
-        ctx.lineTo(5, -6);
-        ctx.lineTo(-4, -17);
-        ctx.lineTo(-11, -7);
-        ctx.lineTo(-15, 0);
-        ctx.lineTo(-11, 7);
-        ctx.lineTo(-4, 17);
-        ctx.lineTo(5, 6);
-        break;
-    }
-    ctx.closePath();
-    ctx.fill();
-    if (!shadowOnly) ctx.stroke();
-  }
-
-  private drawDetailedVessel(
-    ctx: CanvasRenderingContext2D,
-    vesselId: VesselId,
-    skin: SkinDef,
-    flashWhite: boolean
-  ): void {
-    const fill = flashWhite ? '#ffffff' : skin.hullFill;
-    const trim = flashWhite ? '#ffffff' : skin.hullTrim;
-    this.drawVesselSilhouette(ctx, vesselId, fill, trim, skin.hullCore, false);
-
-    if (flashWhite) return;
-
-    // Inner recessed chassis plate + glowing canopy/core vent (gives tactile hardware craft!)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
-    ctx.beginPath();
-    ctx.moveTo(9, 0);
-    ctx.lineTo(-4, -5.5);
-    ctx.lineTo(-6, 0);
-    ctx.lineTo(-4, 5.5);
-    ctx.closePath();
-    ctx.fill();
-
-    // Accent trim stripes along wings
-    ctx.strokeStyle = skin.accent;
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.moveTo(4, -6);
-    ctx.lineTo(-8, -10);
-    ctx.moveTo(4, 6);
-    ctx.lineTo(-8, 10);
-    ctx.stroke();
-
-    // Illuminated cockpit / relic canopy slit
-    ctx.fillStyle = skin.hullCore;
-    ctx.beginPath();
-    ctx.moveTo(8, 0);
-    ctx.lineTo(1, -2.6);
-    ctx.lineTo(-2, 0);
-    ctx.lineTo(1, 2.6);
-    ctx.closePath();
-    ctx.fill();
   }
 
   private drawOrbitalWeapons(ctx: CanvasRenderingContext2D, state: RenderState): void {
@@ -857,9 +666,9 @@ export class WastelandRenderer {
     for (const b of blades) {
       ctx.save();
       ctx.translate(b.x, b.y);
-      ctx.rotate(b.angle * 3.5);
+      ctx.rotate(b.angle * 4.2);
       ctx.fillStyle = '#25292e';
-      ctx.strokeStyle = b.evolved ? '#e5b34c' : '#8ee06c';
+      ctx.strokeStyle = b.evolved ? '#e5b34c' : '#4effb4';
       ctx.lineWidth = b.isStillpoint ? 3 : 2;
       ctx.beginPath();
       ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
@@ -899,151 +708,143 @@ export class WastelandRenderer {
   private drawEnemies(ctx: CanvasRenderingContext2D, enemies: Enemy[], realTime: number): void {
     for (const e of enemies) {
       if (e.hp <= 0) continue;
-
       if (e.isBoss) {
         this.drawBoss(ctx, e, realTime);
         continue;
       }
 
-      const sprite = sprites.getEnemy(e.kind);
-      const drawSize = e.radius * 2.55;
+      const art = sprites.getEnemyArt(e.kind);
+      const shadow = sprites.getEnemyShadow(e.kind);
+      const scaleRecoil = 1 + e.hitFlash * 0.14;
+      const drawSize = e.radius * 2.85 * scaleRecoil;
+      const rot = e.angle + Math.PI / 2;
 
-      // Grounded drop shadow
-      ctx.save();
-      ctx.translate(e.x + 5, e.y + 8);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, e.radius * 0.92, e.radius * 0.72, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      // Exact Silhouette Grounded Shadow
+      if (shadow) {
+        ctx.save();
+        ctx.translate(e.x + 5, e.y + 9);
+        ctx.rotate(rot);
+        ctx.drawImage(shadow, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+        ctx.restore();
+      }
 
       ctx.save();
       ctx.translate(e.x, e.y);
 
-      if (sprite) {
+      if (art) {
         ctx.save();
-        ctx.rotate(e.angle);
-        ctx.drawImage(sprite, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+        ctx.rotate(rot);
+        ctx.drawImage(art, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
         if (e.hitFlash > 0.1) {
           ctx.globalCompositeOperation = 'lighter';
           ctx.globalAlpha = e.hitFlash * 0.65;
           ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(0, 0, e.radius * 0.9, 0, Math.PI * 2);
+          ctx.arc(0, 0, e.radius * 0.88, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
+      } else {
+        ctx.fillStyle = e.accent;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       if (e.isElite) {
         ctx.strokeStyle = '#e5b34c';
         ctx.lineWidth = 1.6;
         ctx.beginPath();
-        ctx.arc(0, 0, e.radius + 5, 0, Math.PI * 2);
+        ctx.arc(0, 0, e.radius + 6, 0, Math.PI * 2);
         ctx.stroke();
 
-        const bw = e.radius * 2.2;
+        const bw = e.radius * 2.3;
         const ratio = Math.max(0, e.hp / e.maxHp);
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(-bw / 2, e.radius + 9, bw, 3.5);
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(-bw / 2, e.radius + 10, bw, 3.5);
         ctx.fillStyle = '#e5b34c';
-        ctx.fillRect(-bw / 2, e.radius + 9, bw * ratio, 3.5);
+        ctx.fillRect(-bw / 2, e.radius + 10, bw * ratio, 3.5);
       }
-
       ctx.restore();
     }
   }
 
   private drawBoss(ctx: CanvasRenderingContext2D, boss: Enemy, realTime: number): void {
-    // Articulated Tail for BOSS IV: VOID LEVIATHAN
+    // Articulated armored tail segments for Void Leviathan
     if (boss.kind === 'boss_leviathan' && boss.segments) {
       for (let i = boss.segments.length - 1; i >= 0; i--) {
         const seg = boss.segments[i];
-        const segR = boss.radius * (0.86 - i * 0.06);
+        const segR = boss.radius * (0.82 - i * 0.055);
         ctx.save();
         ctx.translate(seg.x, seg.y);
-        ctx.fillStyle = 'rgba(0,0,0,0.42)';
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
         ctx.beginPath();
-        ctx.arc(7, 11, segR, 0, Math.PI * 2);
+        ctx.arc(6, 10, segR, 0, Math.PI * 2);
         ctx.fill();
-
-        ctx.fillStyle = '#25332d';
-        ctx.strokeStyle = '#8ee06c';
+        ctx.fillStyle = '#2d312f';
+        ctx.strokeStyle = '#758279';
         ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.arc(0, 0, segR, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-
-        ctx.fillStyle = '#45e8d8';
+        ctx.fillStyle = '#4effb4';
         ctx.beginPath();
-        ctx.arc(0, 0, segR * 0.34, 0, Math.PI * 2);
+        ctx.arc(0, 0, segR * 0.3, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
     }
 
-    const r = boss.radius;
+    const art = sprites.getEnemyArt(boss.kind);
+    const shadow = sprites.getEnemyShadow(boss.kind);
+    const pulse = 1 + Math.sin(realTime * 4) * 0.02 + boss.hitFlash * 0.06;
+    const size = boss.radius * 3.15 * pulse;
+    const rot =
+      boss.kind === 'boss_seraph'
+        ? Math.sin(realTime * 1.4) * 0.1
+        : boss.kind === 'boss_leviathan'
+          ? boss.angle + Math.PI / 2
+          : boss.angle;
+
+    if (shadow) {
+      ctx.save();
+      ctx.translate(boss.x + 10, boss.y + 16);
+      ctx.rotate(rot);
+      ctx.drawImage(shadow, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(boss.x, boss.y);
 
-    // Massive grounded shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.beginPath();
-    ctx.ellipse(9, 15, r * 1.15, r * 0.95, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // Subtle glowing reactor aura beneath boss
+    const glowKey =
+      boss.kind === 'boss_archon'
+        ? 'glow_gold'
+        : boss.kind === 'boss_seraph'
+          ? 'glow_magenta'
+          : boss.kind === 'boss_leviathan'
+            ? 'glow_emerald'
+            : 'glow_coral';
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(sprites.get(glowKey), -size * 0.72, -size * 0.72, size * 1.44, size * 1.44);
+    ctx.globalAlpha = 1;
 
-    // Outer armored clockwork/excavator ring
-    ctx.save();
-    ctx.rotate(boss.angle);
-    const teeth = boss.kind === 'boss_archon' ? 10 : boss.kind === 'boss_seraph' ? 6 : 8;
-    ctx.fillStyle = boss.hitFlash > 0.2 ? '#ffffff' : '#2e2b2f';
-    ctx.strokeStyle = boss.accent;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    for (let i = 0; i < teeth * 2; i++) {
-      const a = (i * Math.PI) / teeth;
-      const rad = i % 2 === 0 ? r * 1.18 : r * 0.82;
-      const px = Math.cos(a) * rad;
-      const py = Math.sin(a) * rad;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+    if (art) {
+      ctx.save();
+      ctx.rotate(rot);
+      ctx.drawImage(art, -size / 2, -size / 2, size, size);
+      if (boss.hitFlash > 0.15) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = boss.hitFlash * 0.45;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, boss.radius * 1.05, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // Counter-rotating brass/iron inner armor plate
-    ctx.save();
-    ctx.rotate(-boss.angle * 1.5);
-    ctx.fillStyle = '#1b1a1f';
-    ctx.strokeStyle = '#ebe7dc';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2;
-      const px = Math.cos(a) * r * 0.58;
-      const py = Math.sin(a) * r * 0.58;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // Molten Reactor Nucleus
-    const pulse = 1 + Math.sin(realTime * 9) * 0.14;
-    ctx.fillStyle = boss.accent;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.28 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.14 * pulse, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.restore();
   }
 
@@ -1367,7 +1168,6 @@ export class WastelandRenderer {
     skin: SkinDef
   ): void {
     const blend = state.player.stillpointBlend;
-    // Cinematic grounded dust vignette
     const grad = ctx.createRadialGradient(
       w * 0.5,
       h * 0.48,
@@ -1377,11 +1177,10 @@ export class WastelandRenderer {
       Math.max(w, h) * 0.74
     );
     grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, `rgba(7, 7, 10, ${state.menuMode ? 0.52 : 0.42 + blend * 0.28})`);
+    grad.addColorStop(1, `rgba(7, 7, 10, ${state.menuMode ? 0.62 : 0.42 + blend * 0.28})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle crisp relic border frame when Stillpoint active
     if (!state.menuMode && blend > 0.04 && !state.reduceFlash) {
       ctx.strokeStyle = skin.accent;
       ctx.globalAlpha = blend * 0.5;

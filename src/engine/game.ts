@@ -1020,7 +1020,10 @@ export class StillpointGame {
     const phantomEvolved = this.player.weapons.some((w) => w.id === 'phase_daggers' && w.evolved);
 
     for (let i = this.playerBullets.length - 1; i >= 0; i--) {
+      if (i >= this.playerBullets.length) i = this.playerBullets.length - 1;
+      if (i < 0) break;
       const b = this.playerBullets[i];
+      if (!b) continue;
 
       // Chrono Scythe special boomerang + Stillpoint buzzsaw behavior!
       if (b.kind === 'scythe') {
@@ -1281,7 +1284,10 @@ export class StillpointGame {
     const grazeR = p.grazeRadius;
 
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      if (i >= this.enemyBullets.length) i = this.enemyBullets.length - 1;
+      if (i < 0) break;
       const b = this.enemyBullets[i];
+      if (!b) continue;
       b.age += dtWorld;
       b.x += b.vx * dtWorld;
       b.y += b.vy * dtWorld;
@@ -1303,6 +1309,7 @@ export class StillpointGame {
       if (d2 <= hitDist * hitDist) {
         this.enemyBullets.splice(i, 1);
         this.damagePlayer(b.damage);
+        i = Math.min(i, this.enemyBullets.length);
         continue;
       }
 
@@ -1356,7 +1363,11 @@ export class StillpointGame {
     const pullR2 = pullR * pullR;
 
     for (let i = this.pickups.length - 1; i >= 0; i--) {
+      if (this.phase !== 'playing') break;
+      if (i >= this.pickups.length) i = this.pickups.length - 1;
+      if (i < 0) break;
       const pk = this.pickups[i];
+      if (!pk) continue;
       pk.age += dtWorld;
       if (pk.age > 34) {
         this.pickups.splice(i, 1);

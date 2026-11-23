@@ -60,7 +60,10 @@ jobs:
         run: |
           APP_PATH="build/Build/Products/Release-iphoneos/Stillpoint.app"
           test -f "$APP_PATH/WebApp/index.html"
+          test -f "$APP_PATH/WebApp/art/ship_vesper.png"
+          test -f "$APP_PATH/WebApp/art/sector_drift.jpg"
           ls -la "$APP_PATH/WebApp/assets"
+          ls -la "$APP_PATH/WebApp/art" | head -n 20
 
       - name: Package unsigned IPA for Sideloadly
         working-directory: ios
