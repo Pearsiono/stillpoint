@@ -39,6 +39,30 @@ export const PACTS: Record<
     name: 'Avarice',
     trade: '+60% shards, more elites',
     accent: '#f6c453'
+  },
+  chronos: {
+    id: 'chronos',
+    name: 'Chronos',
+    trade: '+50% max focus, -15% speed',
+    accent: '#4cb5ab'
+  },
+  berserker: {
+    id: 'berserker',
+    name: 'Fury',
+    trade: '+35% fire rate, +20% damage taken',
+    accent: '#e0632b'
+  },
+  colossus: {
+    id: 'colossus',
+    name: 'Colossus',
+    trade: '+45% area, +20% foes',
+    accent: '#7bf7ff'
+  },
+  execution: {
+    id: 'execution',
+    name: 'Reaper',
+    trade: '+25% crit, no heal drops',
+    accent: '#d94842'
   }
 };
 
@@ -176,6 +200,50 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     stillpointShort: 'Launches painted missile swarm on resume',
     evolvedShort: 'Continuous warhead barrage shreds bosses',
     maxLevel: 5
+  },
+  grav_flail: {
+    id: 'grav_flail',
+    name: 'Gravity Flail',
+    evolvedName: 'Astral Wrecking Ball',
+    catalystPassive: 'heavy_frame',
+    accent: '#e08538',
+    shortDesc: 'Tethered heavy wrecking orb that crushes waves in wide arcs',
+    stillpointShort: 'High-speed crushing orbit slam',
+    evolvedShort: 'Twin golden flails leave shock craters on impact',
+    maxLevel: 5
+  },
+  acid_sprayer: {
+    id: 'acid_sprayer',
+    name: 'Caustic Jet',
+    evolvedName: 'Blight Torrent',
+    catalystPassive: 'corrosive_vat',
+    accent: '#78d65c',
+    shortDesc: 'Sprays corrosive acid globs that leave melt puddles (+25% dmg taken)',
+    stillpointShort: 'Long-range pressurized corrosive spray',
+    evolvedShort: 'Corroded foes burst into acid clouds on death',
+    maxLevel: 5
+  },
+  mirror_beam: {
+    id: 'mirror_beam',
+    name: 'Helios Prism',
+    evolvedName: 'Solar Cathedral',
+    catalystPassive: 'optic_relay',
+    accent: '#f0bc42',
+    shortDesc: 'Bouncing laser beam that refracts into 3 beams in slow-mo',
+    stillpointShort: 'Tri-way refraction laser fan',
+    evolvedShort: 'Five-way golden prism rays scorch the arena',
+    maxLevel: 5
+  },
+  shatter_mine: {
+    id: 'shatter_mine',
+    name: 'Seeker Mines',
+    evolvedName: 'Cluster Swarm',
+    catalystPassive: 'blast_capacitor',
+    accent: '#e0533c',
+    shortDesc: 'Drifting proximity mines that detonate at double radius in slow-mo',
+    stillpointShort: 'Detonates all mines at 2× blast radius',
+    evolvedShort: 'Mines burst into 3 homing cluster sub-munitions',
+    maxLevel: 5
   }
 };
 
@@ -275,6 +343,38 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     accent: '#ff7b47',
     shortStat: '+16% boss damage and tighter homing',
     maxLevel: 5
+  },
+  heavy_frame: {
+    id: 'heavy_frame',
+    name: 'Ballast Core',
+    pairsWith: 'grav_flail',
+    accent: '#e08538',
+    shortStat: '+16 max HP, +1 armor',
+    maxLevel: 5
+  },
+  corrosive_vat: {
+    id: 'corrosive_vat',
+    name: 'Acid Catalyst',
+    pairsWith: 'acid_sprayer',
+    accent: '#78d65c',
+    shortStat: '+20% hazard damage and duration',
+    maxLevel: 5
+  },
+  optic_relay: {
+    id: 'optic_relay',
+    name: 'Optic Relay',
+    pairsWith: 'mirror_beam',
+    accent: '#f0bc42',
+    shortStat: '+14% beam width, +15% crit damage',
+    maxLevel: 5
+  },
+  blast_capacitor: {
+    id: 'blast_capacitor',
+    name: 'Detonator Coil',
+    pairsWith: 'shatter_mine',
+    accent: '#e0533c',
+    shortStat: '+18% blast radius and AoE damage',
+    maxLevel: 5
   }
 };
 
@@ -339,7 +439,8 @@ export function generateUpgradeChoices(
     }
   }
 
-  if (player.weapons.length < MAX_WEAPON_SLOTS) {
+  const maxWeaponSlots = player.modules.includes('specialist_lock') ? 2 : MAX_WEAPON_SLOTS;
+  if (player.weapons.length < maxWeaponSlots) {
     for (const wid of WEAPON_IDS) {
       if (player.weapons.some((w) => w.id === wid)) continue;
       const def = WEAPONS[wid];
@@ -409,9 +510,12 @@ export function generateUpgradeChoices(
     }
   }
 
-  // Wildcard Run Relics! Always offered inside Relic Caches (bosses, shrines, treasure haulers) & milestone levels!
+  // Wildcard Run Relics! Offered inside Relic Caches & milestone levels (4, 8, 12, 16)
   const unownedRelics = RELIC_IDS.filter((rid) => !player.relics.includes(rid));
-  if (unownedRelics.length > 0 && (preferEvolution || player.level === 5 || player.level === 10 || player.level === 15)) {
+  if (
+    unownedRelics.length > 0 &&
+    (preferEvolution || player.level === 4 || player.level === 8 || player.level === 12 || player.level === 16)
+  ) {
     for (const rid of unownedRelics) {
       const rdef = RELICS[rid];
       pool.push({

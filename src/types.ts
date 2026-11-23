@@ -6,9 +6,30 @@ export type GamePhase =
   | 'gameover'
   | 'victory';
 
-export type VesselId = 'vesper' | 'aegis' | 'phantom' | 'volt' | 'nova' | 'seraph';
+export type VesselId =
+  | 'vesper'
+  | 'aegis'
+  | 'phantom'
+  | 'volt'
+  | 'nova'
+  | 'seraph'
+  | 'reaper'
+  | 'prism'
+  | 'pyre'
+  | 'bastion'
+  | 'glacier'
+  | 'valkyrie';
 
-export type CoreId = 'deflector' | 'blink' | 'siphon' | 'overclock' | 'berserk';
+export type CoreId =
+  | 'deflector'
+  | 'blink'
+  | 'siphon'
+  | 'overclock'
+  | 'berserk'
+  | 'aegis_dome'
+  | 'chrono_echo'
+  | 'singularity_lance'
+  | 'catalyst_surge';
 
 export type RelicId =
   | 'glass_prism'
@@ -22,7 +43,15 @@ export type RelicId =
   | 'orbital_overdrive'
   | 'last_stand'
   | 'double_tap'
-  | 'magnetic_storm';
+  | 'magnetic_storm'
+  | 'echo_salvo'
+  | 'chrono_leech'
+  | 'overcharge_shield'
+  | 'volatile_xp'
+  | 'berserk_heart'
+  | 'ricochet_aura'
+  | 'frost_shatter_relic'
+  | 'golden_greed';
 
 export type HeatId = 'swarm' | 'hyper_fire' | 'ironclad' | 'fragile' | 'cursed_void';
 
@@ -36,16 +65,22 @@ export type FinishId =
   | 'oxide_hazard'
   | 'ash_topo'
   | 'slag_carbon'
+  | 'rust_circuit'
   | 'copper_patina'
   | 'tiger_rust'
   | 'damascus'
+  | 'cobalt_hex'
+  | 'blood_marble'
   | 'case_hardened'
   | 'crimson_web'
   | 'kintsugi'
+  | 'pearl_mother'
   | 'fade'
   | 'doppler'
+  | 'gamma_doppler'
   | 'marble_fade'
-  | 'aurelia_gold';
+  | 'aurelia_gold'
+  | 'void_starlight';
 
 export type TrailId =
   | 'ion_ash'
@@ -53,6 +88,8 @@ export type TrailId =
   | 'verdigris_mist'
   | 'crimson_burn'
   | 'void_arc'
+  | 'prism_ribbon'
+  | 'singularity_wake'
   | 'monolith_gold';
 
 export type ParryFxId =
@@ -60,7 +97,24 @@ export type ParryFxId =
   | 'shatter_gold'
   | 'blood_slash'
   | 'arc_pulse'
-  | 'obsidian_wave';
+  | 'fractal_bloom'
+  | 'obsidian_wave'
+  | 'prism_shatter'
+  | 'chrono_crown';
+
+export type EffectSlot = 'trail' | 'aura';
+
+export interface EffectItem {
+  uid: string;
+  slot: EffectSlot;
+  effectId: TrailId | ParryFxId;
+  seed: number; // 0..999 deterministic pattern geometry/phase seed
+  floatVal: number; // 0.0000..0.9999 wear condition (FN -> BS)
+  striker: boolean; // ST counter (kills for trails, grazes for auras)
+  statCount: number;
+  specialTag?: string;
+  acquiredAt: number;
+}
 
 export interface CoatingItem {
   uid: string;
@@ -99,7 +153,11 @@ export type WeaponId =
   | 'nova_pulse'
   | 'rail_turret'
   | 'frost_nova'
-  | 'swarm_missiles';
+  | 'swarm_missiles'
+  | 'grav_flail'
+  | 'acid_sprayer'
+  | 'mirror_beam'
+  | 'shatter_mine';
 
 export type PassiveId =
   | 'chrono_capacitor'
@@ -113,7 +171,11 @@ export type PassiveId =
   | 'reactive_plating'
   | 'overclock_core'
   | 'cryo_core'
-  | 'targeting_array';
+  | 'targeting_array'
+  | 'heavy_frame'
+  | 'corrosive_vat'
+  | 'optic_relay'
+  | 'blast_capacitor';
 
 export type MetaUpgradeId =
   | 'hull_integrity'
@@ -125,7 +187,15 @@ export type MetaUpgradeId =
   | 'crit_calibration'
   | 'shard_harvester';
 
-export type PactId = 'bloodlust' | 'glass_cannon' | 'bullet_magnet' | 'greed';
+export type PactId =
+  | 'bloodlust'
+  | 'glass_cannon'
+  | 'bullet_magnet'
+  | 'greed'
+  | 'chronos'
+  | 'berserker'
+  | 'colossus'
+  | 'execution';
 
 export interface CoreDef {
   id: CoreId;
@@ -223,24 +293,24 @@ export interface MetaUpgradeDef {
   perLevelShort: string;
 }
 
-export type ModuleCategory = 'offense' | 'focus' | 'chassis' | 'risk';
+export type ModuleCategory = 'combat' | 'movement' | 'tactics' | 'risk';
 
 export type ModuleId =
-  | 'overbore'
-  | 'twin_chambers'
-  | 'hollow_points'
-  | 'boss_hunter'
-  | 'shrapnel_rig'
-  | 'cryo_rounds'
-  | 'deep_capacitor'
-  | 'sniper_lens'
-  | 'hair_trigger'
-  | 'slipstream'
-  | 'graze_leech'
-  | 'plated_hull'
-  | 'reactive_cell'
-  | 'field_reroll'
-  | 'salvage_magnet'
+  | 'point_blank'
+  | 'snap_focus'
+  | 'heavy_ordnance'
+  | 'ricochet_rig'
+  | 'specialist_lock'
+  | 'afterburner_mines'
+  | 'momentum_drive'
+  | 'graze_spark'
+  | 'exit_vortex'
+  | 'focus_surge'
+  | 'kinetic_shield'
+  | 'emp_shell'
+  | 'cryo_shatter'
+  | 'blood_pact'
+  | 'chain_detonate'
   | 'risk_glass'
   | 'risk_drain'
   | 'risk_strict';
@@ -261,9 +331,7 @@ export type LoadoutPresetIndex = 0 | 1 | 2;
 
 export type CrateDrop =
   | { kind: 'coating'; rarity: CoatingRarity; coating: CoatingItem }
-  | { kind: 'ship'; rarity: CoatingRarity; vesselId: VesselId }
-  | { kind: 'trail'; rarity: CoatingRarity; trailId: TrailId }
-  | { kind: 'aura'; rarity: CoatingRarity; auraId: ParryFxId };
+  | { kind: 'effect'; rarity: CoatingRarity; effect: EffectItem };
 
 export interface MilestoneDef {
   id: string;
@@ -298,6 +366,9 @@ export interface MetaSave {
   selectedSkin: SkinId;
   coatings: CoatingItem[];
   equippedCoatingUid: string;
+  effectItems: EffectItem[];
+  equippedTrailUid: string;
+  equippedAuraUid: string;
   unlockedTrails: TrailId[];
   selectedTrail: TrailId;
   unlockedParryFx: ParryFxId[];
@@ -311,6 +382,7 @@ export interface MetaSave {
   loadoutPresets: [ModuleId[], ModuleId[], ModuleId[]];
   activePreset: LoadoutPresetIndex;
   migratedToLoadout?: boolean;
+  migratedToTheoryLoadout?: boolean;
   settings: {
     music: boolean;
     sfx: boolean;
@@ -366,6 +438,27 @@ export interface BlinkDecoy {
   age: number;
   maxAge: number;
   radius: number;
+}
+
+export interface WakeMine {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  damage: number;
+  age: number;
+  maxAge: number;
+  armed: boolean;
+}
+
+export interface PhaseEcho {
+  id: number;
+  x: number;
+  y: number;
+  angle: number;
+  age: number;
+  maxAge: number;
+  fireTimer: number;
 }
 
 export interface MeteorStrike {
@@ -441,6 +534,21 @@ export interface PlayerState {
   curses: DraftCurseId[];
   trail: Array<{ x: number; y: number; alpha: number }>;
   distanceMovedSinceDagger: number;
+  distanceMovedSinceMine: number;
+  momentumMoveTime: number;
+  kineticOvershield: number;
+  empCooldown: number;
+  exitVortexCooldown: number;
+  freeFocusTimer: number;
+  shotCounter: number;
+  bloodKillCounter: number;
+  bloodSpeedTimer: number;
+  grazeSparkCounter: number;
+  valkyrieGrazeCounter: number;
+  railChargeTime: number;
+  flailAngle: number;
+  xpNovaCounter: number;
+  echoSalvoCounter: number;
   haloOrbitAngle: number;
   droneOrbitAngle: number;
 }
@@ -488,6 +596,10 @@ export interface Enemy {
   patternIndex: number;
   hitFlash: number;
   chillTimer?: number;
+  corrodeTimer?: number;
+  primedTimer?: number;
+  catalystMark?: number;
+  stunTimer?: number;
   shardSpillCooldown?: number;
   telegraphAngle?: number;
   telegraphTimer?: number;
@@ -524,7 +636,9 @@ export type PlayerBulletKind =
   | 'ricochet'
   | 'frost_bolt'
   | 'missile'
-  | 'shrapnel';
+  | 'shrapnel'
+  | 'acid_glob'
+  | 'seeker_mine';
 
 export interface PlayerBullet {
   id: number;
@@ -548,6 +662,7 @@ export interface PlayerBullet {
   spinAngle?: number;
   hitResetTimer?: number;
   returnPhase?: boolean;
+  banked?: boolean;
 }
 
 export interface RailPylon {
@@ -563,7 +678,7 @@ export interface RailPylon {
 
 export interface HazardZone {
   id: number;
-  kind: 'crater' | 'singularity' | 'rift' | 'nova_wave' | 'frost_burst';
+  kind: 'crater' | 'singularity' | 'rift' | 'nova_wave' | 'frost_burst' | 'acid_pool';
   x: number;
   y: number;
   radius: number;
@@ -610,7 +725,7 @@ export interface LaserBeam {
 
 export interface Pickup {
   id: number;
-  kind: 'xp_small' | 'xp_mid' | 'xp_large' | 'heal' | 'shard' | 'magnet' | 'chest';
+  kind: 'xp_small' | 'xp_mid' | 'xp_large' | 'heal' | 'blood_cell' | 'shard' | 'magnet' | 'chest';
   x: number;
   y: number;
   vx: number;

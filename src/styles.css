@@ -1309,16 +1309,58 @@ button:focus-visible,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 8px;
   padding: 4px 0 12px;
   margin-bottom: 10px;
   border-bottom: 1px solid var(--line);
 }
 
 .fx-preview-canvas {
-  width: 144px;
-  height: 144px;
+  width: 168px;
+  height: 168px;
   display: block;
+  border: 1px solid var(--line);
+  background: #100f0d;
+}
+
+.fx-mode-row {
+  display: flex;
+  gap: 5px;
+  width: min(260px, 100%);
+}
+
+.fx-mode-row .preset-pill {
+  height: 26px;
+  font-size: 10px;
+}
+
+.fx-equipped-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.fx-filter-group {
+  display: flex;
+  gap: 4px;
+}
+
+.fx-filter-group .preset-pill {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+.fx-slot-tag {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .fx-preview-caption {

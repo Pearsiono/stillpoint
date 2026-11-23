@@ -46,7 +46,7 @@ export function spawnEnemy(
   const sector = SECTORS[ctx.sectorId];
   const bloodlustSpeed = ctx.player.pacts.includes('bloodlust') ? 1.22 : 1.0;
   const ironcladMult = ctx.activeHeat.includes('ironclad') && (isElite || kind.startsWith('boss_')) ? 1.35 : 1.0;
-  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * 1.58 * (isElite ? 3.8 : 1);
+  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * 1.38 * (isElite ? 3.6 : 1);
 
   let radius = 13;
   let hp = 26;
@@ -182,9 +182,9 @@ export function spawnEnemy(
     case 'boss_weaver':
       isBoss = true;
       radius = 34;
-      hp = 5600 * difficultyScale * sector.difficultyMult * ironcladMult;
+      hp = 4900 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 74;
-      xpValue = 95;
+      xpValue = 105;
       scoreValue = 2500;
       accent = '#ff3366';
       bossName = 'Vortex Weaver';
@@ -192,9 +192,9 @@ export function spawnEnemy(
     case 'boss_seraph':
       isBoss = true;
       radius = 36;
-      hp = 11200 * difficultyScale * sector.difficultyMult * ironcladMult;
+      hp = 9800 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 88;
-      xpValue = 140;
+      xpValue = 155;
       scoreValue = 4500;
       accent = '#ff4de8';
       bossName = 'Prism Seraph';
@@ -202,9 +202,9 @@ export function spawnEnemy(
     case 'boss_archon':
       isBoss = true;
       radius = 40;
-      hp = 19500 * difficultyScale * sector.difficultyMult * ironcladMult;
+      hp = 17000 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 82;
-      xpValue = 220;
+      xpValue = 240;
       scoreValue = 9000;
       accent = '#f6c453';
       bossName = 'Chrono Archon';
@@ -212,9 +212,9 @@ export function spawnEnemy(
     case 'boss_leviathan':
       isBoss = true;
       radius = 36;
-      hp = 28000 * difficultyScale * sector.difficultyMult * ironcladMult;
+      hp = 24500 * difficultyScale * sector.difficultyMult * ironcladMult;
       speed = 124;
-      xpValue = 280;
+      xpValue = 300;
       scoreValue = 14000;
       accent = '#4effb4';
       bossName = 'Void Leviathan';
@@ -268,7 +268,7 @@ export function fireEnemyBullet(
   const heatFast = ctx.activeHeat.includes('hyper_fire') ? 1.25 : 1.0;
   const curseStacks = ctx.player.curses.filter((c) => c === 'fast_hostiles').length;
   const curseFast = Math.pow(1.18, curseStacks);
-  const spd = speed * 1.22 * pactFast * heatFast * curseFast;
+  const spd = speed * 1.12 * pactFast * heatFast * curseFast;
   const isHeavy = kind === 'heavy_orb';
   ctx.enemyBullets.push({
     id: ctx.nextId(),
@@ -278,7 +278,7 @@ export function fireEnemyBullet(
     vx: Math.cos(angle) * spd,
     vy: Math.sin(angle) * spd,
     radius: isHeavy ? 8.2 : radius,
-    damage: isHeavy ? Math.round(damage * 1.6) : Math.round(damage * 1.42),
+    damage: isHeavy ? Math.round(damage * 1.42) : Math.round(damage * 1.24),
     age: 0,
     maxAge: 7.5,
     grazed: false,
@@ -303,11 +303,11 @@ export function updateWaveDirector(
   if (ctx.enclosure.active || ctx.enclosure.warningTimer > 0) return;
 
   const t = ctx.elapsed;
-  const swarmHeat = ctx.activeHeat.includes('swarm') ? 1.4 : 1.0;
+  const swarmHeat = (ctx.activeHeat.includes('swarm') ? 1.4 : 1.0) * (ctx.player.pacts.includes('colossus') ? 1.2 : 1.0);
   const greedEliteRate = ctx.player.pacts.includes('greed') ? 1.35 : 1.0;
-  const diffScale = 1 + t / 60 + (ctx.endlessMode ? Math.max(0.55, (t - 240) / 60) : 0);
-  const maxEnemies = Math.min(112, Math.round((24 + Math.floor(t * 0.28)) * swarmHeat));
-  const rate = Math.min(7.8, (2.6 + t * 0.02) * swarmHeat);
+  const diffScale = 1 + t / 66 + (ctx.endlessMode ? Math.max(0.5, (t - 240) / 64) : 0);
+  const maxEnemies = Math.min(112, Math.round((24 + Math.floor(t * 0.26)) * swarmHeat));
+  const rate = Math.min(7.5, (2.45 + t * 0.019) * swarmHeat);
 
   if (ctx.enemies.length < maxEnemies) {
     spawnAccum.value = Math.min(4, spawnAccum.value + dtWorld * rate);
@@ -447,6 +447,23 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
     if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dtWorld * 6);
     if (e.chillTimer && e.chillTimer > 0) {
       e.chillTimer = Math.max(0, e.chillTimer - dtWorld);
+    }
+    if (e.corrodeTimer && e.corrodeTimer > 0) {
+      e.corrodeTimer = Math.max(0, e.corrodeTimer - dtWorld);
+    }
+    if (e.primedTimer && e.primedTimer > 0) {
+      e.primedTimer = Math.max(0, e.primedTimer - dtWorld);
+    }
+    if (e.catalystMark && e.catalystMark > 0) {
+      e.catalystMark = Math.max(0, e.catalystMark - dtWorld);
+    }
+    if (e.stunTimer && e.stunTimer > 0) {
+      e.stunTimer = Math.max(0, e.stunTimer - dtWorld);
+      if (!e.isBoss) {
+        e.vx = 0;
+        e.vy = 0;
+        continue;
+      }
     }
     const chillMult = e.chillTimer && e.chillTimer > 0 ? Math.max(0.38, 1 - player.slowPower) : 1.0;
     const stepDt = dtWorld * chillMult;

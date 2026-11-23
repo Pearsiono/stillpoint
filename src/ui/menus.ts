@@ -2,20 +2,18 @@ import { sound } from '../audio';
 import { bridge } from '../bridge';
 import { CORE_ORDER, CORES, HEAT_MODS, HEAT_ORDER, RELICS } from '../data/builds';
 import {
-  AURA_RARITY,
   CRATE_KEY_COST,
+  createEffectItem,
   FINISHES,
   getCoatingScrapValue,
+  getEffectMeta,
+  getEffectScrapValue,
+  getEffectVisualParams,
   getWearGrade,
-  PARRY_FX,
-  PARRY_FX_ORDER,
+  isStarterEffect,
   RARITY_META,
   RARITY_NEXT,
-  rollCrateDrop,
-  SHIP_RARITY,
-  TRAIL_ORDER,
-  TRAIL_RARITY,
-  TRAILS
+  rollCrateDrop
 } from '../data/finishes';
 import {
   BASE_LOADOUT_POINTS,
@@ -30,34 +28,44 @@ import {
   buyCrateKey,
   clearActivePreset,
   equipCoating,
+  equipEffectItem,
+  executeEffectTradeUp,
   executeTradeUp,
+  getEquippedAuraItem,
   getEquippedCoating,
+  getEquippedTrailItem,
   MILESTONES,
   persistMetaSave,
   scrapCoating,
+  scrapEffectItem,
   selectLoadoutPreset,
   toggleLoadoutModule,
   unlockLoadoutModule
 } from '../data/meta';
 import { SECTOR_ORDER, SECTORS } from '../data/sectors';
 import { VESSEL_ORDER, VESSELS } from '../data/vessels';
+import {
+  drawEffectStillpointAura,
+  drawEffectThumbnail,
+  drawEffectThrusterPlume,
+  drawEffectTrailWake
+} from '../engine/effectRenderer';
 import { renderPatternCanvas } from '../engine/patternBaker';
 import { sprites } from '../engine/sprites';
 import {
   CoatingRarity,
   CoreId,
   CrateDrop,
+  EffectItem,
   FinishId,
   GamePhase,
   HeatId,
   LoadoutPresetIndex,
   MetaSave,
   ModuleId,
-  ParryFxId,
   RunStats,
   SectorId,
   SkinId,
-  TrailId,
   UpgradeChoice,
   VesselId
 } from '../types';
@@ -77,28 +85,28 @@ import { svgIcon } from './icons';
 type HubTab = 'armory' | 'hangar' | 'battle' | 'loadout' | 'trials';
 type HangarSub = 'ships' | 'cores';
 type ArmorySub = 'crates' | 'locker' | 'fx';
+type FxFilter = 'all' | 'trail' | 'aura';
+type FxDemoMode = 'auto' | 'flight' | 'stillpoint';
 
 type CratePreviewTile =
   | { kind: 'coating'; id: FinishId; seed: number; floatVal: number }
-  | { kind: 'ship'; vesselId: VesselId }
-  | { kind: 'trail'; trailId: TrailId }
-  | { kind: 'aura'; auraId: ParryFxId };
+  | { kind: 'effect'; item: EffectItem };
 
-// Visual sample drops shown directly on each crate (coatings + ships + effects)
+// Cosmetic-only crate showcase strips (Coatings + Rolled Pattern/Wear Effects)
 const STD_CRATE_SAMPLES: CratePreviewTile[] = [
   { kind: 'coating', id: 'dune_splinter', seed: 142, floatVal: 0.14 },
-  { kind: 'ship', vesselId: 'aegis' },
-  { kind: 'trail', trailId: 'verdigris_mist' },
-  { kind: 'coating', id: 'fade', seed: 420, floatVal: 0.04 },
-  { kind: 'ship', vesselId: 'seraph' }
+  { kind: 'effect', item: createEffectItem('trail', 'slag_flame', 310, 0.08) },
+  { kind: 'effect', item: createEffectItem('aura', 'blood_slash', 512, 0.12) },
+  { kind: 'coating', id: 'case_hardened', seed: 661, floatVal: 0.05 },
+  { kind: 'effect', item: createEffectItem('aura', 'chrono_crown', 888, 0.02) }
 ];
 
 const RELIC_CRATE_SAMPLES: CratePreviewTile[] = [
-  { kind: 'coating', id: 'damascus', seed: 205, floatVal: 0.09 },
-  { kind: 'ship', vesselId: 'phantom' },
-  { kind: 'aura', auraId: 'obsidian_wave' },
-  { kind: 'ship', vesselId: 'nova' },
-  { kind: 'coating', id: 'doppler', seed: 952, floatVal: 0.02 }
+  { kind: 'coating', id: 'blood_marble', seed: 205, floatVal: 0.09 },
+  { kind: 'effect', item: createEffectItem('trail', 'void_arc', 950, 0.05) },
+  { kind: 'coating', id: 'gamma_doppler', seed: 942, floatVal: 0.02 },
+  { kind: 'effect', item: createEffectItem('aura', 'prism_shatter', 742, 0.04) },
+  { kind: 'coating', id: 'void_starlight', seed: 512, floatVal: 0.02 }
 ];
 
 const PRESET_LABELS: readonly string[] = ['A', 'B', 'C'];
@@ -128,23 +136,25 @@ export class OverlayController {
   private tab: HubTab = 'battle';
   private hangarSub: HangarSub = 'ships';
   private armorySub: ArmorySub = 'crates';
+  private fxFilter: FxFilter = 'all';
+  private fxDemoMode: FxDemoMode = 'auto';
   private browsingSectorIdx = 0;
   private settingsOpen = false;
   private heatOpen = false;
   private inspectUid: string | null = null;
+  private inspectEffectUid: string | null = null;
   private inspectVesselIdx = 0;
   private previewShipId: VesselId | null = null;
-  private previewTrailId: TrailId | null = null;
-  private previewAuraId: ParryFxId | null = null;
   private forgeMode = false;
   private forgeSelection: string[] = [];
+  private fxForgeMode = false;
+  private fxForgeSelection: string[] = [];
   private activeReelRaf = 0;
   private activeReelTimer = 0;
+  private fxAnimRaf = 0;
   private reelItems: CrateDrop[] | null = null;
   private reelWinner: CrateDrop | null = null;
-  private reelResult: { isDuplicate: boolean; shardRefund: number } | null = null;
   private reelCrateKind: 'standard' | 'relic' = 'standard';
-  private dropReveal: { drop: CrateDrop; isDuplicate: boolean; shardRefund: number } | null = null;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer = 0;
   private toastQueue: string[] = [];
@@ -165,7 +175,6 @@ export class OverlayController {
   }
 
   showToast(message: string): void {
-    // Deduplicate consecutive identical messages and queue back-to-back unlock notices
     if (this.toastQueue[this.toastQueue.length - 1] === message) return;
     if (this.toastEl?.textContent === message && this.toastQueue.length === 0) return;
     if (this.toastQueue.length >= 4) this.toastQueue.shift();
@@ -207,12 +216,13 @@ export class OverlayController {
   ): void {
     this.currentPhase = phase;
     this.cancelReel();
+    this.stopFxPreviewLoop();
 
     if (phase === 'playing') {
       this.settingsOpen = false;
       this.heatOpen = false;
       this.inspectUid = null;
-      this.dropReveal = null;
+      this.inspectEffectUid = null;
       this.container.innerHTML = '';
       return;
     }
@@ -250,10 +260,17 @@ export class OverlayController {
     }
     this.reelItems = null;
     this.reelWinner = null;
-    this.reelResult = null;
+  }
+
+  private stopFxPreviewLoop(): void {
+    if (this.fxAnimRaf) {
+      cancelAnimationFrame(this.fxAnimRaf);
+      this.fxAnimRaf = 0;
+    }
   }
 
   private renderHub(preserveScroll = false): void {
+    this.stopFxPreviewLoop();
     const prevScroll = preserveScroll
       ? this.container.querySelector('.hub-content')?.scrollTop ?? 0
       : 0;
@@ -278,8 +295,8 @@ export class OverlayController {
 
     const modalHtml = this.reelItems
       ? this.buildCrateReelModal()
-      : this.dropReveal
-        ? this.buildDropRevealModal()
+      : this.inspectEffectUid
+        ? this.buildInspectEffectModal()
         : this.inspectUid
           ? this.buildInspectModal()
           : this.settingsOpen
@@ -349,6 +366,7 @@ export class OverlayController {
 
     this.bindHubEvents();
     this.hydrateVisualCanvases();
+    this.startFxPreviewLoopIfNeeded();
     if (this.reelItems) {
       this.startCrateReelAnimation();
     }
@@ -456,18 +474,17 @@ export class OverlayController {
     const displayVid = this.previewShipId ?? this.save.selectedVessel;
     const vessel = VESSELS[displayVid];
     const isDisplayUnlocked = this.save.unlockedVessels.includes(displayVid);
+    const canBuyDisplay = !isDisplayUnlocked && this.save.shards >= vessel.unlockCost;
     const coating = getEquippedCoating(this.save);
     const mods = getActiveLoadout(this.save);
 
-    const baseHp = vessel.stats.maxHp + (mods.includes('plated_hull') ? 32 : 0);
-    const maxHp = Math.max(32, Math.round(baseHp * (mods.includes('risk_glass') ? 0.7 : 1)));
-    const moveSpd = Math.round(vessel.stats.moveSpeed * (mods.includes('slipstream') ? 1.14 : 1));
-    const maxFocus = vessel.stats.maxCharge + (mods.includes('deep_capacitor') ? 35 : 0);
+    const maxHp = Math.max(32, Math.round(vessel.stats.maxHp * (mods.includes('risk_glass') ? 0.7 : 1)));
+    const moveSpd = Math.round(vessel.stats.moveSpeed);
+    const maxFocus = vessel.stats.maxCharge;
 
-    const hpPct = Math.min(100, Math.round((maxHp / 210) * 100));
-    const spdPct = Math.min(100, Math.round((moveSpd / 280) * 100));
-    const focusPct = Math.min(100, Math.round((maxFocus / 175) * 100));
-    const shipRarity = RARITY_META[SHIP_RARITY[displayVid]];
+    const hpPct = Math.min(100, Math.round((maxHp / 155) * 100));
+    const spdPct = Math.min(100, Math.round((moveSpd / 260) * 100));
+    const focusPct = Math.min(100, Math.round((maxFocus / 145) * 100));
 
     const subContent =
       this.hangarSub === 'ships'
@@ -476,6 +493,7 @@ export class OverlayController {
             const unlocked = this.save.unlockedVessels.includes(vid);
             const selected = this.save.selectedVessel === vid;
             const previewing = !unlocked && this.previewShipId === vid;
+            const affordable = !unlocked && this.save.shards >= v.unlockCost;
             const tier = rarityForVessel(vid);
             return `
               <button class="r-frame equip-card ${tier} ${selected ? 'selected' : ''} ${previewing ? 'previewing' : ''} ${unlocked ? '' : 'locked'}" data-ship="${vid}">
@@ -485,8 +503,8 @@ export class OverlayController {
                     : `<img src="${shipArtUrl(vid)}" class="equip-thumb" alt="${v.name}" />`
                 }
                 <div class="equip-name">${v.name}</div>
-                <div class="equip-cost">
-                  ${unlocked ? (selected ? svgIcon('check', 12, '#dfa436') : '') : svgIcon('lock', 12, '#a39a8c')}
+                <div class="equip-cost" style="color:${unlocked ? 'var(--gold)' : affordable ? 'var(--gold)' : 'var(--muted)'}">
+                  ${unlocked ? (selected ? svgIcon('check', 12, '#dfa436') : '') : `${artIconImg('shard', 10)}<span>${v.unlockCost}</span>`}
                 </div>
               </button>
             `;
@@ -521,13 +539,20 @@ export class OverlayController {
         }
         <div class="rig-info">
           <div class="rig-head">
-            <span class="rig-name">${vessel.name}</span>
+            <div style="display:flex;align-items:center;gap:7px">
+              <span class="rig-name">${vessel.name}</span>
+              <span class="r-frame ${rarityForVessel(vessel.id)}" style="width:22px;height:22px">
+                ${artIconImg(vessel.starterWeapon, 14)}
+              </span>
+            </div>
             ${
               isDisplayUnlocked
                 ? `<button class="icon-square" id="btn-randomize" style="width:30px;height:30px" aria-label="Randomize loadout">
                      ${svgIcon('reroll', 14)}
                    </button>`
-                : `<span class="crate-lock-note" style="color:${shipRarity.color}">${svgIcon('lock', 11, shipRarity.color)} Crate drop</span>`
+                : `<button class="buy-pill ${canBuyDisplay ? 'ready' : ''}" id="btn-buy-ship" data-buy-ship="${vessel.id}" ${canBuyDisplay ? '' : 'disabled'}>
+                     <span>Unlock</span>${artIconImg('shard', 11)}<span>${vessel.unlockCost}</span>
+                   </button>`
             }
           </div>
           <div class="ledger-sub">${vessel.perkShort}</div>
@@ -552,8 +577,8 @@ export class OverlayController {
       </div>
 
       <div class="subtab-row">
-        <button class="subtab-btn ${this.hangarSub === 'ships' ? 'active' : ''}" data-hsub="ships">Ships</button>
-        <button class="subtab-btn ${this.hangarSub === 'cores' ? 'active' : ''}" data-hsub="cores">Cores</button>
+        <button class="subtab-btn ${this.hangarSub === 'ships' ? 'active' : ''}" data-hsub="ships">Ships (${this.save.unlockedVessels.length}/${VESSEL_ORDER.length})</button>
+        <button class="subtab-btn ${this.hangarSub === 'cores' ? 'active' : ''}" data-hsub="cores">Cores (${this.save.unlockedCores.length}/${CORE_ORDER.length})</button>
       </div>
 
       ${subContent}
@@ -575,10 +600,10 @@ export class OverlayController {
           Crates${totalCrates > 0 ? ` (${totalCrates})` : ''}
         </button>
         <button class="subtab-btn ${this.armorySub === 'locker' ? 'active' : ''}" data-asub="locker">
-          Locker (${this.save.coatings.length})
+          Skins (${this.save.coatings.length})
         </button>
         <button class="subtab-btn ${this.armorySub === 'fx' ? 'active' : ''}" data-asub="fx">
-          Effects
+          Effects (${this.save.effectItems.length})
         </button>
       </div>
       ${subContent}
@@ -596,31 +621,22 @@ export class OverlayController {
             const rar = RARITY_META[FINISHES[s.id].rarity];
             return `<div class="crate-mini-swatch" style="border-bottom-color:${rar.color}"><canvas width="64" height="32" data-crate-sample="${group}:${idx}"></canvas></div>`;
           }
-          if (s.kind === 'ship') {
-            const rar = RARITY_META[SHIP_RARITY[s.vesselId]];
-            return `<div class="crate-mini-swatch crate-mini-icon" style="border-bottom-color:${rar.color}"><img src="${shipArtUrl(s.vesselId)}" alt="${VESSELS[s.vesselId].name}" /></div>`;
-          }
-          if (s.kind === 'trail') {
-            const t = TRAILS[s.trailId];
-            const rar = RARITY_META[TRAIL_RARITY[s.trailId]];
-            return `<div class="crate-mini-swatch crate-mini-icon" style="border-bottom-color:${rar.color}"><span class="mini-plume" style="background:radial-gradient(circle, ${t.coreColor}, ${t.color} 68%, transparent 100%)"></span></div>`;
-          }
-          const a = PARRY_FX[s.auraId];
-          const rar = RARITY_META[AURA_RARITY[s.auraId]];
-          return `<div class="crate-mini-swatch crate-mini-icon" style="border-bottom-color:${rar.color}"><span class="mini-aura" style="border-color:${a.outer};box-shadow:inset 0 0 0 2px ${a.inner}"></span></div>`;
+          const meta = getEffectMeta(s.item.slot, s.item.effectId);
+          const rar = RARITY_META[meta.rarity];
+          return `<div class="crate-mini-swatch crate-mini-icon" style="border-bottom-color:${rar.color}"><canvas width="64" height="44" data-crate-sample="${group}:${idx}"></canvas></div>`;
         })
         .join('');
 
     const stdLabel =
       this.save.standardCrates === 0
-        ? 'Earn from strong runs'
+        ? 'Drop from bosses, haulers, and trials'
         : hasKeys
           ? `${svgIcon('key', 14, '#161108')}<span>Open</span>`
           : 'Need 1 key';
 
     const relicLabel =
       this.save.relicCrates === 0
-        ? 'Earn from bosses and trials'
+        ? 'Drop from sector clears and hard trials'
         : hasKeys
           ? `${svgIcon('key', 14, '#1a0904')}<span>Open</span>`
           : 'Need 1 key';
@@ -649,18 +665,18 @@ export class OverlayController {
           </div>
           <div class="crate-preview-strip">${renderStrip('std', STD_CRATE_SAMPLES)}</div>
           <div class="odds-bar">
-            <div style="flex:52;background:#5b82d6"></div>
-            <div style="flex:28;background:#9c6ae6"></div>
-            <div style="flex:13.2;background:#d64eb8"></div>
-            <div style="flex:5.4;background:#d9483b"></div>
-            <div style="flex:1.4;background:#e2a93b"></div>
+            <div style="flex:60;background:#5b82d6"></div>
+            <div style="flex:25;background:#9c6ae6"></div>
+            <div style="flex:10.5;background:#d64eb8"></div>
+            <div style="flex:3.7;background:#d9483b"></div>
+            <div style="flex:0.8;background:#e2a93b"></div>
           </div>
           <div class="odds-legend">
-            <span style="color:#5b82d6">52%</span>
-            <span style="color:#9c6ae6">28%</span>
-            <span style="color:#d64eb8">13.2%</span>
-            <span style="color:#d9483b">5.4%</span>
-            <span style="color:#e2a93b">★ 1.4%</span>
+            <span style="color:#5b82d6">60%</span>
+            <span style="color:#9c6ae6">25%</span>
+            <span style="color:#d64eb8">10.5%</span>
+            <span style="color:#d9483b">3.7%</span>
+            <span style="color:#e2a93b">★ 0.8%</span>
           </div>
           <button class="battle-btn ${this.save.standardCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-std" ${this.save.standardCrates > 0 ? '' : 'disabled'}>
             ${stdLabel}
@@ -676,18 +692,18 @@ export class OverlayController {
           </div>
           <div class="crate-preview-strip">${renderStrip('relic', RELIC_CRATE_SAMPLES)}</div>
           <div class="odds-bar">
-            <div style="flex:20;background:#5b82d6"></div>
+            <div style="flex:28;background:#5b82d6"></div>
             <div style="flex:38;background:#9c6ae6"></div>
-            <div style="flex:27;background:#d64eb8"></div>
-            <div style="flex:11.8;background:#d9483b"></div>
-            <div style="flex:3.2;background:#e2a93b"></div>
+            <div style="flex:23;background:#d64eb8"></div>
+            <div style="flex:8.8;background:#d9483b"></div>
+            <div style="flex:2.2;background:#e2a93b"></div>
           </div>
           <div class="odds-legend">
-            <span style="color:#5b82d6">20%</span>
+            <span style="color:#5b82d6">28%</span>
             <span style="color:#9c6ae6">38%</span>
-            <span style="color:#d64eb8">27%</span>
-            <span style="color:#d9483b">11.8%</span>
-            <span style="color:#e2a93b">★ 3.2%</span>
+            <span style="color:#d64eb8">23%</span>
+            <span style="color:#d9483b">8.8%</span>
+            <span style="color:#e2a93b">★ 2.2%</span>
           </div>
           <button class="battle-btn rust-btn ${this.save.relicCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>
             ${relicLabel}
@@ -770,59 +786,102 @@ export class OverlayController {
   }
 
   private buildFxSubtab(): string {
-    const activeTrail = this.previewTrailId ?? this.save.selectedTrail;
-    const activeAura = this.previewAuraId ?? this.save.selectedParryFx;
-    const isPreviewingLocked =
-      (this.previewTrailId !== null && !this.save.unlockedTrails.includes(this.previewTrailId)) ||
-      (this.previewAuraId !== null && !this.save.unlockedParryFx.includes(this.previewAuraId));
+    const eqTrail = getEquippedTrailItem(this.save);
+    const eqAura = getEquippedAuraItem(this.save);
+    const tMeta = getEffectMeta('trail', eqTrail.effectId);
+    const aMeta = getEffectMeta('aura', eqAura.effectId);
 
-    const trailsHtml = TRAIL_ORDER.map((tid) => {
-      const t = TRAILS[tid];
-      const owned = this.save.unlockedTrails.includes(tid);
-      const selected = this.save.selectedTrail === tid;
-      const previewing = !owned && activeTrail === tid;
-      const rar = RARITY_META[TRAIL_RARITY[tid]];
-      return `
-        <button class="fx-card ${selected ? 'selected' : ''} ${previewing ? 'previewing' : ''}" data-trail="${tid}" style="border-left:3px solid ${rar.color}">
-          <span class="fx-dot" style="background:radial-gradient(circle, ${t.coreColor}, ${t.color})"></span>
-          <div style="flex:1;min-width:0">
-            <div class="equip-name">${t.name}</div>
-            <div class="equip-cost" style="color:${owned ? 'var(--gold)' : rar.color}">
-              ${owned ? (selected ? 'Active' : 'Owned') : `${svgIcon('lock', 10, rar.color)} ${rar.label}`}
-            </div>
-          </div>
-        </button>
-      `;
+    const filtered = this.save.effectItems
+      .filter((e) => this.fxFilter === 'all' || e.slot === this.fxFilter)
+      .sort((a, b) => {
+        const ra = RARITY_META[getEffectMeta(a.slot, a.effectId).rarity].order;
+        const rb = RARITY_META[getEffectMeta(b.slot, b.effectId).rarity].order;
+        if (rb !== ra) return rb - ra;
+        return b.acquiredAt - a.acquiredAt;
+      });
+
+    const selectedRarity: CoatingRarity | null =
+      this.fxForgeSelection.length > 0
+        ? (() => {
+            const first = this.save.effectItems.find((e) => e.uid === this.fxForgeSelection[0]);
+            return first ? getEffectMeta(first.slot, first.effectId).rarity : null;
+          })()
+        : null;
+    const nextTier = selectedRarity ? RARITY_NEXT[selectedRarity] : null;
+
+    const slotsHtml = Array.from({ length: 5 }, (_, idx) => {
+      const uid = this.fxForgeSelection[idx];
+      const item = uid ? this.save.effectItems.find((e) => e.uid === uid) : null;
+      const color = item ? RARITY_META[getEffectMeta(item.slot, item.effectId).rarity].color : '';
+      return `<span class="forge-slot ${item ? 'filled' : ''}" style="${color ? `background:${color};border-color:${color}` : ''}"></span>`;
     }).join('');
 
-    const auraHtml = PARRY_FX_ORDER.map((pid) => {
-      const pf = PARRY_FX[pid];
-      const owned = this.save.unlockedParryFx.includes(pid);
-      const selected = this.save.selectedParryFx === pid;
-      const previewing = !owned && activeAura === pid;
-      const rar = RARITY_META[AURA_RARITY[pid]];
-      return `
-        <button class="fx-card ${selected ? 'selected' : ''} ${previewing ? 'previewing' : ''}" data-parryfx="${pid}" style="border-left:3px solid ${rar.color}">
-          <span class="fx-dot" style="background:transparent;border:3px solid ${pf.outer};box-shadow:inset 0 0 0 2px ${pf.inner}"></span>
-          <div style="flex:1;min-width:0">
-            <div class="equip-name">${pf.name}</div>
-            <div class="equip-cost" style="color:${owned ? 'var(--gold)' : rar.color}">
-              ${owned ? (selected ? 'Active' : 'Owned') : `${svgIcon('lock', 10, rar.color)} ${rar.label}`}
+    const tiles = filtered
+      .map((item) => {
+        const meta = getEffectMeta(item.slot, item.effectId);
+        const rar = RARITY_META[meta.rarity];
+        const wear = getWearGrade(item.floatVal);
+        const equipped =
+          (item.slot === 'trail' && item.uid === this.save.equippedTrailUid) ||
+          (item.slot === 'aura' && item.uid === this.save.equippedAuraUid);
+        const starter = isStarterEffect(item);
+        const picked = this.fxForgeSelection.includes(item.uid);
+        const eligible =
+          !starter &&
+          Boolean(RARITY_NEXT[meta.rarity]) &&
+          (selectedRarity === null || meta.rarity === selectedRarity);
+        const dim = this.fxForgeMode && !picked && !eligible;
+
+        return `
+          <button class="coating-tile ${equipped ? 'equipped' : ''} ${picked ? 'forge-pick' : ''} ${dim ? 'forge-dim' : ''}"
+            data-fx-item="${item.uid}" style="border-bottom-color:${rar.color}">
+            <div class="tile-top-meta">
+              <span style="color:${wear.color}">${wear.code}</span>
+              <span class="fx-slot-tag">${item.slot === 'trail' ? 'Jet' : 'Aura'}</span>
+              ${item.striker ? '<span class="st-badge">ST</span>' : equipped ? svgIcon('check', 11, '#dfa436') : ''}
             </div>
-          </div>
-        </button>
-      `;
-    }).join('');
+            <canvas width="96" height="96" style="width:62px;height:62px" data-fx-thumb="${item.uid}"></canvas>
+            <div class="coating-name" style="color:${rar.color}">${meta.name}</div>
+            <div class="coating-seed">#${String(item.seed).padStart(3, '0')} ${item.floatVal.toFixed(2)}</div>
+          </button>
+        `;
+      })
+      .join('');
 
     return `
       <div class="fx-stage">
-        <canvas class="fx-preview-canvas" id="fx-live-canvas" width="288" height="288"></canvas>
-        ${isPreviewingLocked ? `<div class="fx-preview-caption">${svgIcon('lock', 11, '#a39a8c')} Previewing crate drop</div>` : ''}
+        <canvas class="fx-preview-canvas" id="fx-live-canvas" width="320" height="320"></canvas>
+        <div class="fx-mode-row">
+          <button class="preset-pill ${this.fxDemoMode === 'auto' ? 'active' : ''}" data-fxdemo="auto">Auto</button>
+          <button class="preset-pill ${this.fxDemoMode === 'flight' ? 'active' : ''}" data-fxdemo="flight">Exhaust</button>
+          <button class="preset-pill ${this.fxDemoMode === 'stillpoint' ? 'active' : ''}" data-fxdemo="stillpoint">Stillpoint</button>
+        </div>
+        <div class="fx-equipped-line">
+          <span style="color:${RARITY_META[tMeta.rarity].color}">${tMeta.name}</span>
+          <span style="color:${RARITY_META[aMeta.rarity].color}">${aMeta.name}</span>
+        </div>
       </div>
-      <div class="fx-section-title">Thruster exhaust</div>
-      <div class="fx-grid">${trailsHtml}</div>
-      <div class="fx-section-title">Stillpoint aura</div>
-      <div class="fx-grid">${auraHtml}</div>
+
+      <div class="locker-toolbar">
+        <button class="buy-pill ${this.fxForgeMode ? 'ready' : ''}" id="btn-toggle-fx-forge">
+          ${this.fxForgeMode ? 'Cancel' : 'Trade up'}
+        </button>
+        ${
+          this.fxForgeMode && this.fxForgeSelection.length === 5 && nextTier
+            ? `<button class="buy-pill ready" id="btn-exec-fx-forge" style="background:linear-gradient(180deg,#e06a34,#b53f16);color:#1a0904;border-color:#ffbd96">
+                 Craft ${RARITY_META[nextTier].label}
+               </button>`
+            : this.fxForgeMode
+              ? `<div class="forge-slots" aria-label="Effect trade up slots">${slotsHtml}</div>`
+              : `<div class="fx-filter-group">
+                   <button class="preset-pill ${this.fxFilter === 'all' ? 'active' : ''}" data-fxfilter="all">All</button>
+                   <button class="preset-pill ${this.fxFilter === 'trail' ? 'active' : ''}" data-fxfilter="trail">Jet</button>
+                   <button class="preset-pill ${this.fxFilter === 'aura' ? 'active' : ''}" data-fxfilter="aura">Aura</button>
+                 </div>`
+        }
+      </div>
+
+      <div class="locker-grid">${tiles}</div>
     `;
   }
 
@@ -841,17 +900,10 @@ export class OverlayController {
         } else if (drop.kind === 'coating') {
           visualHtml = `<canvas class="reel-swatch" width="66" height="54" data-reel-idx="${idx}"></canvas>`;
           label = FINISHES[drop.coating.finishId].name;
-        } else if (drop.kind === 'ship') {
-          visualHtml = `<div class="reel-swatch reel-art-tile"><img src="${shipArtUrl(drop.vesselId)}" alt="" /></div>`;
-          label = VESSELS[drop.vesselId].name;
-        } else if (drop.kind === 'trail') {
-          const t = TRAILS[drop.trailId];
-          visualHtml = `<div class="reel-swatch reel-art-tile"><span class="reel-plume" style="background:radial-gradient(circle, ${t.coreColor}, ${t.color} 68%, transparent 100%)"></span></div>`;
-          label = t.name;
         } else {
-          const a = PARRY_FX[drop.auraId];
-          visualHtml = `<div class="reel-swatch reel-art-tile"><span class="reel-aura" style="border-color:${a.outer};box-shadow:inset 0 0 0 3px ${a.inner}"></span></div>`;
-          label = a.name;
+          const meta = getEffectMeta(drop.effect.slot, drop.effect.effectId);
+          visualHtml = `<canvas class="reel-swatch" width="66" height="54" data-reel-idx="${idx}"></canvas>`;
+          label = meta.name;
         }
 
         return `
@@ -881,74 +933,69 @@ export class OverlayController {
     `;
   }
 
-  private buildDropRevealModal(): string {
-    const rev = this.dropReveal;
-    if (!rev || rev.drop.kind === 'coating') return '';
-    const drop = rev.drop;
-    const rar = RARITY_META[drop.rarity];
-    const coating = getEquippedCoating(this.save);
-
-    let title = '';
-    let category = '';
-    let detail = '';
-    let isEquipped = false;
-    let stageHtml = '';
-
-    if (drop.kind === 'ship') {
-      const v = VESSELS[drop.vesselId];
-      title = v.name;
-      category = 'Ship chassis';
-      detail = v.perkShort;
-      isEquipped = this.save.selectedVessel === drop.vesselId;
-      stageHtml = `<canvas class="coated-canvas inspect-ship" width="240" height="240" data-vid="${drop.vesselId}" data-cuid="${coating.uid}"></canvas>`;
-    } else if (drop.kind === 'trail') {
-      const t = TRAILS[drop.trailId];
-      title = t.name;
-      category = 'Thruster exhaust';
-      detail = 'Equips in Armory effects';
-      isEquipped = this.save.selectedTrail === drop.trailId;
-      stageHtml = `<canvas class="fx-preview-canvas" id="reveal-fx-canvas" width="288" height="288" data-reveal-trail="${drop.trailId}"></canvas>`;
-    } else {
-      const a = PARRY_FX[drop.auraId];
-      title = a.name;
-      category = 'Stillpoint aura';
-      detail = 'Equips in Armory effects';
-      isEquipped = this.save.selectedParryFx === drop.auraId;
-      stageHtml = `<canvas class="fx-preview-canvas" id="reveal-fx-canvas" width="288" height="288" data-reveal-aura="${drop.auraId}"></canvas>`;
-    }
+  private buildInspectEffectModal(): string {
+    const item = this.save.effectItems.find((e) => e.uid === this.inspectEffectUid);
+    if (!item) return '';
+    const meta = getEffectMeta(item.slot, item.effectId);
+    const rar = RARITY_META[meta.rarity];
+    const wear = getWearGrade(item.floatVal);
+    const equipped =
+      (item.slot === 'trail' && item.uid === this.save.equippedTrailUid) ||
+      (item.slot === 'aura' && item.uid === this.save.equippedAuraUid);
+    const starter = isStarterEffect(item);
+    const scrapVal = getEffectScrapValue(item);
 
     return `
-      <div class="modal-backdrop" id="reveal-bg">
+      <div class="modal-backdrop" id="inspect-fx-bg">
         <div class="modal-box" style="border-top-color:${rar.color}">
           <div class="modal-head">
-            <div class="modal-title" style="color:${rar.color}">${title}</div>
-            <span class="mono" style="font-size:11px;font-weight:700;color:${rar.color}">${rar.label}</span>
+            <div class="modal-title" style="color:${rar.color}">${meta.name}</div>
+            <span class="mono" style="font-size:11px;font-weight:700;color:var(--muted)">
+              ${item.slot === 'trail' ? 'Thruster exhaust' : 'Stillpoint aura'}
+            </span>
           </div>
 
           <div class="inspect-stage">
-            ${stageHtml}
-            <div class="ledger-sub">${detail}</div>
+            <canvas class="fx-preview-canvas" id="inspect-fx-canvas" width="320" height="320" data-inspect-fx="${item.uid}"></canvas>
+            ${item.specialTag ? `<span class="special-pill">${item.specialTag}</span>` : ''}
           </div>
 
-          <div class="inspect-strip" style="grid-template-columns:1fr 1fr">
+          <div class="float-gauge">
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;font-weight:700">
+              <span style="color:${wear.color}">${wear.label} (${wear.code})</span>
+              <span>${item.floatVal.toFixed(4)}</span>
+            </div>
+            <div class="float-bar-wrap">
+              <div class="float-pin" style="left:${(item.floatVal * 100).toFixed(2)}%"></div>
+            </div>
+          </div>
+
+          <div class="inspect-strip">
             <div class="inspect-stat">
-              <span class="meta-k">Type</span>
-              <span class="meta-v">${category}</span>
+              <span class="meta-k">Pattern</span>
+              <span class="meta-v">#${String(item.seed).padStart(3, '0')}</span>
             </div>
             <div class="inspect-stat">
-              <span class="meta-k">Status</span>
-              <span class="meta-v" style="color:${rev.isDuplicate ? 'var(--gold)' : '#63d69b'}">
-                ${rev.isDuplicate ? `Duplicate +${rev.shardRefund}` : 'Unlocked'}
+              <span class="meta-k">Rarity</span>
+              <span class="meta-v" style="color:${rar.color}">${rar.label}</span>
+            </div>
+            <div class="inspect-stat">
+              <span class="meta-k">${item.slot === 'trail' ? 'Kills' : 'Grazes'}</span>
+              <span class="meta-v" style="color:${item.striker ? '#f09543' : 'var(--muted)'}">
+                ${item.striker ? `ST ${String(item.statCount).padStart(5, '0')}` : 'None'}
               </span>
             </div>
           </div>
 
           <div class="crate-actions">
-            <button class="battle-btn" style="height:42px;font-size:14px" id="btn-equip-reveal" ${isEquipped ? 'disabled' : ''}>
-              ${isEquipped ? 'Equipped' : 'Equip'}
+            <button class="battle-btn" style="height:42px;font-size:14px" id="btn-equip-fx" ${equipped ? 'disabled' : ''}>
+              ${equipped ? 'Equipped' : 'Equip'}
             </button>
-            <button class="ghost-btn" style="height:42px" id="btn-close-reveal">Close</button>
+            <button class="ghost-btn" style="height:42px;color:${starter ? 'var(--muted)' : '#f47a72'}" id="btn-scrap-fx" ${starter ? 'disabled' : ''}>
+              ${starter ? 'Default' : `Scrap +${scrapVal}`}
+            </button>
           </div>
+          <button class="ghost-btn" id="btn-close-inspect-fx">Close</button>
         </div>
       </div>
     `;
@@ -1187,7 +1234,7 @@ export class OverlayController {
     this.save.keys--;
 
     const winner = rollCrateDrop(kind);
-    const result = applyCrateDrop(this.save, winner);
+    applyCrateDrop(this.save, winner);
 
     const items: CrateDrop[] = [];
     for (let i = 0; i < 36; i++) {
@@ -1196,7 +1243,6 @@ export class OverlayController {
     this.reelCrateKind = kind;
     this.reelItems = items;
     this.reelWinner = winner;
-    this.reelResult = result;
     sound.unlock();
     this.renderHub(true);
   }
@@ -1204,17 +1250,20 @@ export class OverlayController {
   private startCrateReelAnimation(): void {
     const track = this.container.querySelector('#reel-track') as HTMLDivElement | null;
     const winner = this.reelWinner;
-    const result = this.reelResult;
     const items = this.reelItems;
-    if (!track || !winner || !items || !result) return;
+    if (!track || !winner || !items) return;
 
     this.container.querySelectorAll<HTMLCanvasElement>('[data-reel-idx]').forEach((cv) => {
       const idx = Number(cv.dataset.reelIdx);
       const drop = items[idx];
-      if (!drop || drop.kind !== 'coating') return;
-      const swatch = renderPatternCanvas(drop.coating.finishId, drop.coating.seed, drop.coating.floatVal, 66);
-      const ctx = cv.getContext('2d');
-      ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
+      if (!drop) return;
+      if (drop.kind === 'coating') {
+        const swatch = renderPatternCanvas(drop.coating.finishId, drop.coating.seed, drop.coating.floatVal, 66);
+        const ctx = cv.getContext('2d');
+        ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
+      } else {
+        drawEffectThumbnail(cv, drop.effect, 1.8);
+      }
     });
 
     const itemStride = 98;
@@ -1242,17 +1291,13 @@ export class OverlayController {
       bridge.haptic(rar.order >= 3 ? 'heavy' : 'success');
       this.reelItems = null;
       this.reelWinner = null;
-      this.reelResult = null;
       if (winner.kind === 'coating') {
         this.inspectUid = winner.coating.uid;
         this.inspectVesselIdx = Math.max(0, VESSEL_ORDER.indexOf(this.save.selectedVessel));
         this.armorySub = 'locker';
       } else {
-        this.dropReveal = {
-          drop: winner,
-          isDuplicate: result.isDuplicate,
-          shardRefund: result.shardRefund
-        };
+        this.inspectEffectUid = winner.effect.uid;
+        this.armorySub = 'fx';
       }
       this.renderHub();
     };
@@ -1286,7 +1331,7 @@ export class OverlayController {
   }
 
   private hydrateVisualCanvases(): void {
-    // 1. Coated ships across Play, Hangar, Locker, Inspect, Reveal, Run End
+    // 1. Coated ships across Play, Hangar, Skins, Inspect, Run End
     this.container.querySelectorAll<HTMLCanvasElement>('.coated-canvas[data-vid]').forEach((cv) => {
       const vid = cv.dataset.vid as VesselId;
       const cuid = cv.dataset.cuid;
@@ -1317,126 +1362,189 @@ export class OverlayController {
       }
     });
 
-    // 2. Crate sample pattern swatches
+    // 2. Crate sample tiles (Coatings & Rolled Effects)
     this.container.querySelectorAll<HTMLCanvasElement>('[data-crate-sample]').forEach((cv) => {
       const [group, idxStr] = (cv.dataset.crateSample ?? '').split(':');
       const sample = (group === 'relic' ? RELIC_CRATE_SAMPLES : STD_CRATE_SAMPLES)[Number(idxStr)];
-      if (!sample || sample.kind !== 'coating') return;
-      const swatch = renderPatternCanvas(sample.id, sample.seed, sample.floatVal, 64);
-      const ctx = cv.getContext('2d');
-      ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
+      if (!sample) return;
+      if (sample.kind === 'coating') {
+        const swatch = renderPatternCanvas(sample.id, sample.seed, sample.floatVal, 64);
+        const ctx = cv.getContext('2d');
+        ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
+      } else {
+        drawEffectThumbnail(cv, sample.item, 1.6);
+      }
     });
 
-    // 3. Live FX preview canvas (shows equipped or previewed Thruster Exhaust + Stillpoint Aura)
-    const fxCanvas = this.container.querySelector('#fx-live-canvas') as HTMLCanvasElement | null;
-    if (fxCanvas) {
-      this.drawFxPreview(
-        fxCanvas,
-        this.previewTrailId ?? this.save.selectedTrail,
-        this.previewAuraId ?? this.save.selectedParryFx
-      );
-    }
-
-    // 4. Crate Drop Reveal FX preview canvas
-    const revealFx = this.container.querySelector('#reveal-fx-canvas') as HTMLCanvasElement | null;
-    if (revealFx) {
-      const trailId = (revealFx.dataset.revealTrail as TrailId | undefined) ?? this.save.selectedTrail;
-      const auraId = (revealFx.dataset.revealAura as ParryFxId | undefined) ?? this.save.selectedParryFx;
-      this.drawFxPreview(revealFx, trailId, auraId);
-    }
+    // 3. Rolled Effect inventory thumbnails
+    this.container.querySelectorAll<HTMLCanvasElement>('[data-fx-thumb]').forEach((cv) => {
+      const uid = cv.dataset.fxThumb;
+      const item = this.save.effectItems.find((e) => e.uid === uid);
+      if (item) drawEffectThumbnail(cv, item, 1.8);
+    });
   }
 
-  private drawFxPreview(cv: HTMLCanvasElement, trailId: TrailId, auraId: ParryFxId): void {
+  private startFxPreviewLoopIfNeeded(): void {
+    const liveCv = this.container.querySelector('#fx-live-canvas') as HTMLCanvasElement | null;
+    const inspectCv = this.container.querySelector('#inspect-fx-canvas') as HTMLCanvasElement | null;
+    if (!liveCv && !inspectCv) return;
+
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const renderAt = (sec: number) => {
+      if (inspectCv) {
+        const uid = inspectCv.dataset.inspectFx;
+        const item = this.save.effectItems.find((e) => e.uid === uid);
+        if (item) {
+          const trail = item.slot === 'trail' ? item : getEquippedTrailItem(this.save);
+          const aura = item.slot === 'aura' ? item : getEquippedAuraItem(this.save);
+          const mode: FxDemoMode = item.slot === 'trail' ? 'flight' : 'stillpoint';
+          this.drawAnimatedFxStage(inspectCv, trail, aura, mode, sec);
+        }
+      } else if (liveCv) {
+        this.drawAnimatedFxStage(
+          liveCv,
+          getEquippedTrailItem(this.save),
+          getEquippedAuraItem(this.save),
+          this.fxDemoMode,
+          sec
+        );
+      }
+    };
+
+    if (reducedMotion) {
+      renderAt(1.6);
+      return;
+    }
+
+    const start = performance.now();
+    const tick = (now: number) => {
+      if (this.currentPhase !== 'menu') {
+        this.fxAnimRaf = 0;
+        return;
+      }
+      const sec = (now - start) / 1000;
+      renderAt(sec);
+      this.fxAnimRaf = requestAnimationFrame(tick);
+    };
+    this.fxAnimRaf = requestAnimationFrame(tick);
+  }
+
+  private drawAnimatedFxStage(
+    cv: HTMLCanvasElement,
+    trailItem: EffectItem,
+    auraItem: EffectItem,
+    mode: FxDemoMode,
+    time: number
+  ): void {
     const ctx = cv.getContext('2d');
     if (!ctx) return;
     const W = cv.width;
     const H = cv.height;
     const cx = W * 0.5;
-    const cy = H * 0.46;
     const vid = this.save.selectedVessel;
     const coating = getEquippedCoating(this.save);
-    const trail = TRAILS[trailId] ?? TRAILS.ion_ash;
-    const aura = PARRY_FX[auraId] ?? PARRY_FX.steel_ring;
+
+    // Smooth demo blend: Auto alternates 2.6s Flight -> 2.6s Stillpoint!
+    let stillBlend = 0;
+    if (mode === 'stillpoint') {
+      stillBlend = 1;
+    } else if (mode === 'flight') {
+      stillBlend = 0;
+    } else {
+      const cyc = time % 5.2;
+      if (cyc < 2.2) stillBlend = 0;
+      else if (cyc < 2.6) stillBlend = (cyc - 2.2) / 0.4;
+      else if (cyc < 4.8) stillBlend = 1;
+      else stillBlend = 1 - (cyc - 4.8) / 0.4;
+    }
+
+    const flightBlend = 1 - stillBlend;
+    const cy = H * (0.42 + stillBlend * 0.08);
+    const swayX = Math.sin(time * 2.1) * 14 * flightBlend;
+    const shipX = cx + swayX;
 
     ctx.clearRect(0, 0, W, H);
 
-    // Subtle radial backdrop glow
-    const bg = ctx.createRadialGradient(cx, cy, 8, cx, cy, W * 0.48);
-    bg.addColorStop(0, `${aura.outer}26`);
-    bg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
-
-    // Stillpoint Astrolabe outer + inner rings & reticle ticks
+    // Subtle dark tarmac scroll grid lines so movement & Stillpoint slowdown read instantly!
+    const scrollSpd = 120 * (1 - stillBlend * 0.85);
+    const gridOff = (time * scrollSpd) % 36;
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.strokeStyle = aura.outer;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([22, 14, 4, 14]);
-    ctx.beginPath();
-    ctx.arc(0, 0, 102, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.strokeStyle = aura.inner;
-    ctx.globalAlpha = 0.65;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 82, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = aura.outer;
-    ctx.lineWidth = 2.5;
-    for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2;
+    ctx.strokeStyle = `rgba(226, 212, 188, ${0.06 - stillBlend * 0.025})`;
+    ctx.lineWidth = 1;
+    for (let y = gridOff; y < H; y += 36) {
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * 86, Math.sin(a) * 86);
-      ctx.lineTo(Math.cos(a) * 116, Math.sin(a) * 116);
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
       ctx.stroke();
     }
-
-    // Thruster exhaust wake + glowing jet plume behind the ship
-    const drawPlume = (x: number, y: number, w: number, len: number) => {
-      const g = ctx.createLinearGradient(x, y, x, y + len);
-      g.addColorStop(0, trail.coreColor);
-      g.addColorStop(0.35, trail.color);
-      g.addColorStop(1, `${trail.color}00`);
-      ctx.fillStyle = g;
+    for (let x = 20; x < W; x += 36) {
       ctx.beginPath();
-      ctx.moveTo(x - w, y);
-      ctx.lineTo(x, y + len);
-      ctx.lineTo(x + w, y);
-      ctx.closePath();
-      ctx.fill();
-    };
-    if (vid === 'aegis' || vid === 'nova' || vid === 'volt') {
-      drawPlume(-18, 40, 11, 66);
-      drawPlume(18, 40, 11, 66);
-    } else {
-      drawPlume(0, 40, 13, 72);
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Streaming synthetic flight wake trail behind ship!
+    if (flightBlend > 0.05) {
+      const wakePts: Array<{ x: number; y: number; alpha: number }> = [];
+      const count = 14;
+      for (let i = 0; i < count; i++) {
+        const frac = i / (count - 1); // 0 = oldest bottom, 1 = newest near nozzle
+        const tBack = (1 - frac) * 0.55;
+        const px = cx + Math.sin((time - tBack) * 2.1) * 14 * flightBlend;
+        const py = cy + 44 + (1 - frac) * 124;
+        wakePts.push({ x: px, y: py, alpha: frac * flightBlend });
+      }
+      drawEffectTrailWake(ctx, wakePts, trailItem, time);
     }
 
-    // Ship sprite with baked pattern coating
+    ctx.save();
+    ctx.translate(shipX, cy);
+
+    // Full animated geometric Stillpoint Aura!
+    if (stillBlend > 0.03) {
+      drawEffectStillpointAura(ctx, auraItem, 108, stillBlend, time);
+    }
+
+    // Full animated thruster nozzle plume!
+    if (flightBlend > 0.08) {
+      ctx.save();
+      ctx.globalAlpha = flightBlend;
+      drawEffectThrusterPlume(ctx, vid, trailItem, time, 2.35);
+      ctx.restore();
+    }
+
+    // Coated ship hull sprite
     const art = sprites.getCoatedShipArt(vid, coating, 160);
     if (art) {
-      ctx.drawImage(art, -64, -64, 128, 128);
+      ctx.save();
+      ctx.globalAlpha = 1 - stillBlend * 0.25;
+      ctx.drawImage(art, -58, -58, 116, 116);
+      ctx.restore();
     }
 
     // Pinpoint Stillpoint core diamond
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(0, -10);
-    ctx.lineTo(10, 0);
-    ctx.lineTo(0, 10);
-    ctx.lineTo(-10, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = aura.outer;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 16, 0, Math.PI * 2);
-    ctx.stroke();
+    if (stillBlend > 0.08) {
+      const ap = getEffectVisualParams(auraItem);
+      ctx.save();
+      ctx.globalAlpha = stillBlend;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(0, -9);
+      ctx.lineTo(9, 0);
+      ctx.lineTo(0, 9);
+      ctx.lineTo(-9, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = ap.primary;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 
@@ -1446,9 +1554,9 @@ export class OverlayController {
         this.tab = btn.dataset.tab as HubTab;
         this.forgeMode = false;
         this.forgeSelection = [];
+        this.fxForgeMode = false;
+        this.fxForgeSelection = [];
         this.previewShipId = null;
-        this.previewTrailId = null;
-        this.previewAuraId = null;
         bridge.haptic('light');
         this.renderHub();
       });
@@ -1477,8 +1585,8 @@ export class OverlayController {
         this.armorySub = btn.dataset.asub as ArmorySub;
         this.forgeMode = false;
         this.forgeSelection = [];
-        this.previewTrailId = null;
-        this.previewAuraId = null;
+        this.fxForgeMode = false;
+        this.fxForgeSelection = [];
         bridge.haptic('light');
         this.renderHub();
       });
@@ -1569,37 +1677,7 @@ export class OverlayController {
     this.container.querySelector('#btn-open-std')?.addEventListener('click', () => this.beginCrateRoll('standard'));
     this.container.querySelector('#btn-open-relic')?.addEventListener('click', () => this.beginCrateRoll('relic'));
 
-    // Non-Coating Crate Drop Reveal Modal (Ship / Exhaust / Aura)
-    this.container.querySelector('#btn-close-reveal')?.addEventListener('click', () => {
-      this.dropReveal = null;
-      this.renderHub(true);
-    });
-    this.container.querySelector('#reveal-bg')?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).id === 'reveal-bg') {
-        this.dropReveal = null;
-        this.renderHub(true);
-      }
-    });
-    this.container.querySelector('#btn-equip-reveal')?.addEventListener('click', () => {
-      const drop = this.dropReveal?.drop;
-      if (!drop || drop.kind === 'coating') return;
-      if (drop.kind === 'ship') {
-        this.actions.onSelectVessel(drop.vesselId);
-      } else if (drop.kind === 'trail') {
-        this.save.selectedTrail = drop.trailId;
-        persistMetaSave(this.save);
-        this.actions.onVisualPrefsChanged();
-      } else {
-        this.save.selectedParryFx = drop.auraId;
-        persistMetaSave(this.save);
-        this.actions.onVisualPrefsChanged();
-      }
-      bridge.haptic('success');
-      sound.playXp();
-      this.renderHub(true);
-    });
-
-    // Locker + Trade-Up
+    // Skins Locker + Trade-Up
     this.container.querySelector('#btn-toggle-forge')?.addEventListener('click', () => {
       this.forgeMode = !this.forgeMode;
       this.forgeSelection = [];
@@ -1653,7 +1731,7 @@ export class OverlayController {
       });
     });
 
-    // Inspect Modal
+    // Skin Inspect Modal
     this.container.querySelector('#btn-close-inspect')?.addEventListener('click', () => {
       this.inspectUid = null;
       this.renderHub(true);
@@ -1692,43 +1770,104 @@ export class OverlayController {
       }
     });
 
-    // Trails & Stillpoint Aura FX (Crate drops: owned equips, locked previews live)
-    this.container.querySelectorAll<HTMLButtonElement>('[data-trail]').forEach((b) => {
+    // Effects Live Stage, Filter, Trade-Up & Inspect Modal
+    this.container.querySelectorAll<HTMLButtonElement>('[data-fxdemo]').forEach((b) => {
       b.addEventListener('click', () => {
-        const tid = b.dataset.trail as TrailId;
-        if (this.save.unlockedTrails.includes(tid)) {
-          this.previewTrailId = null;
-          this.save.selectedTrail = tid;
-          persistMetaSave(this.save);
-          this.actions.onVisualPrefsChanged();
-          bridge.haptic('light');
-          this.renderHub(true);
-        } else {
-          this.previewTrailId = tid;
-          bridge.haptic('light');
-          this.showToast('Unlocked in crates');
-          this.renderHub(true);
-        }
+        this.fxDemoMode = b.dataset.fxdemo as FxDemoMode;
+        bridge.haptic('light');
+        this.renderHub(true);
       });
     });
 
-    this.container.querySelectorAll<HTMLButtonElement>('[data-parryfx]').forEach((b) => {
+    this.container.querySelectorAll<HTMLButtonElement>('[data-fxfilter]').forEach((b) => {
       b.addEventListener('click', () => {
-        const pid = b.dataset.parryfx as ParryFxId;
-        if (this.save.unlockedParryFx.includes(pid)) {
-          this.previewAuraId = null;
-          this.save.selectedParryFx = pid;
-          persistMetaSave(this.save);
-          this.actions.onVisualPrefsChanged();
-          bridge.haptic('light');
-          this.renderHub(true);
-        } else {
-          this.previewAuraId = pid;
-          bridge.haptic('light');
-          this.showToast('Unlocked in crates');
-          this.renderHub(true);
-        }
+        this.fxFilter = b.dataset.fxfilter as FxFilter;
+        bridge.haptic('light');
+        this.renderHub(true);
       });
+    });
+
+    this.container.querySelector('#btn-toggle-fx-forge')?.addEventListener('click', () => {
+      this.fxForgeMode = !this.fxForgeMode;
+      this.fxForgeSelection = [];
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+
+    this.container.querySelector('#btn-exec-fx-forge')?.addEventListener('click', () => {
+      const forged = executeEffectTradeUp(this.save, this.fxForgeSelection);
+      if (forged) {
+        this.fxForgeMode = false;
+        this.fxForgeSelection = [];
+        this.actions.onVisualPrefsChanged();
+        const rar = RARITY_META[getEffectMeta(forged.slot, forged.effectId).rarity];
+        sound.playCrateReveal(rar.order);
+        bridge.haptic('heavy');
+        this.inspectEffectUid = forged.uid;
+        this.renderHub(true);
+      }
+    });
+
+    this.container.querySelectorAll<HTMLButtonElement>('[data-fx-item]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const uid = b.dataset.fxItem!;
+        const item = this.save.effectItems.find((e) => e.uid === uid);
+        if (!item) return;
+
+        if (this.fxForgeMode) {
+          if (isStarterEffect(item)) return;
+          const idx = this.fxForgeSelection.indexOf(uid);
+          if (idx >= 0) {
+            this.fxForgeSelection.splice(idx, 1);
+          } else if (this.fxForgeSelection.length < 5) {
+            const rar = getEffectMeta(item.slot, item.effectId).rarity;
+            if (!RARITY_NEXT[rar]) return;
+            if (this.fxForgeSelection.length > 0) {
+              const first = this.save.effectItems.find((e) => e.uid === this.fxForgeSelection[0]);
+              if (first && getEffectMeta(first.slot, first.effectId).rarity !== rar) return;
+            }
+            this.fxForgeSelection.push(uid);
+          }
+          bridge.haptic('light');
+          this.renderHub(true);
+          return;
+        }
+
+        this.inspectEffectUid = uid;
+        bridge.haptic('light');
+        this.renderHub(true);
+      });
+    });
+
+    this.container.querySelector('#btn-close-inspect-fx')?.addEventListener('click', () => {
+      this.inspectEffectUid = null;
+      this.renderHub(true);
+    });
+    this.container.querySelector('#inspect-fx-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'inspect-fx-bg') {
+        this.inspectEffectUid = null;
+        this.renderHub(true);
+      }
+    });
+    this.container.querySelector('#btn-equip-fx')?.addEventListener('click', () => {
+      if (this.inspectEffectUid && equipEffectItem(this.save, this.inspectEffectUid)) {
+        this.actions.onVisualPrefsChanged();
+        bridge.haptic('success');
+        sound.playXp();
+        this.renderHub(true);
+      }
+    });
+    this.container.querySelector('#btn-scrap-fx')?.addEventListener('click', () => {
+      if (!this.inspectEffectUid) return;
+      const got = scrapEffectItem(this.save, this.inspectEffectUid);
+      if (got > 0) {
+        this.inspectEffectUid = null;
+        this.actions.onVisualPrefsChanged();
+        bridge.haptic('medium');
+        sound.playXp();
+        this.showToast(`Scrapped for +${got} shards`);
+        this.renderHub(true);
+      }
     });
 
     // Sector Carousel & Play
@@ -1776,7 +1915,7 @@ export class OverlayController {
       }
     });
 
-    // Ships (Crate & Trial unlocks — preview locked hulls live, equip owned hulls)
+    // Ships (Direct Shard purchase in Hangar — tap locked to preview, unlock directly with Shards!)
     this.container.querySelectorAll<HTMLButtonElement>('[data-ship]').forEach((b) => {
       b.addEventListener('click', () => {
         const vid = b.dataset.ship as VesselId;
@@ -1788,13 +1927,33 @@ export class OverlayController {
         } else {
           this.previewShipId = vid;
           bridge.haptic('light');
-          this.showToast('Unlocked in crates');
           this.renderHub(true);
         }
       });
     });
 
-    // Cores (Functional Shard-unlockable gear)
+    this.container.querySelector('#btn-buy-ship')?.addEventListener('click', () => {
+      const btn = this.container.querySelector('#btn-buy-ship') as HTMLButtonElement | null;
+      const vid = btn?.dataset.buyShip as VesselId | undefined;
+      if (!vid) return;
+      const v = VESSELS[vid];
+      if (!this.save.unlockedVessels.includes(vid) && this.save.shards >= v.unlockCost) {
+        this.save.shards -= v.unlockCost;
+        this.save.unlockedVessels.push(vid);
+        this.previewShipId = null;
+        this.actions.onSelectVessel(vid);
+        persistMetaSave(this.save);
+        bridge.haptic('success');
+        sound.playLevelUp();
+        this.showToast(`${v.name} unlocked`);
+        this.renderHub(true);
+      } else {
+        bridge.haptic('warning');
+        this.showToast(`Need ${v.unlockCost} shards`);
+      }
+    });
+
+    // Cores (Direct Shard purchase in Hangar)
     this.container.querySelectorAll<HTMLButtonElement>('[data-core]').forEach((b) => {
       b.addEventListener('click', () => {
         const cid = b.dataset.core as CoreId;

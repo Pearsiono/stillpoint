@@ -1,7 +1,8 @@
 import {
   FINISHES,
   getCaseHardenedBluePct,
-  getDopplerVariant
+  getDopplerVariant,
+  getGammaDopplerVariant
 } from '../data/finishes';
 import { CoatingItem, FinishId } from '../types';
 
@@ -403,6 +404,172 @@ export function renderPatternCanvas(
       ctx.lineTo(size, (p + size * 0.4) % size);
       ctx.stroke();
     }
+  } else if (finishId === 'gamma_doppler') {
+    const dv = getGammaDopplerVariant(seed);
+    const c0 = hexToRgb(dv.primary);
+    const c1 = hexToRgb(dv.secondary);
+    const c2 = hexToRgb(dv.highlight);
+    const img = ctx.createImageData(size, size);
+    for (let py = 0; py < size; py++) {
+      for (let px = 0; px < size; px++) {
+        const nx = (px / size) * 3.4 + offX;
+        const ny = (py / size) * 3.4 + offY;
+        const warp = fbm(nx, ny, seed + 7, 3) * 2.5;
+        const v = fbm(nx + warp, ny - warp * 0.75, seed + 31, 3);
+        const rgb =
+          v < 0.5 ? lerpRgb(c0, c1, v * 2) : lerpRgb(c1, c2, (v - 0.5) * 2.15);
+        const i = (py * size + px) * 4;
+        img.data[i] = rgb[0];
+        img.data[i + 1] = rgb[1];
+        img.data[i + 2] = rgb[2];
+        img.data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  } else if (finishId === 'rust_circuit') {
+    ctx.fillStyle = '#24292b';
+    ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = '#4eb898';
+    ctx.lineWidth = 1.6;
+    const traces = 9 + (seed % 5);
+    for (let k = 0; k < traces; k++) {
+      let cx = Math.floor(rand() * 8) * (size / 8);
+      let cy = Math.floor(rand() * 8) * (size / 8);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      for (let s = 0; s < 5; s++) {
+        const dir = Math.floor(rand() * 4);
+        const step = (1 + Math.floor(rand() * 2)) * (size / 8);
+        if (dir === 0) cx += step;
+        else if (dir === 1) cy += step;
+        else if (dir === 2) { cx += step * 0.7; cy += step * 0.7; }
+        else { cx -= step * 0.7; cy += step * 0.7; }
+        ctx.lineTo(cx, cy);
+      }
+      ctx.stroke();
+      ctx.fillStyle = '#e0b048';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (finishId === 'cobalt_hex') {
+    const g = ctx.createLinearGradient(0, 0, size, size);
+    g.addColorStop(0, '#1e3052');
+    g.addColorStop(0.5, '#3b6db8');
+    g.addColorStop(1, '#14223b');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    const r = 11;
+    const dx = r * 1.5;
+    const dy = r * Math.sqrt(3);
+    ctx.strokeStyle = 'rgba(182, 218, 255, 0.45)';
+    ctx.lineWidth = 1.2;
+    for (let row = -1; row < size / dy + 2; row++) {
+      for (let col = -1; col < size / dx + 2; col++) {
+        const cx = col * dx + (offX % dx);
+        const cy = row * dy + (col % 2 === 0 ? 0 : dy / 2);
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i * Math.PI) / 3;
+          const px = cx + Math.cos(a) * r;
+          const py = cy + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        if (rand() < 0.22) {
+          ctx.fillStyle = 'rgba(102, 168, 255, 0.28)';
+          ctx.fill();
+        }
+        ctx.stroke();
+      }
+    }
+  } else if (finishId === 'blood_marble') {
+    const img = ctx.createImageData(size, size);
+    const cRock: [number, number, number] = [28, 24, 26];
+    const cRed: [number, number, number] = [214, 48, 34];
+    const cGold: [number, number, number] = [252, 198, 72];
+    for (let py = 0; py < size; py++) {
+      for (let px = 0; px < size; px++) {
+        const nx = (px / size) * 4.2 + offX;
+        const ny = (py / size) * 4.2 + offY;
+        const n = fbm(nx, ny, seed + 11, 4);
+        const ridge = 1 - Math.abs(n * 2 - 1);
+        const glow = Math.pow(Math.max(0, ridge - 0.56) / 0.44, 1.8);
+        const rgb = glow > 0.55 ? lerpRgb(cRed, cGold, (glow - 0.55) / 0.45) : lerpRgb(cRock, cRed, glow / 0.55);
+        const i = (py * size + px) * 4;
+        img.data[i] = rgb[0];
+        img.data[i + 1] = rgb[1];
+        img.data[i + 2] = rgb[2];
+        img.data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  } else if (finishId === 'pearl_mother') {
+    const img = ctx.createImageData(size, size);
+    const p1: [number, number, number] = [194, 224, 238];
+    const p2: [number, number, number] = [228, 174, 222];
+    const p3: [number, number, number] = [154, 228, 208];
+    const p4: [number, number, number] = [242, 222, 182];
+    for (let py = 0; py < size; py++) {
+      for (let px = 0; px < size; px++) {
+        const nx = (px / size) * 2.8 + offX;
+        const ny = (py / size) * 2.8 + offY;
+        const swirl = fbm(nx, ny, seed, 3) * 2.6;
+        const t = (Math.sin((nx + ny + swirl) * 2.2) + 1) * 0.5;
+        const rgb =
+          t < 0.33
+            ? lerpRgb(p1, p2, t / 0.33)
+            : t < 0.66
+              ? lerpRgb(p2, p3, (t - 0.33) / 0.33)
+              : lerpRgb(p3, p4, (t - 0.66) / 0.34);
+        const i = (py * size + px) * 4;
+        img.data[i] = rgb[0];
+        img.data[i + 1] = rgb[1];
+        img.data[i + 2] = rgb[2];
+        img.data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  } else if (finishId === 'void_starlight') {
+    const img = ctx.createImageData(size, size);
+    const cSpace: [number, number, number] = [14, 14, 28];
+    const cNeb1: [number, number, number] = [74, 52, 168];
+    const cNeb2: [number, number, number] = [44, 158, 198];
+    for (let py = 0; py < size; py++) {
+      for (let px = 0; px < size; px++) {
+        const nx = (px / size) * 3.0 + offX;
+        const ny = (py / size) * 3.0 + offY;
+        const n1 = fbm(nx, ny, seed, 4);
+        const n2 = fbm(nx * 1.5 - 2.3, ny * 1.5 + 1.7, seed + 41, 3);
+        const rgb = n1 > 0.54 ? lerpRgb(cNeb1, cNeb2, n2) : lerpRgb(cSpace, cNeb1, n1 / 0.54);
+        const i = (py * size + px) * 4;
+        img.data[i] = rgb[0];
+        img.data[i + 1] = rgb[1];
+        img.data[i + 2] = rgb[2];
+        img.data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    // Gilded constellation filaments & star points
+    const stars: Array<[number, number]> = [];
+    for (let s = 0; s < 18; s++) {
+      stars.push([rand() * size, rand() * size]);
+    }
+    ctx.strokeStyle = 'rgba(240, 196, 86, 0.55)';
+    ctx.lineWidth = 1.1;
+    for (let s = 1; s < stars.length; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(stars[s - 1][0], stars[s - 1][1]);
+      ctx.lineTo(stars[s][0], stars[s][1]);
+      ctx.stroke();
+    }
+    for (const [sx, sy] of stars) {
+      ctx.fillStyle = '#fff5d1';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.4 + rand() * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else if (finishId === 'aurelia_gold') {
     const g = ctx.createLinearGradient(0, 0, size, size);
     g.addColorStop(0, '#f5d26e');
@@ -523,7 +690,11 @@ export function bakeCoatedShipCanvas(
     coating.finishId === 'kintsugi' ||
     coating.finishId === 'oxide_hazard' ||
     coating.finishId === 'tiger_rust' ||
-    coating.finishId === 'dune_splinter'
+    coating.finishId === 'dune_splinter' ||
+    coating.finishId === 'rust_circuit' ||
+    coating.finishId === 'cobalt_hex' ||
+    coating.finishId === 'blood_marble' ||
+    coating.finishId === 'void_starlight'
   ) {
     ctx.globalCompositeOperation = 'source-atop';
     ctx.globalAlpha = 0.28 * (1 - Math.min(0.6, coating.floatVal * 0.5));

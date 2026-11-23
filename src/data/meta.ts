@@ -2,17 +2,23 @@ import { bridge } from '../bridge';
 import { CORE_ORDER, HEAT_ORDER } from './builds';
 import {
   CRATE_KEY_COST,
+  createEffectItem,
+  createStarterAuraItem,
   createStarterCoating,
-  DUPLICATE_SHARD_VALUE,
+  createStarterTrailItem,
   FINISHES,
   forgeTradeUpCoating,
+  forgeTradeUpEffect,
   getCoatingScrapValue,
+  getEffectScrapValue,
+  isStarterEffect,
   PARRY_FX,
   TRAILS
 } from './finishes';
 import {
   canToggleModule,
   DEFAULT_PRESETS,
+  LEGACY_MODULE_COSTS,
   MODULES,
   STARTER_UNLOCKED_MODULES
 } from './loadout';
@@ -23,6 +29,7 @@ import {
   CoatingItem,
   CoreId,
   CrateDrop,
+  EffectItem,
   HeatId,
   LoadoutPresetIndex,
   MetaSave,
@@ -39,72 +46,17 @@ import {
 export const SAVE_STORAGE_KEY = 'stillpoint_save_v1';
 
 export const META_UPGRADES: MetaUpgradeDef[] = [
-  {
-    id: 'hull_integrity',
-    name: 'Hull Frame',
-    maxLevel: 5,
-    baseCost: 35,
-    costStep: 35,
-    perLevelShort: '+14 max HP'
-  },
-  {
-    id: 'kinetic_core',
-    name: 'Kinetic Core',
-    maxLevel: 5,
-    baseCost: 40,
-    costStep: 40,
-    perLevelShort: '+10% focus charge'
-  },
-  {
-    id: 'parry_resonance',
-    name: 'Core Amplifier',
-    maxLevel: 5,
-    baseCost: 45,
-    costStep: 45,
-    perLevelShort: '+8% core area, +12% damage'
-  },
-  {
-    id: 'time_lattice',
-    name: 'Time Lattice',
-    maxLevel: 5,
-    baseCost: 45,
-    costStep: 45,
-    perLevelShort: '-7% slow-mo drain'
-  },
-  {
-    id: 'crit_calibration',
-    name: 'Crit Optics',
-    maxLevel: 5,
-    baseCost: 50,
-    costStep: 45,
-    perLevelShort: '+5% crit chance'
-  },
-  {
-    id: 'magnet_field',
-    name: 'Magnet Field',
-    maxLevel: 5,
-    baseCost: 30,
-    costStep: 30,
-    perLevelShort: '+20 pickup pull'
-  },
-  {
-    id: 'shard_harvester',
-    name: 'Shard Matrix',
-    maxLevel: 5,
-    baseCost: 55,
-    costStep: 50,
-    perLevelShort: '+12% shards earned'
-  },
-  {
-    id: 'reroll_module',
-    name: 'Draft Rerolls',
-    maxLevel: 4,
-    baseCost: 70,
-    costStep: 70,
-    perLevelShort: '+1 reroll per run'
-  }
+  { id: 'hull_integrity', name: 'Hull Frame', maxLevel: 5, baseCost: 35, costStep: 35, perLevelShort: '+14 max HP' },
+  { id: 'kinetic_core', name: 'Kinetic Core', maxLevel: 5, baseCost: 40, costStep: 40, perLevelShort: '+10% focus charge' },
+  { id: 'parry_resonance', name: 'Core Amplifier', maxLevel: 5, baseCost: 45, costStep: 45, perLevelShort: '+8% core area, +12% damage' },
+  { id: 'time_lattice', name: 'Time Lattice', maxLevel: 5, baseCost: 45, costStep: 45, perLevelShort: '-7% slow-mo drain' },
+  { id: 'crit_calibration', name: 'Crit Optics', maxLevel: 5, baseCost: 50, costStep: 45, perLevelShort: '+5% crit chance' },
+  { id: 'magnet_field', name: 'Magnet Field', maxLevel: 5, baseCost: 30, costStep: 30, perLevelShort: '+20 pickup pull' },
+  { id: 'shard_harvester', name: 'Shard Matrix', maxLevel: 5, baseCost: 55, costStep: 50, perLevelShort: '+12% shards earned' },
+  { id: 'reroll_module', name: 'Draft Rerolls', maxLevel: 4, baseCost: 70, costStep: 70, perLevelShort: '+1 reroll per run' }
 ];
 
+// Rare, skill-gated trials: ships and effects stay genuine crate chases
 export const MILESTONES: MilestoneDef[] = [
   {
     id: 'first_blood',
@@ -132,7 +84,6 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Tempest',
     goalText: '350 grazes',
     rewardShards: 140,
-    rewardLabel: 'Volt',
     check: (s) => ({ current: s.totalGrazes, target: 350, done: s.totalGrazes >= 350 })
   },
   {
@@ -147,8 +98,7 @@ export const MILESTONES: MilestoneDef[] = [
     id: 'graze_200',
     name: 'Razor Edge',
     goalText: '200 grazes',
-    rewardShards: 100,
-    rewardLabel: '+1 crate',
+    rewardShards: 90,
     check: (s) => ({ current: s.totalGrazes, target: 200, done: s.totalGrazes >= 200 })
   },
   {
@@ -156,29 +106,20 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Catalyst',
     goalText: '1 evolution',
     rewardShards: 80,
-    check: (s) => ({
-      current: s.evolutionsCrafted,
-      target: 1,
-      done: s.evolutionsCrafted >= 1
-    })
+    check: (s) => ({ current: s.evolutionsCrafted, target: 1, done: s.evolutionsCrafted >= 1 })
   },
   {
     id: 'evo_5',
     name: 'Alchemist',
     goalText: '5 evolutions',
     rewardShards: 180,
-    check: (s) => ({
-      current: s.evolutionsCrafted,
-      target: 5,
-      done: s.evolutionsCrafted >= 5
-    })
+    check: (s) => ({ current: s.evolutionsCrafted, target: 5, done: s.evolutionsCrafted >= 5 })
   },
   {
     id: 'boss_1',
     name: 'Weaver Fall',
     goalText: '1 boss cleared',
     rewardShards: 90,
-    rewardLabel: 'Aegis',
     check: (s) => ({ current: s.bossesCleared, target: 1, done: s.bossesCleared >= 1 })
   },
   {
@@ -186,7 +127,6 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Seraph Fall',
     goalText: '2 bosses cleared',
     rewardShards: 130,
-    rewardLabel: 'Phantom',
     check: (s) => ({ current: s.bossesCleared, target: 2, done: s.bossesCleared >= 2 })
   },
   {
@@ -194,15 +134,15 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Archon Fall',
     goalText: '3 bosses cleared',
     rewardShards: 220,
-    rewardLabel: 'Seraph',
+    rewardLabel: '+1 crate',
     check: (s) => ({ current: s.bossesCleared, target: 3, done: s.bossesCleared >= 3 })
   },
   {
     id: 'no_hit_boss',
     name: 'Untouched',
     goalText: 'No-hit boss clear',
-    rewardShards: 200,
-    rewardLabel: '+2 classified',
+    rewardShards: 220,
+    rewardLabel: '+1 classified',
     check: (s) => ({ current: s.noHitBossClears, target: 1, done: s.noHitBossClears >= 1 })
   },
   {
@@ -210,7 +150,6 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Ash Clear',
     goalText: 'Clear Ash Flats',
     rewardShards: 150,
-    rewardLabel: 'Nova',
     check: (s) => ({
       current: s.sectorsCleared.includes('drift') ? 1 : 0,
       target: 1,
@@ -241,7 +180,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Ascendant',
     goalText: '8 trials complete',
     rewardShards: 300,
-    rewardLabel: '+3 classified',
+    rewardLabel: '+1 classified',
     check: (s) => ({
       current: s.claimedMilestones.length,
       target: 8,
@@ -252,10 +191,12 @@ export const MILESTONES: MilestoneDef[] = [
 
 export function createDefaultSave(): MetaSave {
   const starter = createStarterCoating();
+  const starterTrail = createStarterTrailItem();
+  const starterAura = createStarterAuraItem();
   return {
     shards: 0,
     keys: 1,
-    standardCrates: 1,
+    standardCrates: 0,
     relicCrates: 0,
     bestTimeSec: 0,
     bestScore: 0,
@@ -276,6 +217,9 @@ export function createDefaultSave(): MetaSave {
     selectedSkin: 'cyanide',
     coatings: [starter],
     equippedCoatingUid: starter.uid,
+    effectItems: [starterTrail, starterAura],
+    equippedTrailUid: starterTrail.uid,
+    equippedAuraUid: starterAura.uid,
     unlockedTrails: ['ion_ash'],
     selectedTrail: 'ion_ash',
     unlockedParryFx: ['steel_ring'],
@@ -302,6 +246,7 @@ export function createDefaultSave(): MetaSave {
     ],
     activePreset: 0,
     migratedToLoadout: true,
+    migratedToTheoryLoadout: true,
     settings: {
       music: true,
       sfx: true,
@@ -315,34 +260,92 @@ export function getMetaUpgradeCost(def: MetaUpgradeDef, currentLevel: number): n
   return def.baseCost + currentLevel * def.costStep;
 }
 
+function isValidEffectItem(x: unknown): x is EffectItem {
+  if (!x || typeof x !== 'object') return false;
+  const e = x as Partial<EffectItem>;
+  if (e.slot === 'trail') return typeof e.effectId === 'string' && e.effectId in TRAILS && typeof e.uid === 'string';
+  if (e.slot === 'aura') return typeof e.effectId === 'string' && e.effectId in PARRY_FX && typeof e.uid === 'string';
+  return false;
+}
+
 export function loadMetaSave(): MetaSave {
   const fallback = createDefaultSave();
   try {
     const raw = localStorage.getItem(SAVE_STORAGE_KEY) || bridge.getInitialNativeSave();
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<MetaSave>;
-    const validMod = (id: unknown): id is ModuleId =>
-      typeof id === 'string' && id in MODULES;
+    const validMod = (id: unknown): id is ModuleId => typeof id === 'string' && id in MODULES;
+
+    // Refund any old pre-v1.0.13 stat-stick loadout modules once so players can buy new theory-craft modules freely
+    let legacyModRefund = 0;
+    const needsTheoryMigration = !parsed.migratedToTheoryLoadout && Array.isArray(parsed.unlockedModules);
+    if (needsTheoryMigration && Array.isArray(parsed.unlockedModules)) {
+      for (const oldId of parsed.unlockedModules as string[]) {
+        if (!(oldId in MODULES) && oldId in LEGACY_MODULE_COSTS) {
+          legacyModRefund += LEGACY_MODULE_COSTS[oldId];
+        }
+      }
+    }
 
     const unlockedModules = Array.isArray(parsed.unlockedModules)
       ? Array.from(new Set([...STARTER_UNLOCKED_MODULES, ...parsed.unlockedModules.filter(validMod)]))
       : [...STARTER_UNLOCKED_MODULES];
 
     const rawPresets = Array.isArray(parsed.loadoutPresets) ? parsed.loadoutPresets : null;
+    const sanitizePreset = (arr: unknown, idx: number): ModuleId[] => {
+      if (!Array.isArray(arr)) return [...DEFAULT_PRESETS[idx]];
+      const kept = Array.from(new Set(arr.filter((m): m is ModuleId => validMod(m) && unlockedModules.includes(m))));
+      if (needsTheoryMigration && kept.length === 0) return [...DEFAULT_PRESETS[idx]];
+      return kept;
+    };
     const loadoutPresets: [ModuleId[], ModuleId[], ModuleId[]] = [
-      rawPresets && Array.isArray(rawPresets[0])
-        ? Array.from(new Set(rawPresets[0].filter((m) => validMod(m) && unlockedModules.includes(m))))
-        : [...DEFAULT_PRESETS[0]],
-      rawPresets && Array.isArray(rawPresets[1])
-        ? Array.from(new Set(rawPresets[1].filter((m) => validMod(m) && unlockedModules.includes(m))))
-        : [...DEFAULT_PRESETS[1]],
-      rawPresets && Array.isArray(rawPresets[2])
-        ? Array.from(new Set(rawPresets[2].filter((m) => validMod(m) && unlockedModules.includes(m))))
-        : [...DEFAULT_PRESETS[2]]
+      sanitizePreset(rawPresets?.[0], 0),
+      sanitizePreset(rawPresets?.[1], 1),
+      sanitizePreset(rawPresets?.[2], 2)
     ];
 
     const activePreset: LoadoutPresetIndex =
       parsed.activePreset === 1 || parsed.activePreset === 2 ? parsed.activePreset : 0;
+
+    // Migrate legacy unlockedTrails/unlockedParryFx arrays into rolled EffectItems!
+    const starterTrail = createStarterTrailItem();
+    const starterAura = createStarterAuraItem();
+    let effectItems: EffectItem[] = Array.isArray(parsed.effectItems)
+      ? parsed.effectItems.filter(isValidEffectItem)
+      : [];
+
+    if (!effectItems.some((e) => e.uid === starterTrail.uid)) {
+      effectItems.push(starterTrail);
+    }
+    if (!effectItems.some((e) => e.uid === starterAura.uid)) {
+      effectItems.push(starterAura);
+    }
+    if (!Array.isArray(parsed.effectItems)) {
+      if (Array.isArray(parsed.unlockedTrails)) {
+        for (const tid of parsed.unlockedTrails) {
+          if (tid !== 'ion_ash' && tid in TRAILS && !effectItems.some((e) => e.slot === 'trail' && e.effectId === tid)) {
+            effectItems.push(createEffectItem('trail', tid));
+          }
+        }
+      }
+      if (Array.isArray(parsed.unlockedParryFx)) {
+        for (const pid of parsed.unlockedParryFx) {
+          if (pid !== 'steel_ring' && pid in PARRY_FX && !effectItems.some((e) => e.slot === 'aura' && e.effectId === pid)) {
+            effectItems.push(createEffectItem('aura', pid));
+          }
+        }
+      }
+    }
+
+    const equippedTrailUid =
+      typeof parsed.equippedTrailUid === 'string' && effectItems.some((e) => e.uid === parsed.equippedTrailUid && e.slot === 'trail')
+        ? parsed.equippedTrailUid
+        : effectItems.find((e) => e.slot === 'trail' && e.effectId === parsed.selectedTrail)?.uid ?? starterTrail.uid;
+
+    const equippedAuraUid =
+      typeof parsed.equippedAuraUid === 'string' && effectItems.some((e) => e.uid === parsed.equippedAuraUid && e.slot === 'aura')
+        ? parsed.equippedAuraUid
+        : effectItems.find((e) => e.slot === 'aura' && e.effectId === parsed.selectedParryFx)?.uid ?? starterAura.uid;
 
     const merged: MetaSave = {
       ...fallback,
@@ -354,6 +357,7 @@ export function loadMetaSave(): MetaSave {
       unlockedModules,
       loadoutPresets,
       activePreset,
+      migratedToTheoryLoadout: true,
       settings: {
         ...fallback.settings,
         ...(parsed.settings ?? {})
@@ -390,30 +394,17 @@ export function loadMetaSave(): MetaSave {
         typeof parsed.equippedCoatingUid === 'string'
           ? parsed.equippedCoatingUid
           : fallback.equippedCoatingUid,
-      unlockedTrails: Array.isArray(parsed.unlockedTrails)
-        ? (Array.from(
-            new Set([
-              'ion_ash',
-              ...parsed.unlockedTrails.filter((t) => typeof t === 'string' && t in TRAILS)
-            ])
-          ) as TrailId[])
-        : ['ion_ash'],
-      selectedTrail:
-        parsed.selectedTrail && parsed.selectedTrail in TRAILS
-          ? parsed.selectedTrail
-          : 'ion_ash',
-      unlockedParryFx: Array.isArray(parsed.unlockedParryFx)
-        ? (Array.from(
-            new Set([
-              'steel_ring',
-              ...parsed.unlockedParryFx.filter((p) => typeof p === 'string' && p in PARRY_FX)
-            ])
-          ) as ParryFxId[])
-        : ['steel_ring'],
-      selectedParryFx:
-        parsed.selectedParryFx && parsed.selectedParryFx in PARRY_FX
-          ? parsed.selectedParryFx
-          : 'steel_ring',
+      effectItems,
+      equippedTrailUid,
+      equippedAuraUid,
+      unlockedTrails: Array.from(
+        new Set(effectItems.filter((e) => e.slot === 'trail').map((e) => e.effectId as TrailId))
+      ),
+      selectedTrail: (effectItems.find((e) => e.uid === equippedTrailUid)?.effectId as TrailId) ?? 'ion_ash',
+      unlockedParryFx: Array.from(
+        new Set(effectItems.filter((e) => e.slot === 'aura').map((e) => e.effectId as ParryFxId))
+      ),
+      selectedParryFx: (effectItems.find((e) => e.uid === equippedAuraUid)?.effectId as ParryFxId) ?? 'steel_ring',
       keys:
         typeof parsed.keys === 'number' && Number.isFinite(parsed.keys)
           ? Math.max(0, Math.floor(parsed.keys))
@@ -421,7 +412,7 @@ export function loadMetaSave(): MetaSave {
       standardCrates:
         typeof parsed.standardCrates === 'number' && Number.isFinite(parsed.standardCrates)
           ? Math.max(0, Math.floor(parsed.standardCrates))
-          : 1,
+          : 0,
       relicCrates:
         typeof parsed.relicCrates === 'number' && Number.isFinite(parsed.relicCrates)
           ? Math.max(0, Math.floor(parsed.relicCrates))
@@ -443,18 +434,19 @@ export function loadMetaSave(): MetaSave {
       claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : []
     };
 
-    // Migrate old linear Upgrades into Shards once so players can spend them on Pick-10 Modules & Keys
     if (!parsed.migratedToLoadout) {
       let refund = 0;
       for (const def of META_UPGRADES) {
         const lv = Math.max(0, Math.min(def.maxLevel, merged.upgrades[def.id] ?? 0));
-        for (let i = 0; i < lv; i++) {
-          refund += getMetaUpgradeCost(def, i);
-        }
+        for (let i = 0; i < lv; i++) refund += getMetaUpgradeCost(def, i);
         merged.upgrades[def.id] = 0;
       }
       if (refund > 0) merged.shards += refund;
       merged.migratedToLoadout = true;
+    }
+
+    if (legacyModRefund > 0) {
+      merged.shards += legacyModRefund;
     }
 
     if (merged.coatings.length === 0) merged.coatings = [createStarterCoating()];
@@ -465,8 +457,6 @@ export function loadMetaSave(): MetaSave {
     if (!merged.unlockedVessels.includes(merged.selectedVessel)) merged.selectedVessel = 'vesper';
     if (!merged.unlockedCores.includes(merged.selectedCore)) merged.selectedCore = 'deflector';
     if (!merged.unlockedSkins.includes(merged.selectedSkin)) merged.selectedSkin = 'cyanide';
-    if (!merged.unlockedTrails.includes(merged.selectedTrail)) merged.selectedTrail = 'ion_ash';
-    if (!merged.unlockedParryFx.includes(merged.selectedParryFx)) merged.selectedParryFx = 'steel_ring';
     if (!merged.unlockedSectors.includes(merged.selectedSector)) merged.selectedSector = 'drift';
     return merged;
   } catch {
@@ -492,9 +482,39 @@ export function getEquippedCoating(save: MetaSave): CoatingItem {
   );
 }
 
+export function getEquippedTrailItem(save: MetaSave): EffectItem {
+  return (
+    save.effectItems.find((e) => e.uid === save.equippedTrailUid && e.slot === 'trail') ??
+    save.effectItems.find((e) => e.slot === 'trail') ??
+    createStarterTrailItem()
+  );
+}
+
+export function getEquippedAuraItem(save: MetaSave): EffectItem {
+  return (
+    save.effectItems.find((e) => e.uid === save.equippedAuraUid && e.slot === 'aura') ??
+    save.effectItems.find((e) => e.slot === 'aura') ??
+    createStarterAuraItem()
+  );
+}
+
 export function equipCoating(save: MetaSave, uid: string): boolean {
   if (!save.coatings.some((c) => c.uid === uid)) return false;
   save.equippedCoatingUid = uid;
+  persistMetaSave(save);
+  return true;
+}
+
+export function equipEffectItem(save: MetaSave, uid: string): boolean {
+  const item = save.effectItems.find((e) => e.uid === uid);
+  if (!item) return false;
+  if (item.slot === 'trail') {
+    save.equippedTrailUid = item.uid;
+    save.selectedTrail = item.effectId as TrailId;
+  } else {
+    save.equippedAuraUid = item.uid;
+    save.selectedParryFx = item.effectId as ParryFxId;
+  }
   persistMetaSave(save);
   return true;
 }
@@ -507,6 +527,26 @@ export function scrapCoating(save: MetaSave, uid: string): number {
   save.coatings.splice(idx, 1);
   if (save.equippedCoatingUid === uid) {
     save.equippedCoatingUid = save.coatings[0]?.uid ?? createStarterCoating().uid;
+  }
+  save.shards += payout;
+  persistMetaSave(save);
+  return payout;
+}
+
+export function scrapEffectItem(save: MetaSave, uid: string): number {
+  const idx = save.effectItems.findIndex((e) => e.uid === uid);
+  if (idx < 0 || isStarterEffect(save.effectItems[idx])) return 0;
+  const item = save.effectItems[idx];
+  const payout = getEffectScrapValue(item);
+  save.effectItems.splice(idx, 1);
+  if (item.slot === 'trail' && save.equippedTrailUid === uid) {
+    const fallback = save.effectItems.find((e) => e.slot === 'trail') ?? createStarterTrailItem();
+    save.equippedTrailUid = fallback.uid;
+    save.selectedTrail = fallback.effectId as TrailId;
+  } else if (item.slot === 'aura' && save.equippedAuraUid === uid) {
+    const fallback = save.effectItems.find((e) => e.slot === 'aura') ?? createStarterAuraItem();
+    save.equippedAuraUid = fallback.uid;
+    save.selectedParryFx = fallback.effectId as ParryFxId;
   }
   save.shards += payout;
   persistMetaSave(save);
@@ -530,35 +570,12 @@ export function applyCrateDrop(
     persistMetaSave(save);
     return { isDuplicate: false, shardRefund: 0 };
   }
-  if (drop.kind === 'ship') {
-    if (save.unlockedVessels.includes(drop.vesselId)) {
-      const shardRefund = DUPLICATE_SHARD_VALUE[drop.rarity];
-      save.shards += shardRefund;
-      persistMetaSave(save);
-      return { isDuplicate: true, shardRefund };
-    }
-    save.unlockedVessels.push(drop.vesselId);
-    persistMetaSave(save);
-    return { isDuplicate: false, shardRefund: 0 };
+  save.effectItems.unshift(drop.effect);
+  if (drop.effect.slot === 'trail' && !save.unlockedTrails.includes(drop.effect.effectId as TrailId)) {
+    save.unlockedTrails.push(drop.effect.effectId as TrailId);
+  } else if (drop.effect.slot === 'aura' && !save.unlockedParryFx.includes(drop.effect.effectId as ParryFxId)) {
+    save.unlockedParryFx.push(drop.effect.effectId as ParryFxId);
   }
-  if (drop.kind === 'trail') {
-    if (save.unlockedTrails.includes(drop.trailId)) {
-      const shardRefund = DUPLICATE_SHARD_VALUE[drop.rarity];
-      save.shards += shardRefund;
-      persistMetaSave(save);
-      return { isDuplicate: true, shardRefund };
-    }
-    save.unlockedTrails.push(drop.trailId);
-    persistMetaSave(save);
-    return { isDuplicate: false, shardRefund: 0 };
-  }
-  if (save.unlockedParryFx.includes(drop.auraId)) {
-    const shardRefund = DUPLICATE_SHARD_VALUE[drop.rarity];
-    save.shards += shardRefund;
-    persistMetaSave(save);
-    return { isDuplicate: true, shardRefund };
-  }
-  save.unlockedParryFx.push(drop.auraId);
   persistMetaSave(save);
   return { isDuplicate: false, shardRefund: 0 };
 }
@@ -578,6 +595,33 @@ export function executeTradeUp(save: MetaSave, uids: string[]): CoatingItem | nu
   save.coatings.unshift(forged);
   if (unique.includes(save.equippedCoatingUid)) {
     save.equippedCoatingUid = forged.uid;
+  }
+  persistMetaSave(save);
+  return forged;
+}
+
+export function executeEffectTradeUp(save: MetaSave, uids: string[]): EffectItem | null {
+  if (uids.length !== 5) return null;
+  const unique = Array.from(new Set(uids));
+  if (unique.length !== 5) return null;
+  const items = unique
+    .map((id) => save.effectItems.find((e) => e.uid === id))
+    .filter((x): x is EffectItem => Boolean(x && !isStarterEffect(x)));
+  if (items.length !== 5) return null;
+  const forged = forgeTradeUpEffect(items);
+  if (!forged) return null;
+
+  save.effectItems = save.effectItems.filter((e) => !unique.includes(e.uid));
+  save.effectItems.unshift(forged);
+  if (unique.includes(save.equippedTrailUid)) {
+    const fb = save.effectItems.find((e) => e.slot === 'trail') ?? createStarterTrailItem();
+    save.equippedTrailUid = fb.uid;
+    save.selectedTrail = fb.effectId as TrailId;
+  }
+  if (unique.includes(save.equippedAuraUid)) {
+    const fb = save.effectItems.find((e) => e.slot === 'aura') ?? createStarterAuraItem();
+    save.equippedAuraUid = fb.uid;
+    save.selectedParryFx = fb.effectId as ParryFxId;
   }
   persistMetaSave(save);
   return forged;
@@ -620,7 +664,6 @@ export function clearActivePreset(save: MetaSave): void {
 
 export function evaluateMilestones(save: MetaSave): string[] {
   const notices: string[] = [];
-  // Two passes so meta-milestones like "8 Trophies" trigger cleanly in the same check
   for (let pass = 0; pass < 2; pass++) {
     for (const m of MILESTONES) {
       if (save.claimedMilestones.includes(m.id)) continue;
@@ -629,36 +672,11 @@ export function evaluateMilestones(save: MetaSave): string[] {
       save.shards += m.rewardShards;
       notices.push(`${m.name} (+${m.rewardShards})`);
 
-      // Grant milestone vessel/skin unlocks automatically!
-      if (m.id === 'boss_1' && !save.unlockedVessels.includes('aegis')) {
-        save.unlockedVessels.push('aegis');
-      }
-      if (m.id === 'boss_2' && !save.unlockedVessels.includes('phantom')) {
-        save.unlockedVessels.push('phantom');
-      }
-      if (m.id === 'parry_150' && !save.unlockedVessels.includes('volt')) {
-        save.unlockedVessels.push('volt');
-      }
-      if (m.id === 'sector_drift' && !save.unlockedVessels.includes('nova')) {
-        save.unlockedVessels.push('nova');
-      }
-      if (m.id === 'boss_3' && !save.unlockedVessels.includes('seraph')) {
-        save.unlockedVessels.push('seraph');
-      }
-      if (m.id === 'graze_200') {
+      if (m.id === 'parry_burst_8' || m.id === 'boss_3') {
         save.standardCrates += 1;
       }
-      if (m.id === 'parry_burst_8') {
-        save.standardCrates += 1;
-      }
-      if (m.id === 'sector_helix') {
+      if (m.id === 'sector_helix' || m.id === 'no_hit_boss' || m.id === 'trophies_8') {
         save.relicCrates += 1;
-      }
-      if (m.id === 'no_hit_boss') {
-        save.relicCrates += 2;
-      }
-      if (m.id === 'trophies_8') {
-        save.relicCrates += 3;
       }
     }
   }

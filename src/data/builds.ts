@@ -15,30 +15,68 @@ export const CORES: Record<CoreId, CoreDef> = {
     accent: '#a974e8',
     unlockCost: 110
   },
+  aegis_dome: {
+    id: 'aegis_dome',
+    name: 'Stasis Dome',
+    shortDesc: 'Erases nearby enemy shots on slow-mo, returning homing sparks',
+    accent: '#62a4f5',
+    unlockCost: 150
+  },
   siphon: {
     id: 'siphon',
     name: 'Gravity Siphon',
     shortDesc: 'Pulls enemies inward, shatters them on resume',
     accent: '#e08538',
-    unlockCost: 170
+    unlockCost: 180
+  },
+  chrono_echo: {
+    id: 'chrono_echo',
+    name: 'Phase Echo',
+    shortDesc: 'Deploys a holographic turret that fires your primary weapon',
+    accent: '#5cd68d',
+    unlockCost: 220
   },
   overclock: {
     id: 'overclock',
     name: 'Overclock',
     shortDesc: '2.3× fire rate and guaranteed crits in slow-mo',
     accent: '#e2a93b',
-    unlockCost: 230
+    unlockCost: 250
+  },
+  singularity_lance: {
+    id: 'singularity_lance',
+    name: 'Rail Collapse',
+    shortDesc: 'Charges a massive railbeam in slow-mo, fires on resume',
+    accent: '#ff7b47',
+    unlockCost: 290
   },
   berserk: {
     id: 'berserk',
     name: 'Razor Reflex',
     shortDesc: 'Executes foes under 32% HP for shield and haste',
     accent: '#d94842',
-    unlockCost: 290
+    unlockCost: 310
+  },
+  catalyst_surge: {
+    id: 'catalyst_surge',
+    name: 'Chain Catalyst',
+    shortDesc: 'Marks nearby foes in slow-mo to chain-detonate on death',
+    accent: '#e05fa8',
+    unlockCost: 350
   }
 };
 
-export const CORE_ORDER: CoreId[] = ['deflector', 'blink', 'siphon', 'overclock', 'berserk'];
+export const CORE_ORDER: CoreId[] = [
+  'deflector',
+  'blink',
+  'aegis_dome',
+  'siphon',
+  'chrono_echo',
+  'overclock',
+  'singularity_lance',
+  'berserk',
+  'catalyst_surge'
+];
 
 export const DRAFT_CURSES: Record<DraftCurseId, { id: DraftCurseId; label: string }> = {
   fragile_hull: { id: 'fragile_hull', label: '-16 max HP' },
@@ -135,6 +173,62 @@ export const RELICS: Record<RelicId, RelicDef> = {
     line: 'XP pickups zap nearby enemies',
     accent: '#6a9be8',
     iconKey: 'prism_drones'
+  },
+  echo_salvo: {
+    id: 'echo_salvo',
+    name: 'Echo Matrix',
+    line: 'Every 4th shot cycle fires a bonus volley, -10% move speed',
+    accent: '#5ce1e6',
+    iconKey: 'mirror_beam'
+  },
+  chrono_leech: {
+    id: 'chrono_leech',
+    name: 'Time Thief',
+    line: 'Slaying elites or bosses refills focus and restores 15% HP',
+    accent: '#4cb5ab',
+    iconKey: 'chrono_capacitor'
+  },
+  overcharge_shield: {
+    id: 'overcharge_shield',
+    name: 'Capacitor Burst',
+    line: 'Taking damage arcs retaliation lightning to 8 nearby foes',
+    accent: '#62a4f5',
+    iconKey: 'arc_tether'
+  },
+  volatile_xp: {
+    id: 'volatile_xp',
+    name: 'Unstable Gems',
+    line: 'Every 15 XP gems collected triggers a radial blast wave',
+    accent: '#e2a93b',
+    iconKey: 'shatter_mine'
+  },
+  berserk_heart: {
+    id: 'berserk_heart',
+    name: 'Redline Core',
+    line: 'Up to +65% bonus damage as hull integrity drops',
+    accent: '#d94842',
+    iconKey: 'grav_flail'
+  },
+  ricochet_aura: {
+    id: 'ricochet_aura',
+    name: 'Deflection Field',
+    line: 'Slow-mo halves nearby bullet speed and doubles graze focus',
+    accent: '#7bf7ff',
+    iconKey: 'aether_lens'
+  },
+  frost_shatter_relic: {
+    id: 'frost_shatter_relic',
+    name: 'Glacial Core',
+    line: 'Chilled enemies burst on death for 30% max HP frost AoE',
+    accent: '#7ee8ff',
+    iconKey: 'frost_nova'
+  },
+  golden_greed: {
+    id: 'golden_greed',
+    name: 'Gilded Salvage',
+    line: '+1% damage for every 35 shards earned this run',
+    accent: '#f0bc42',
+    iconKey: 'shard'
   }
 };
 

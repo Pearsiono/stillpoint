@@ -6,12 +6,14 @@ import {
   BossEnclosure,
   CoatingItem,
   CoreId,
+  EffectItem,
   Enemy,
   EnemyBullet,
   HazardZone,
   InputSnapshot,
   LaserBeam,
   MeteorStrike,
+  PhaseEcho,
   Pickup,
   PlayerBullet,
   PlayerState,
@@ -20,11 +22,22 @@ import {
   SkinDef,
   SkinId,
   VesselId,
+  WakeMine,
   WorldNode
 } from '../types';
+import {
+  drawEffectStillpointAura,
+  drawEffectThrusterPlume,
+  drawEffectTrailWake
+} from './effectRenderer';
 import { ParticleSystem } from './particles';
 import { RuinPropKey, sprites } from './sprites';
-import { getHaloBladesPositions, getPrismDronePositions } from './weapons';
+import {
+  findNearestEnemy,
+  getGravityFlailPositions,
+  getHaloBladesPositions,
+  getPrismDronePositions
+} from './weapons';
 
 export interface RenderState {
   player: PlayerState;
@@ -32,6 +45,8 @@ export interface RenderState {
   coreId: CoreId;
   skinId: SkinId;
   coating: CoatingItem;
+  trailItem: EffectItem;
+  auraItem: EffectItem;
   trailColor: string;
   trailCoreColor: string;
   accentColor: string;
@@ -45,6 +60,8 @@ export interface RenderState {
   hazards: HazardZone[];
   nodes: WorldNode[];
   decoys: BlinkDecoy[];
+  mines: WakeMine[];
+  echoes: PhaseEcho[];
   meteors: MeteorStrike[];
   lasers: LaserBeam[];
   pickups: Pickup[];
@@ -421,7 +438,9 @@ export class WastelandRenderer {
       ctx.save();
       ctx.translate(h.x, h.y);
       ctx.globalAlpha = fade * (h.kind === 'singularity' ? 0.9 : 0.68);
-      const glow = sprites.get(h.kind === 'rift' ? 'glow_cyan' : 'glow_magenta');
+      const glow = sprites.get(
+        h.kind === 'acid_pool' ? 'glow_emerald' : h.kind === 'rift' ? 'glow_cyan' : 'glow_magenta'
+      );
       ctx.drawImage(glow, -h.radius * 1.1, -h.radius * 1.1, h.radius * 2.2, h.radius * 2.2);
 
       ctx.strokeStyle = h.color;
@@ -491,6 +510,60 @@ export class WastelandRenderer {
         ctx.globalAlpha = 0.45 + Math.sin(state.realTime * 28) * 0.15;
         ctx.drawImage(shipArt, -22, -22, 44, 44);
       }
+      ctx.restore();
+    }
+
+    // Phase Echo holographic turrets
+    for (const ec of state.echoes) {
+      const fade = Math.min(1, (ec.maxAge - ec.age) * 2);
+      ctx.save();
+      ctx.translate(ec.x, ec.y);
+      ctx.strokeStyle = '#5cd68d';
+      ctx.globalAlpha = 0.72 * fade;
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(0, 0, 22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (shipArt) {
+        ctx.rotate(ec.angle + Math.PI / 2);
+        ctx.globalAlpha = (0.52 + 0.14 * Math.sin(state.realTime * 18 + ec.id)) * fade;
+        ctx.drawImage(shipArt, -20, -20, 40, 40);
+      }
+      ctx.restore();
+    }
+
+    // Wake Mines proximity mines
+    for (const m of state.mines) {
+      const blink = 0.55 + 0.45 * Math.sin(state.realTime * 14 + m.id);
+      ctx.save();
+      ctx.translate(m.x, m.y);
+      ctx.strokeStyle = m.armed ? `rgba(224, 99, 43, ${0.35 + blink * 0.3})` : 'rgba(224, 178, 74, 0.25)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, m.radius * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#241c18';
+      ctx.strokeStyle = m.armed ? '#ff7b47' : '#a39a8c';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (i * Math.PI) / 3 + state.realTime * 1.1;
+        const r = 7;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = m.armed ? '#ff5436' : '#dfa436';
+      ctx.globalAlpha = blink;
+      ctx.beginPath();
+      ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
   }
@@ -571,6 +644,9 @@ export class WastelandRenderer {
       } else if (p.kind === 'heal') {
         key = 'pickup_heal';
         size = 28;
+      } else if (p.kind === 'blood_cell') {
+        key = 'pickup_blood';
+        size = 26;
       } else if (p.kind === 'shard') {
         key = 'pickup_shard';
         size = 26;
@@ -593,17 +669,8 @@ export class WastelandRenderer {
     const auraOuter = state.auraOuter;
     const auraInner = state.auraInner;
 
-    // 1. Thruster exhaust wake
-    for (const t of player.trail) {
-      ctx.save();
-      ctx.translate(t.x, t.y);
-      ctx.globalAlpha = t.alpha * 0.45;
-      ctx.fillStyle = state.trailColor;
-      ctx.beginPath();
-      ctx.arc(0, 0, 5.2 * t.alpha, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    // 1. Rolled Thruster Exhaust wake (8 distinct geometric trail styles + seed/wear)
+    drawEffectTrailWake(ctx, player.trail, state.trailItem, realTime);
 
     ctx.save();
     ctx.translate(player.x, player.y);
@@ -621,7 +688,7 @@ export class WastelandRenderer {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // 3. Chrono-Relic Astrolabe Ring during Stillpoint (+ Gravity Siphon / Surge aura!)
+    // 3. Rolled Stillpoint Aura (7 distinct geometric auras + seed/wear + core accents!)
     if (player.surgeTimer > 0) {
       ctx.save();
       ctx.globalAlpha = 0.55;
@@ -630,39 +697,36 @@ export class WastelandRenderer {
     }
 
     if (blend > 0.08) {
-      ctx.save();
-      ctx.globalAlpha = blend * 0.82;
-      ctx.rotate(-realTime * (state.coreId === 'siphon' ? 2.4 : 0.9));
-      ctx.strokeStyle =
+      const auraR = state.coreId === 'siphon' ? 68 : state.coreId === 'aegis_dome' ? 58 : 46;
+      const coreTint =
         state.coreId === 'siphon'
           ? '#e08538'
           : state.coreId === 'berserk'
             ? '#d94842'
             : state.coreId === 'overclock'
               ? '#e2a93b'
-              : auraOuter;
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([12, 8, 2, 8]);
-      ctx.beginPath();
-      ctx.arc(0, 0, state.coreId === 'siphon' ? 68 : 44, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.strokeStyle = auraInner;
-      ctx.globalAlpha = blend * 0.45;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(0, 0, state.coreId === 'siphon' ? 56 : 36, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = blend * 0.8;
-      ctx.strokeStyle = auraOuter;
-      for (let i = 0; i < 4; i++) {
-        const a = (i * Math.PI) / 2;
+              : state.coreId === 'singularity_lance'
+                ? '#ff7b47'
+                : undefined;
+      drawEffectStillpointAura(ctx, state.auraItem, auraR, blend, realTime, coreTint);
+
+      // Rail Collapse Core: show charging directional beam sightline aimed at nearest boss/elite!
+      if (state.coreId === 'singularity_lance' && player.railChargeTime > 0.02) {
+        const chargePct = Math.min(1, player.railChargeTime / 1.4);
+        const tgt = findNearestEnemy(player.x, player.y, state.enemies, 680, true);
+        const aimAng = tgt ? Math.atan2(tgt.y - player.y, tgt.x - player.x) : player.facingAngle;
+        ctx.save();
+        ctx.strokeStyle = chargePct >= 0.85 ? '#fff2cc' : '#ff7b47';
+        ctx.globalAlpha = 0.35 + chargePct * 0.55;
+        ctx.lineWidth = 1.5 + chargePct * 6;
+        ctx.setLineDash([12, 8]);
         ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * 38, Math.sin(a) * 38);
-        ctx.lineTo(Math.cos(a) * 50, Math.sin(a) * 50);
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(aimAng) * 620, Math.sin(aimAng) * 620);
         ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
       }
-      ctx.restore();
     }
 
     // 4. Diegetic Kinetic Charge Ring around vessel
@@ -674,16 +738,24 @@ export class WastelandRenderer {
     ctx.stroke();
 
     if (chargeRatio > 0.01) {
-      ctx.strokeStyle = blend > 0.25 ? auraInner : coreReady ? auraOuter : 'rgba(235,231,220,0.45)';
+      ctx.strokeStyle =
+        player.freeFocusTimer > 0
+          ? '#7bf7ff'
+          : blend > 0.25
+            ? auraInner
+            : coreReady
+              ? auraOuter
+              : 'rgba(235,231,220,0.45)';
       ctx.lineWidth = coreReady ? 3 : 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * chargeRatio);
       ctx.stroke();
     }
 
-    if (player.shield > 0) {
-      ctx.strokeStyle = 'rgba(235, 245, 255, 0.65)';
-      ctx.lineWidth = 1.8;
+    if (player.shield > 0 || player.kineticOvershield > 0.5) {
+      ctx.strokeStyle =
+        player.kineticOvershield > 0.5 ? 'rgba(98, 164, 245, 0.82)' : 'rgba(235, 245, 255, 0.65)';
+      ctx.lineWidth = player.kineticOvershield > 0.5 ? 2.2 : 1.8;
       ctx.beginPath();
       ctx.arc(0, 0, 23, 0, Math.PI * 2);
       ctx.stroke();
@@ -691,7 +763,10 @@ export class WastelandRenderer {
 
     const shipArt = sprites.getCoatedShipArt(vesselId, coating);
     const shipShadow = sprites.getShipShadow(vesselId);
-    const shipSize = vesselId === 'aegis' || vesselId === 'nova' ? 50 : 48;
+    const shipSize =
+      vesselId === 'aegis' || vesselId === 'nova' || vesselId === 'pyre' || vesselId === 'bastion'
+        ? 50
+        : 48;
     const rot = player.facingAngle + Math.PI / 2; // PNGs point straight UP (-PI/2)
 
     // 5. Exact Silhouette Grounded Hover Shadow!
@@ -703,14 +778,14 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    // 6. Rendered Hover-Rig Sprite (with baked CS:GO pattern & float wear!) + Custom Thruster Jet Plumes!
+    // 6. Rendered Hover-Rig Sprite (with baked CS:GO pattern & float wear!) + Rolled Thruster Plume!
     ctx.save();
     ctx.rotate(rot);
     const invulnBlink = player.invulnTimer > 0 && Math.floor(realTime * 22) % 2 === 0;
     ctx.globalAlpha = invulnBlink ? 0.35 : 1 - blend * 0.42;
 
     if (Math.hypot(player.vx, player.vy) > 20 && !player.inStillpoint) {
-      this.drawThrusterPlumeVertical(ctx, vesselId, state.trailColor, state.trailCoreColor, 0.8 + Math.random() * 0.3);
+      drawEffectThrusterPlume(ctx, vesselId, state.trailItem, realTime, 1);
     }
 
     if (shipArt) {
@@ -760,43 +835,6 @@ export class WastelandRenderer {
     ctx.restore();
   }
 
-  private drawThrusterPlumeVertical(
-    ctx: CanvasRenderingContext2D,
-    vesselId: VesselId,
-    color: string,
-    coreColor: string,
-    intensity: number
-  ): void {
-    const len = 10 + intensity * 12;
-    const drawJet = (x: number, y: number, w: number) => {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.85;
-      ctx.beginPath();
-      ctx.moveTo(x - w, y);
-      ctx.lineTo(x, y + len);
-      ctx.lineTo(x + w, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = coreColor;
-      ctx.beginPath();
-      ctx.moveTo(x - w * 0.45, y);
-      ctx.lineTo(x, y + len * 0.55);
-      ctx.lineTo(x + w * 0.45, y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    };
-
-    if (vesselId === 'aegis' || vesselId === 'nova' || vesselId === 'volt') {
-      drawJet(-7, 17, 3.2);
-      drawJet(7, 17, 3.2);
-    } else {
-      drawJet(0, 17, 3.8);
-    }
-  }
-
   private drawOrbitalWeapons(ctx: CanvasRenderingContext2D, state: RenderState): void {
     const blades = getHaloBladesPositions(state.player);
     for (const b of blades) {
@@ -837,6 +875,42 @@ export class WastelandRenderer {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Gravity Flail tethered wrecking balls
+    const flails = getGravityFlailPositions(state.player);
+    for (const f of flails) {
+      ctx.save();
+      ctx.strokeStyle = f.evolved ? '#f0bc42' : '#e08538';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(state.player.x, state.player.y);
+      ctx.lineTo(f.x, f.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.angle * 3.5);
+      ctx.fillStyle = '#241e1a';
+      ctx.strokeStyle = f.evolved ? '#f5d256' : '#e08538';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const a = (i * Math.PI) / 6;
+        const r = i % 2 === 0 ? f.radius : f.radius * 0.68;
+        if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = f.evolved ? '#fff4cc' : '#ff9f43';
+      ctx.beginPath();
+      ctx.arc(0, 0, f.radius * 0.34, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
   }
@@ -892,6 +966,49 @@ export class WastelandRenderer {
         ctx.lineWidth = 1.8;
         ctx.beginPath();
         ctx.arc(0, 0, e.radius + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if (e.corrodeTimer && e.corrodeTimer > 0) {
+        ctx.strokeStyle = '#78d65c';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if (e.primedTimer && e.primedTimer > 0) {
+        ctx.strokeStyle = '#e05fa8';
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 6, realTime * 3, realTime * 3 + Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (e.catalystMark && e.catalystMark > 0) {
+        ctx.strokeStyle = '#ff66cc';
+        ctx.lineWidth = 1.8;
+        const r = e.radius + 8;
+        ctx.save();
+        ctx.rotate(-realTime * 2.4);
+        ctx.beginPath();
+        for (let k = 0; k < 3; k++) {
+          const a = (k * Math.PI * 2) / 3;
+          if (k === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+          else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (e.stunTimer && e.stunTimer > 0) {
+        ctx.strokeStyle = '#82c4e8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, e.radius + 4, realTime * 9, realTime * 9 + Math.PI * 1.1);
         ctx.stroke();
       }
 
@@ -1120,6 +1237,48 @@ export class WastelandRenderer {
         ctx.fillRect(-9, -2, 18, 4);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(-5, -1, 12, 2);
+        ctx.restore();
+        continue;
+      }
+
+      if (b.kind === 'acid_glob') {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.fillStyle = '#78d65c';
+        ctx.beginPath();
+        ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ebffe0';
+        ctx.beginPath();
+        ctx.arc(-1.5, -1.5, b.radius * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
+      if (b.kind === 'seeker_mine') {
+        const pulse = 0.7 + 0.3 * Math.sin(realTime * 14 + b.id);
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(realTime * 2.5 + b.id);
+        ctx.fillStyle = '#241816';
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let k = 0; k < 8; k++) {
+          const a = (k * Math.PI) / 4;
+          const r = k % 2 === 0 ? b.radius + 2 : b.radius * 0.65;
+          if (k === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+          else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ffdf85';
+        ctx.globalAlpha = pulse;
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
         continue;
       }

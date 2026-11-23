@@ -15,6 +15,7 @@ export type SpriteKey =
   | 'xp_mid'
   | 'xp_large'
   | 'pickup_heal'
+  | 'pickup_blood'
   | 'pickup_shard'
   | 'pickup_magnet'
   | 'pickup_chest'
@@ -26,7 +27,20 @@ export type SpriteKey =
 
 export type RuinPropKey = 'slab' | 'girder' | 'gear' | 'pillar' | 'hazard_plate';
 
-const SHIP_ART_KEYS: VesselId[] = ['vesper', 'aegis', 'phantom', 'volt', 'nova', 'seraph'];
+const SHIP_ART_KEYS: VesselId[] = [
+  'vesper',
+  'aegis',
+  'reaper',
+  'prism',
+  'phantom',
+  'volt',
+  'pyre',
+  'bastion',
+  'nova',
+  'glacier',
+  'seraph',
+  'valkyrie'
+];
 
 const ENEMY_ART_MAP: Partial<Record<EnemyKind, string>> = {
   swarmer: 'enemy_swarmer',
@@ -132,6 +146,7 @@ class SpriteBank {
     this.bank.set('xp_mid', this.makeDiamond(30, '#72d2ff', '#1d4ed8', '#ffffff'));
     this.bank.set('xp_large', this.makeDiamond(38, '#e5b34c', '#b45309', '#fffbe6'));
     this.bank.set('pickup_heal', this.makeMedCell(40));
+    this.bank.set('pickup_blood', this.makeDiamond(36, '#e03e4a', '#78141c', '#ffe6ea'));
     this.bank.set('pickup_shard', this.makeDiamond(38, '#f472b6', '#9d174d', '#fff0f7'));
     this.bank.set('pickup_magnet', this.makeRingOrb(38, '#45e8d8', '#0f766e'));
     this.bank.set('pickup_chest', this.makeRelicChest(44));

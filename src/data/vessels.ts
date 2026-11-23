@@ -23,7 +23,6 @@ export const VESSELS: Record<VesselId, VesselDef> = {
     name: 'Aegis',
     starterWeapon: 'halo_blades',
     unlockCost: 160,
-    unlockMilestone: 'boss_1',
     stats: {
       maxHp: 135,
       moveSpeed: 202,
@@ -34,14 +33,47 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 2,
       shield: 20
     },
-    perkShort: '+32% core blast area and recharging shield'
+    perkShort: '+32% core blast area and graze shield regen'
+  },
+  reaper: {
+    id: 'reaper',
+    name: 'Reaper',
+    starterWeapon: 'chrono_scythe',
+    unlockCost: 220,
+    stats: {
+      maxHp: 94,
+      moveSpeed: 234,
+      maxCharge: 108,
+      chargeRateMult: 1.06,
+      coreAreaMult: 1.06,
+      grazeRadius: 56,
+      armor: 0,
+      shield: 6
+    },
+    perkShort: 'Kills during slow-mo refund +7 focus'
+  },
+  prism: {
+    id: 'prism',
+    name: 'Prism',
+    starterWeapon: 'ricochet_shard',
+    unlockCost: 240,
+    stats: {
+      maxHp: 92,
+      moveSpeed: 238,
+      maxCharge: 106,
+      chargeRateMult: 1.1,
+      coreAreaMult: 1.0,
+      grazeRadius: 54,
+      armor: 0,
+      shield: 10
+    },
+    perkShort: 'Ricochet bounces gain +35% damage and +1 pierce'
   },
   phantom: {
     id: 'phantom',
     name: 'Phantom',
     starterWeapon: 'phase_daggers',
     unlockCost: 300,
-    unlockMilestone: 'boss_2',
     stats: {
       maxHp: 85,
       moveSpeed: 248,
@@ -59,7 +91,6 @@ export const VESSELS: Record<VesselId, VesselDef> = {
     name: 'Volt',
     starterWeapon: 'arc_tether',
     unlockCost: 420,
-    unlockMilestone: 'graze_350',
     stats: {
       maxHp: 95,
       moveSpeed: 230,
@@ -72,12 +103,45 @@ export const VESSELS: Record<VesselId, VesselDef> = {
     },
     perkShort: 'Slow-mo arcs lightning to 3 nearby foes'
   },
+  pyre: {
+    id: 'pyre',
+    name: 'Pyre',
+    starterWeapon: 'nova_pulse',
+    unlockCost: 440,
+    stats: {
+      maxHp: 128,
+      moveSpeed: 208,
+      maxCharge: 112,
+      chargeRateMult: 1.02,
+      coreAreaMult: 1.24,
+      grazeRadius: 48,
+      armor: 2,
+      shield: 10
+    },
+    perkShort: 'Taking damage or exiting slow-mo ignites a thermal ring'
+  },
+  bastion: {
+    id: 'bastion',
+    name: 'Bastion',
+    starterWeapon: 'rail_turret',
+    unlockCost: 480,
+    stats: {
+      maxHp: 140,
+      moveSpeed: 196,
+      maxCharge: 120,
+      chargeRateMult: 0.98,
+      coreAreaMult: 1.18,
+      grazeRadius: 46,
+      armor: 3,
+      shield: 18
+    },
+    perkShort: '+1 max Rail Pylon and +25% fire rate in slow-mo'
+  },
   nova: {
     id: 'nova',
     name: 'Nova',
     starterWeapon: 'void_mortars',
     unlockCost: 540,
-    unlockMilestone: 'sector_drift',
     stats: {
       maxHp: 120,
       moveSpeed: 206,
@@ -90,12 +154,28 @@ export const VESSELS: Record<VesselId, VesselDef> = {
     },
     perkShort: 'Slow-mo opens a pulling gravity rift'
   },
+  glacier: {
+    id: 'glacier',
+    name: 'Glacier',
+    starterWeapon: 'frost_nova',
+    unlockCost: 580,
+    stats: {
+      maxHp: 106,
+      moveSpeed: 224,
+      maxCharge: 122,
+      chargeRateMult: 1.08,
+      coreAreaMult: 1.16,
+      grazeRadius: 52,
+      armor: 1,
+      shield: 16
+    },
+    perkShort: 'Chills close enemies; chilled kills burst into ice spikes'
+  },
   seraph: {
     id: 'seraph',
     name: 'Seraph',
     starterWeapon: 'prism_drones',
     unlockCost: 750,
-    unlockMilestone: 'boss_3',
     stats: {
       maxHp: 110,
       moveSpeed: 228,
@@ -106,8 +186,38 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 1,
       shield: 26
     },
-    perkShort: '+1 extra projectile and heavy shield'
+    perkShort: '+1 extra projectile and heavy recharging shield'
+  },
+  valkyrie: {
+    id: 'valkyrie',
+    name: 'Valkyrie',
+    starterWeapon: 'swarm_missiles',
+    unlockCost: 780,
+    stats: {
+      maxHp: 114,
+      moveSpeed: 220,
+      maxCharge: 126,
+      chargeRateMult: 1.12,
+      coreAreaMult: 1.15,
+      grazeRadius: 56,
+      armor: 1,
+      shield: 18
+    },
+    perkShort: '2× lock-on speed in slow-mo and missile salvo every 5 grazes'
   }
 };
 
-export const VESSEL_ORDER: VesselId[] = ['vesper', 'aegis', 'phantom', 'volt', 'nova', 'seraph'];
+export const VESSEL_ORDER: VesselId[] = [
+  'vesper',
+  'aegis',
+  'reaper',
+  'prism',
+  'phantom',
+  'volt',
+  'pyre',
+  'bastion',
+  'nova',
+  'glacier',
+  'seraph',
+  'valkyrie'
+];

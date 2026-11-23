@@ -8,12 +8,14 @@ import {
   PlayerBullet,
   PlayerState,
   RailPylon,
+  VesselId,
   WorldNode
 } from '../types';
 import { ParticleSystem } from './particles';
 
 export interface WeaponWorldContext {
   player: PlayerState;
+  vesselId: VesselId;
   enemies: Enemy[];
   enemyBullets: EnemyBullet[];
   playerBullets: PlayerBullet[];
@@ -47,6 +49,35 @@ export interface PrismDroneRender {
   y: number;
   angle: number;
   evolved: boolean;
+}
+
+export interface FlailRender {
+  x: number;
+  y: number;
+  radius: number;
+  angle: number;
+  evolved: boolean;
+}
+
+export function getGravityFlailPositions(player: PlayerState): FlailRender[] {
+  const w = player.weapons.find((item) => item.id === 'grav_flail');
+  if (!w) return [];
+  const blend = player.stillpointBlend;
+  const count = w.evolved ? 2 : 1;
+  const armLen = (82 + w.level * 9 + blend * 22) * player.areaMult;
+  const ballR = (15 + w.level * 1.6 + (w.evolved ? 4 : 0)) * Math.min(1.45, player.areaMult);
+  const res: FlailRender[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = player.flailAngle + (i * Math.PI * 2) / count;
+    res.push({
+      x: player.x + Math.cos(a) * armLen,
+      y: player.y + Math.sin(a) * armLen,
+      radius: ballR,
+      angle: a,
+      evolved: w.evolved
+    });
+  }
+  return res;
 }
 
 export function findNearestEnemy(
@@ -136,11 +167,23 @@ export function getPrismDronePositions(player: PlayerState): PrismDroneRender[] 
 export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: number): void {
   const { player, enemies, playerBullets, hazards, particles } = ctx;
   const inStillpoint = player.inStillpoint;
+  const startBulletLen = playerBullets.length;
   const overclockMult = player.inOverclockRing ? 1.85 : 1;
   const surgeMult = player.surgeTimer > 0 ? 1.32 : 1;
   const frenzyMult = player.frenzyTimer > 0 ? 1.4 : 1;
   const berserkMult = 1 + Math.min(0.6, player.berserkStacks * 0.08);
-  const totalRateMult = player.fireRateMult * overclockMult * surgeMult * frenzyMult * berserkMult;
+  const momentumMult = player.modules.includes('momentum_drive')
+    ? 0.85 + player.momentumMoveTime * 0.55
+    : 1;
+  const bastionStillMult = ctx.vesselId === 'bastion' && inStillpoint ? 1.25 : 1;
+  const totalRateMult =
+    player.fireRateMult *
+    overclockMult *
+    surgeMult *
+    frenzyMult *
+    berserkMult *
+    momentumMult *
+    bastionStillMult;
 
   // Integrate continuous orbital phases so Stillpoint transitions never snap blade/drone angles
   const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
@@ -154,8 +197,59 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     const droneSpeed = (1.8 + player.stillpointBlend * 2.2) * orbSpin;
     player.droneOrbitAngle = (player.droneOrbitAngle + droneSpeed * dtReal) % (Math.PI * 200);
   }
+  const flailW = player.weapons.find((item) => item.id === 'grav_flail');
+  if (flailW) {
+    const flailSpeed = (2.4 + flailW.level * 0.25 + player.stillpointBlend * 4.2) * orbSpin;
+    player.flailAngle = (player.flailAngle + flailSpeed * dtReal) % (Math.PI * 200);
+  }
 
   if (ctx.justEnteredStillpoint) {
+    // Seeker Mines: entering Stillpoint remotely detonates every active mine at 2x blast radius!
+    const blastLv = player.passives.find((p) => p.id === 'blast_capacitor')?.level ?? 0;
+    const blastMult = 1 + blastLv * 0.18;
+    let minesDetonated = 0;
+    for (let i = playerBullets.length - 1; i >= 0; i--) {
+      const b = playerBullets[i];
+      if (b.kind !== 'seeker_mine') continue;
+      minesDetonated++;
+      const r = (b.blastRadius ?? 72) * 1.85 * blastMult;
+      const dmg = b.damage * 1.45 * blastMult;
+      particles.shatter(b.x, b.y, '#ff5c38', 10, 1.3);
+      particles.ripple(b.x, b.y, r * 1.2, 13, '#ff5c38', 0.36);
+      for (const e of [...enemies]) {
+        if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
+          ctx.damageEnemy(e, dmg, '#ff5c38', true);
+        }
+      }
+      ctx.damageShrinesInRadius(b.x, b.y, r, dmg);
+      if (b.evolved) {
+        for (let k = 0; k < 3; k++) {
+          const ang = (k * Math.PI * 2) / 3 + Math.random() * 0.6;
+          playerBullets.push({
+            id: ctx.nextId(),
+            kind: 'missile',
+            x: b.x,
+            y: b.y,
+            vx: Math.cos(ang) * 380,
+            vy: Math.sin(ang) * 380,
+            radius: 5,
+            damage: b.damage * 0.65,
+            pierce: 1,
+            age: 0,
+            maxAge: 1.4,
+            color: '#f6c453',
+            homing: 9,
+            hitSet: new Set(),
+            blastRadius: 36 * player.areaMult
+          });
+        }
+      }
+      playerBullets.splice(i, 1);
+    }
+    if (minesDetonated > 0) {
+      sound.playCoreBurst(Math.min(6, 2 + minesDetonated), true);
+      particles.callout(player.x, player.y - 38, `DETONATE ×${minesDetonated}`, '#ff5c38', 1.1, 0.75);
+    }
     for (const h of hazards) {
       if (h.kind === 'crater') {
         h.kind = 'singularity';
@@ -227,48 +321,87 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   updateActivePylons(ctx, dtWorld, dtReal);
 
   for (const w of player.weapons) {
-    // Stillpoint slows weapon cadence too (Overclock core boosts weaponDtReal separately)
-    const dtWeapon = inStillpoint ? dtReal * 0.46 : dtWorld;
+    // Stillpoint slows weapon cadence moderately (Overclock core boosts weaponDtReal separately)
+    const dtWeapon = inStillpoint ? dtReal * 0.54 : dtWorld;
     w.cooldown -= dtWeapon * totalRateMult;
     w.auxTimer += dtReal;
+    const readyBefore = w.cooldown <= 0;
 
-    switch (w.id) {
-      case 'pulse_lance':
-        updatePulseLance(ctx, w);
-        break;
-      case 'halo_blades':
-        updateHaloBlades(ctx, w);
-        break;
-      case 'arc_tether':
-        updateArcTether(ctx, w);
-        break;
-      case 'prism_drones':
-        updatePrismDrones(ctx, w);
-        break;
-      case 'void_mortars':
-        updateVoidMortars(ctx, w);
-        break;
-      case 'phase_daggers':
-        updatePhaseDaggers(ctx, w);
-        break;
-      case 'chrono_scythe':
-        updateChronoScythe(ctx, w);
-        break;
-      case 'ricochet_shard':
-        updateRicochetShard(ctx, w);
-        break;
-      case 'nova_pulse':
-        updateNovaPulse(ctx, w);
-        break;
-      case 'rail_turret':
-        updateRailTurret(ctx, w);
-        break;
-      case 'frost_nova':
-        updateFrostNova(ctx, w);
-        break;
-      case 'swarm_missiles':
-        updateSwarmMissiles(ctx, w);
-        break;
+    const runWeapon = () => {
+      switch (w.id) {
+        case 'pulse_lance':
+          updatePulseLance(ctx, w);
+          break;
+        case 'halo_blades':
+          updateHaloBlades(ctx, w);
+          break;
+        case 'arc_tether':
+          updateArcTether(ctx, w);
+          break;
+        case 'prism_drones':
+          updatePrismDrones(ctx, w);
+          break;
+        case 'void_mortars':
+          updateVoidMortars(ctx, w);
+          break;
+        case 'phase_daggers':
+          updatePhaseDaggers(ctx, w);
+          break;
+        case 'chrono_scythe':
+          updateChronoScythe(ctx, w);
+          break;
+        case 'ricochet_shard':
+          updateRicochetShard(ctx, w);
+          break;
+        case 'nova_pulse':
+          updateNovaPulse(ctx, w);
+          break;
+        case 'rail_turret':
+          updateRailTurret(ctx, w);
+          break;
+        case 'frost_nova':
+          updateFrostNova(ctx, w);
+          break;
+        case 'swarm_missiles':
+          updateSwarmMissiles(ctx, w);
+          break;
+        case 'grav_flail':
+          updateGravFlail(ctx, w);
+          break;
+        case 'acid_sprayer':
+          updateAcidSprayer(ctx, w);
+          break;
+        case 'mirror_beam':
+          updateMirrorBeam(ctx, w);
+          break;
+        case 'shatter_mine':
+          updateShatterMine(ctx, w);
+          break;
+      }
+    };
+
+    runWeapon();
+    // Echo Matrix relic: every 4th fired weapon cycle triggers an instant bonus volley!
+    if (readyBefore && w.cooldown > 0 && player.relics.includes('echo_salvo')) {
+      player.echoSalvoCounter++;
+      if (player.echoSalvoCounter >= 4) {
+        player.echoSalvoCounter = 0;
+        const savedCd = w.cooldown;
+        w.cooldown = 0;
+        runWeapon();
+        w.cooldown = savedCd;
+      }
+    }
+  }
+
+  // Heavy Ordnance module: newly fired shots gain +1 pierce and wider profile
+  if (player.modules.includes('heavy_ordnance') && playerBullets.length > startBulletLen) {
+    for (let i = startBulletLen; i < playerBullets.length; i++) {
+      const b = playerBullets[i];
+      if (b.kind !== 'mortar_shell' && b.kind !== 'scythe') {
+        b.pierce += 1;
+        b.radius = Math.min(11, b.radius * 1.25);
+      }
     }
   }
 }
@@ -754,7 +887,7 @@ function updateRailTurret(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   if (w.cooldown > 0) return;
 
   w.cooldown = w.evolved ? 2.4 : Math.max(2.8, 4.4 - w.level * 0.32);
-  const maxPylons = w.evolved ? 5 : 2 + Math.floor(w.level / 2);
+  const maxPylons = (w.evolved ? 5 : 2 + Math.floor(w.level / 2)) + (ctx.vesselId === 'bastion' ? 1 : 0);
   if (pylons.length >= maxPylons) {
     pylons.shift();
   }
@@ -938,8 +1071,9 @@ function updateSwarmMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   if (player.inStillpoint) {
     // Paint lock-on reticles while in Stillpoint!
     if (w.cooldown > 0) return;
-    w.cooldown = w.evolved ? 0.11 : 0.17;
-    const maxLocks = (w.evolved ? 14 : 4 + w.level * 2) + player.bonusProjectiles;
+    const valkSpeed = ctx.vesselId === 'valkyrie' ? 0.5 : 1;
+    w.cooldown = (w.evolved ? 0.11 : 0.17) * valkSpeed;
+    const maxLocks = (w.evolved ? 14 : 4 + w.level * 2) + player.bonusProjectiles + (ctx.vesselId === 'valkyrie' ? 4 : 0);
     if (player.missileLocks.length < maxLocks) {
       const candidates = enemies.filter((e) => e.hp > 0 && Math.hypot(e.x - player.x, e.y - player.y) < 520);
       if (candidates.length > 0) {
@@ -1012,6 +1146,219 @@ function launchLockedMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   });
   ctx.particles.callout(player.x, player.y - 38, `SALVO ×${player.missileLocks.length}`, '#ff7b47', 1.15, 0.85);
   player.missileLocks.length = 0;
+}
+
+// NEW WEAPON 13: Gravity Flail — Tethered spiked wrecking orb smashing & knocking waves back!
+function updateGravFlail(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, enemies, hazards, particles } = ctx;
+  const tickInterval = player.inStillpoint ? 0.095 : 0.16;
+  if (w.auxTimer < tickInterval) return;
+  w.auxTimer = 0;
+
+  const flails = getGravityFlailPositions(player);
+  const orbDmg = player.relics.includes('orbital_overdrive') ? 1.45 : 1.0;
+  const dmg =
+    (w.evolved ? 48 : 22 + w.level * 7) * (player.inStillpoint ? 1.4 : 1) * player.damageMult * orbDmg;
+  const heavyLv = player.passives.find((p) => p.id === 'heavy_frame')?.level ?? 0;
+  const push = (26 + heavyLv * 6) * (player.inStillpoint ? 1.35 : 1);
+
+  for (const fl of flails) {
+    let slammed = false;
+    for (const e of [...enemies]) {
+      if (e.hp <= 0) continue;
+      const dx = e.x - fl.x;
+      const dy = e.y - fl.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist <= fl.radius + e.radius) {
+        slammed = true;
+        ctx.damageEnemy(e, dmg, fl.evolved ? '#f5d256' : '#e08538', player.inStillpoint);
+        if (!e.isBoss && e.hp > 0) {
+          e.x += (dx / dist) * push;
+          e.y += (dy / dist) * push;
+        }
+      }
+    }
+    ctx.damageShrinesInRadius(fl.x, fl.y, fl.radius, dmg);
+    if (slammed && fl.evolved && hazards.length < 18 && Math.random() < 0.28) {
+      particles.ripple(fl.x, fl.y, 75 * player.areaMult, 9, '#f5d256', 0.3);
+      hazards.push({
+        id: ctx.nextId(),
+        kind: 'crater',
+        x: fl.x,
+        y: fl.y,
+        radius: 52 * player.areaMult,
+        damagePerSec: dmg * 0.9,
+        age: 0,
+        maxAge: 2.2,
+        color: '#e08538',
+        collapsed: false,
+        evolved: false,
+        pullStrength: 0
+      });
+    }
+  }
+}
+
+// NEW WEAPON 14: Caustic Jet — Corrosive acid spray leaving melt puddles (+25% dmg taken)
+function updateAcidSprayer(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, enemies, playerBullets } = ctx;
+  if (w.cooldown > 0) return;
+
+  const inFocus = player.inStillpoint;
+  w.cooldown = inFocus
+    ? w.evolved ? 0.14 : 0.2
+    : w.evolved ? 0.24 : Math.max(0.28, 0.52 - w.level * 0.045);
+
+  const tgt = findNearestEnemy(player.x, player.y, enemies, inFocus ? 520 : 320, inFocus);
+  const baseAng = tgt ? Math.atan2(tgt.y - player.y, tgt.x - player.x) : player.facingAngle;
+  const count = (w.evolved ? 4 : w.level >= 3 ? 3 : 2) + Math.min(2, player.bonusProjectiles);
+  const corrLv = player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
+  const dmg = (w.evolved ? 26 : 11 + w.level * 3.8) * (1 + corrLv * 0.2) * player.damageMult;
+  const spd = (inFocus ? 480 : 300) * player.projectileSpeedMult;
+
+  sound.playShoot('pulse');
+  for (let i = 0; i < count; i++) {
+    const spread = inFocus ? 0.12 : 0.34;
+    const ang = baseAng + (i - (count - 1) / 2) * spread + (Math.random() - 0.5) * 0.08;
+    playerBullets.push({
+      id: ctx.nextId(),
+      kind: 'acid_glob',
+      x: player.x + Math.cos(ang) * 14,
+      y: player.y + Math.sin(ang) * 14,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      radius: 6,
+      damage: dmg,
+      pierce: inFocus || w.evolved ? 2 : 1,
+      age: 0,
+      maxAge: inFocus ? 0.95 : 0.65,
+      color: '#78d65c',
+      homing: 0,
+      hitSet: new Set(),
+      evolved: w.evolved,
+      blastRadius: (44 + w.level * 5) * player.areaMult
+    });
+  }
+}
+
+// NEW WEAPON 15: Helios Prism — Refracting laser beams splitting into multi-way rays in Stillpoint!
+function updateMirrorBeam(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, enemies, lasers, particles } = ctx;
+  if (w.cooldown > 0) return;
+
+  const inFocus = player.inStillpoint;
+  w.cooldown = inFocus
+    ? w.evolved ? 0.26 : 0.38
+    : w.evolved ? 0.42 : Math.max(0.5, 0.85 - w.level * 0.065);
+
+  const opticLv = player.passives.find((p) => p.id === 'optic_relay')?.level ?? 0;
+  const beamW = (w.evolved ? 13 : 7 + w.level * 1.1) * player.areaMult * (1 + opticLv * 0.14);
+  const beamLen = (inFocus ? 520 : 410) * (1 + opticLv * 0.1);
+  const dmg = (w.evolved ? 48 : 22 + w.level * 7) * player.damageMult;
+  const tgt = findNearestEnemy(player.x, player.y, enemies, beamLen, true);
+  const baseAng = tgt ? Math.atan2(tgt.y - player.y, tgt.x - player.x) : player.facingAngle;
+
+  const rayOffsets = w.evolved
+    ? [-0.36, -0.18, 0, 0.18, 0.36]
+    : inFocus
+      ? [-0.24, 0, 0.24]
+      : [0];
+
+  sound.playShoot('rail');
+  for (const off of rayOffsets) {
+    const ang = baseAng + off;
+    const ex = player.x + Math.cos(ang) * beamLen;
+    const ey = player.y + Math.sin(ang) * beamLen;
+    lasers.push({
+      x1: player.x,
+      y1: player.y,
+      x2: ex,
+      y2: ey,
+      width: beamW,
+      color: w.evolved ? '#ffe27a' : '#f0bc42',
+      alpha: 1,
+      life: 0.2,
+      maxLife: 0.2,
+      isEnemy: false
+    });
+
+    let firstHit: Enemy | null = null;
+    for (const e of [...enemies]) {
+      if (e.hp <= 0) continue;
+      if (pointToSegmentDist(e.x, e.y, player.x, player.y, ex, ey) <= e.radius + beamW * 0.6) {
+        if (!firstHit) firstHit = e;
+        ctx.damageEnemy(e, dmg, '#f0bc42', inFocus);
+        particles.burst(e.x, e.y, '#f0bc42', 3, 40, 110, 2.2, 0.2);
+      }
+    }
+    ctx.damageShrinesAlongLine(player.x, player.y, ex, ey, beamW * 0.6, dmg);
+
+    // Bounce off first struck target into a refracted secondary beam!
+    if (firstHit && off === 0) {
+      const next = findNearestEnemy(firstHit.x, firstHit.y, enemies, 260, false, firstHit.id);
+      if (next) {
+        lasers.push({
+          x1: firstHit.x,
+          y1: firstHit.y,
+          x2: next.x,
+          y2: next.y,
+          width: beamW * 0.8,
+          color: '#fff2b8',
+          alpha: 1,
+          life: 0.2,
+          maxLife: 0.2,
+          isEnemy: false
+        });
+        ctx.damageEnemy(next, dmg * 0.85, '#fff2b8', true);
+      }
+    }
+  }
+}
+
+// NEW WEAPON 16: Seeker Mines — Hovering proximity mines that remotely double-blast on Stillpoint!
+function updateShatterMine(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+  const { player, enemies, playerBullets } = ctx;
+  if (player.inStillpoint || w.cooldown > 0) return;
+
+  w.cooldown = w.evolved ? 0.72 : Math.max(0.88, 1.55 - w.level * 0.12);
+  let activeMines = 0;
+  for (const b of playerBullets) {
+    if (b.kind === 'seeker_mine') activeMines++;
+  }
+  if (activeMines >= (w.evolved ? 12 : 7)) return;
+
+  const blastLv = player.passives.find((p) => p.id === 'blast_capacitor')?.level ?? 0;
+  const blastMult = 1 + blastLv * 0.18;
+  const count = (w.evolved ? 2 : w.level >= 4 ? 2 : 1) + Math.min(1, player.bonusProjectiles);
+  const dmg = (w.evolved ? 52 : 24 + w.level * 8) * blastMult * player.damageMult;
+  const blastR = (62 + w.level * 6) * player.areaMult * blastMult;
+  const tgt = findNearestEnemy(player.x, player.y, enemies, 480);
+
+  sound.playShoot('mortar');
+  for (let i = 0; i < count; i++) {
+    const ang = tgt
+      ? Math.atan2(tgt.y - player.y, tgt.x - player.x) + (i - (count - 1) / 2) * 0.45
+      : Math.random() * Math.PI * 2;
+    playerBullets.push({
+      id: ctx.nextId(),
+      kind: 'seeker_mine',
+      x: player.x + Math.cos(ang) * 18,
+      y: player.y + Math.sin(ang) * 18,
+      vx: Math.cos(ang) * 145,
+      vy: Math.sin(ang) * 145,
+      radius: 8,
+      damage: dmg,
+      pierce: 1,
+      age: 0,
+      maxAge: 6.5,
+      color: w.evolved ? '#f0bc42' : '#e0533c',
+      homing: 2.2,
+      targetId: tgt?.id,
+      hitSet: new Set(),
+      evolved: w.evolved,
+      blastRadius: blastR
+    });
+  }
 }
 
 export function pointToSegmentDist(
