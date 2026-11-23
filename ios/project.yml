@@ -1,0 +1,34 @@
+name: Stillpoint
+options:
+  bundleIdPrefix: com.stillpoint
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "16.0"
+
+targets:
+  Stillpoint:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Stillpoint
+        excludes:
+          - "WebApp/**"
+          - "WebApp"
+          - "Info.plist"
+      - path: Stillpoint/WebApp
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pearsiono.stillpoint
+        PRODUCT_NAME: Stillpoint
+        INFOPLIST_FILE: Stillpoint/Info.plist
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_BITCODE: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+        DEVELOPMENT_TEAM: ""

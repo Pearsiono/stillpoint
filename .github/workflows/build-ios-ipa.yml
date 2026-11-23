@@ -1,0 +1,89 @@
+name: Build iOS IPA (Sideloadly)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies & build web bundle
+        run: |
+          npm ci
+          npm run build
+
+      - name: Bundle WebApp into iOS project
+        run: |
+          rm -rf ios/Stillpoint/WebApp
+          cp -R dist ios/Stillpoint/WebApp
+          ls -la ios/Stillpoint/WebApp
+          ls -la ios/Stillpoint/WebApp/assets
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build unsigned iOS Release app
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project Stillpoint.xcodeproj \
+            -scheme Stillpoint \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Verify bundled WebApp inside Stillpoint.app
+        working-directory: ios
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/Stillpoint.app"
+          test -f "$APP_PATH/WebApp/index.html"
+          ls -la "$APP_PATH/WebApp/assets"
+
+      - name: Package unsigned IPA for Sideloadly
+        working-directory: ios
+        run: |
+          rm -rf Payload STILLPOINT-unsigned.ipa
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Stillpoint.app Payload/Stillpoint.app
+          zip -r -y STILLPOINT-unsigned.ipa Payload
+          ls -lh STILLPOINT-unsigned.ipa
+
+      - name: Upload STILLPOINT-unsigned.ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: STILLPOINT-unsigned-ipa
+          path: ios/STILLPOINT-unsigned.ipa
+          retention-days: 90
+
+      - name: Publish latest GitHub Release for 1-click download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" ios/STILLPOINT-unsigned.ipa \
+            --title "STILLPOINT $TAG (iOS Sideloadly IPA)" \
+            --notes "Unsigned iOS IPA ready for Sideloadly. Drag \`STILLPOINT-unsigned.ipa\` into Sideloadly, enter your Apple ID, and click Start." \
+            --latest
