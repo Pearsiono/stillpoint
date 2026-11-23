@@ -646,6 +646,49 @@ export class SoundEngine {
     this.playNoiseTick(0.14, 0.25, now, false);
   }
 
+  playSyncHit(streak = 1): void {
+    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
+    const now = this.ctx.currentTime;
+    // Crisp machined brass bolt-lock click
+    this.playNoiseTick(0.032, 0.22, now, true);
+    const pitch = Math.pow(1.06, Math.min(4, Math.max(0, streak - 1)));
+    const notes = [523.25 * pitch, 783.99 * pitch, 1046.5 * pitch];
+    notes.forEach((hz, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = idx === 0 ? 'sawtooth' : 'triangle';
+      const flt = this.ctx.createBiquadFilter();
+      flt.type = 'lowpass';
+      flt.frequency.value = 3400;
+      const st = now + idx * 0.032;
+      osc.frequency.setValueAtTime(hz, st);
+      g.gain.setValueAtTime(idx === 2 ? 0.19 : 0.16, st);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.28);
+      osc.connect(flt);
+      flt.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(st);
+      osc.stop(st + 0.3);
+    });
+  }
+
+  playSyncMiss(): void {
+    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(175, now);
+    osc.frequency.exponentialRampToValueAtTime(105, now + 0.09);
+    g.gain.setValueAtTime(0.11, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(g);
+    g.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.11);
+  }
+
   playCrateTick(pitch = 1): void {
     if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
     const now = this.ctx.currentTime;

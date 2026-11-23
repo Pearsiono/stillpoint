@@ -298,6 +298,7 @@ export type ModuleCategory = 'combat' | 'movement' | 'tactics' | 'risk';
 export type ModuleId =
   | 'point_blank'
   | 'snap_focus'
+  | 'deadeye_sync'
   | 'heavy_ordnance'
   | 'ricochet_rig'
   | 'specialist_lock'
@@ -307,6 +308,7 @@ export type ModuleId =
   | 'exit_vortex'
   | 'focus_surge'
   | 'kinetic_shield'
+  | 'shock_sync'
   | 'emp_shell'
   | 'cryo_shatter'
   | 'blood_pact'
@@ -558,6 +560,16 @@ export interface PlayerState {
   echoSalvoCounter: number;
   haloOrbitAngle: number;
   droneOrbitAngle: number;
+  // Active-Reload Stillpoint Sync timing gauge
+  syncActive: boolean;
+  syncProgress: number; // 0..1 sweep across top arc while in Stillpoint
+  syncZoneStart: number;
+  syncZoneEnd: number;
+  syncCooldown: number;
+  syncBuffTimer: number;
+  syncStreak: number;
+  syncFlashTimer: number;
+  syncOverclockCarry: number;
 }
 
 export type EnemyKind =

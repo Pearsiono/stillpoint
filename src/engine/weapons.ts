@@ -176,6 +176,10 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     ? 0.85 + player.momentumMoveTime * 0.55
     : 1;
   const bastionStillMult = ctx.vesselId === 'bastion' && inStillpoint ? 1.25 : 1;
+  const syncBase = player.modules.includes('deadeye_sync') ? 1.46 : 1.28;
+  const syncStreak = Math.max(0, player.syncStreak - 1) * 0.04;
+  const syncMult = player.syncBuffTimer > 0 ? syncBase + syncStreak : 1;
+  const overclockCarryMult = player.syncOverclockCarry > 0 && !inStillpoint ? 1.35 : 1;
   const totalRateMult =
     player.fireRateMult *
     overclockMult *
@@ -183,7 +187,9 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     frenzyMult *
     berserkMult *
     momentumMult *
-    bastionStillMult;
+    bastionStillMult *
+    syncMult *
+    overclockCarryMult;
 
   // Integrate continuous orbital phases so Stillpoint transitions never snap blade/drone angles
   const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;

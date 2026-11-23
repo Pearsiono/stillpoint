@@ -110,10 +110,19 @@ export class HudView {
     this.timerEl.textContent = h.endlessMode ? `∞ ${formatTime(h.elapsed)}` : formatTime(h.elapsed);
     this.scoreEl.textContent = h.score.toLocaleString();
 
+    const syncSuffix = h.syncBuffActive
+      ? h.syncStreak > 1
+        ? `Sync ×${h.syncStreak}`
+        : 'Sync'
+      : '';
     if (h.surgeActive) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = '#f6c453';
-      this.comboEl.textContent = 'Surge ×4';
+      this.comboEl.textContent = syncSuffix ? `Surge ×4  ${syncSuffix}` : 'Surge ×4';
+    } else if (syncSuffix) {
+      this.comboEl.style.display = 'block';
+      this.comboEl.style.color = '#f6c453';
+      this.comboEl.textContent = h.surgeTier >= 2 ? `×${h.surgeTier}  ${syncSuffix}` : syncSuffix;
     } else if (h.surgeTier >= 2) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = 'var(--accent)';

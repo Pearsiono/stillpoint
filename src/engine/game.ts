@@ -77,6 +77,8 @@ export interface HudSnapshot {
   grazeCombo: number;
   surgeTier: number;
   surgeActive: boolean;
+  syncBuffActive: boolean;
+  syncStreak: number;
   weapons: PlayerState['weapons'];
   passives: PlayerState['passives'];
   relics: RelicId[];
@@ -329,6 +331,8 @@ export class StillpointGame {
   pauseGame(): void {
     if (this.phase !== 'playing') return;
     this.phase = 'paused';
+    this.player.inStillpoint = false;
+    this.player.syncActive = false;
     this.input.setEnabled(false);
     sound.setStillpointBlend(0);
     this.callbacks.onPhaseChange('paused');
@@ -569,7 +573,16 @@ export class StillpointGame {
       xpNovaCounter: 0,
       echoSalvoCounter: 0,
       haloOrbitAngle: 0,
-      droneOrbitAngle: 0
+      droneOrbitAngle: 0,
+      syncActive: false,
+      syncProgress: 0,
+      syncZoneStart: 0.44,
+      syncZoneEnd: 0.68,
+      syncCooldown: 0,
+      syncBuffTimer: 0,
+      syncStreak: 0,
+      syncFlashTimer: 0,
+      syncOverclockCarry: 0
     };
 
     this.recomputePlayerStats();
@@ -816,6 +829,18 @@ export class StillpointGame {
     if (player.coreCooldown > 0) {
       player.coreCooldown = Math.max(0, player.coreCooldown - dtReal);
     }
+    if (player.syncCooldown > 0) {
+      player.syncCooldown = Math.max(0, player.syncCooldown - dtReal);
+    }
+    if (player.syncBuffTimer > 0) {
+      player.syncBuffTimer = Math.max(0, player.syncBuffTimer - dtReal);
+    }
+    if (player.syncFlashTimer > 0) {
+      player.syncFlashTimer = Math.max(0, player.syncFlashTimer - dtReal);
+    }
+    if (player.syncOverclockCarry > 0) {
+      player.syncOverclockCarry = Math.max(0, player.syncOverclockCarry - dtReal);
+    }
 
     if (justEntered) {
       this.hasUsedStillpoint = true;
@@ -823,6 +848,15 @@ export class StillpointGame {
       player.railChargeTime = 0;
       sound.playStillpointEnter();
       bridge.haptic('light');
+
+      // Arm Active-Reload Sync timing arc above the ship when off cooldown
+      if (player.syncCooldown <= 0 && player.kineticCharge >= 12) {
+        const tight = player.modules.includes('deadeye_sync');
+        player.syncActive = true;
+        player.syncProgress = 0;
+        player.syncZoneStart = tight ? 0.49 : 0.44;
+        player.syncZoneEnd = tight ? 0.63 : 0.68;
+      }
 
       // Reflex Tap Pick-10 module: entering Stillpoint at 5+ graze combo gives 1.6s zero drain & resets core!
       if (player.modules.includes('focus_surge') && player.grazeCombo >= 5) {
@@ -860,9 +894,17 @@ export class StillpointGame {
       }
     }
 
-    // 3. Kinetic Charge — Earned Focus Economy (move & graze to recharge; zero idle AFK regen)
+    // 3. Kinetic Charge — Earned Focus Economy + Active-Reload Timing Sweep
     if (player.inStillpoint) {
       player.stillpointTimeHeld += dtReal;
+      if (player.syncActive) {
+        player.syncProgress += dtReal / 1.15;
+        if (player.syncProgress >= 1) {
+          player.syncActive = false;
+          player.syncStreak = 0;
+          player.syncCooldown = 1.6;
+        }
+      }
       if (this.coreId === 'singularity_lance') {
         player.railChargeTime = Math.min(1.6, player.railChargeTime + dtReal);
       }
@@ -883,8 +925,31 @@ export class StillpointGame {
     }
 
     if (justExited) {
+      let perfectSync = false;
+      if (player.syncActive) {
+        const prog = player.syncProgress;
+        const playerTouchedDown = !input.wantsStillpoint;
+        const hitWindow =
+          playerTouchedDown && prog >= player.syncZoneStart && prog <= player.syncZoneEnd;
+        player.syncActive = false;
+        if (hitWindow) {
+          perfectSync = true;
+          this.triggerPerfectSync();
+        } else if (playerTouchedDown && prog < 0.22) {
+          // Fast micro-slow dodge: no penalty, preserves streak
+          player.syncCooldown = 0.85;
+        } else {
+          player.syncStreak = 0;
+          player.syncCooldown = 1.9;
+          sound.playSyncMiss();
+          if (player.modules.includes('deadeye_sync')) {
+            player.kineticCharge = Math.max(0, player.kineticCharge - 12);
+            this.particles.callout(player.x, player.y - 36, 'SYNC MISS', '#d97134', 0.95, 0.55);
+          }
+        }
+      }
       sound.playStillpointExit();
-      this.activateStillpointCoreExit();
+      this.activateStillpointCoreExit(perfectSync);
       player.railChargeTime = 0;
     }
 
@@ -1361,7 +1426,171 @@ export class StillpointGame {
     }
   }
 
-  private activateStillpointCoreExit(): void {
+  private triggerPerfectSync(): void {
+    const p = this.player;
+    const v = VESSELS[this.vesselId];
+    const deadeye = p.modules.includes('deadeye_sync');
+    p.syncStreak = Math.min(5, p.syncStreak + 1);
+    p.syncCooldown = 2.1;
+    p.syncBuffTimer = Math.max(p.syncBuffTimer, deadeye ? 3.4 : 2.8);
+    p.syncFlashTimer = 0.42;
+
+    // Refund Focus + feed Momentum toward Surge
+    const baseRefund = deadeye ? 0.36 : 0.24;
+    const refundFrac = baseRefund + (p.syncStreak - 1) * 0.025;
+    p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + p.maxKineticCharge * refundFrac);
+    this.addMomentum(16 + (p.syncStreak - 1) * 4);
+
+    // Feedback: mechanical brass snap chime, heavy haptic, golden ripple & callout
+    sound.playSyncHit(p.syncStreak);
+    bridge.haptic('heavy');
+    this.addShake(4.5);
+    this.particles.ripple(p.x, p.y, 128 * p.areaMult, 16, '#f6c453', 0.38);
+    this.particles.burst(p.x, p.y, '#f6c453', 9, 60, 175, 2.4, 0.26);
+    const label = p.syncStreak > 1 ? `SYNC ×${p.syncStreak}` : 'SYNC';
+    this.particles.callout(p.x, p.y - 44, label, '#f6c453', p.syncStreak >= 3 ? 1.25 : 1.12, 0.85);
+
+    // Purge Cadence Pick-10 module: erase bullets within 95px & return up to 4 as homing sparks!
+    if (p.modules.includes('shock_sync')) {
+      const clearR = 95 * p.areaMult;
+      let cleared = 0;
+      for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+        const b = this.enemyBullets[i];
+        if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 <= clearR * clearR) {
+          this.enemyBullets.splice(i, 1);
+          cleared++;
+          if (cleared <= 4 && this.playerBullets.length < 180) {
+            const tgt = findNearestEnemy(b.x, b.y, this.enemies, 520, true);
+            const ang = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : Math.atan2(b.y - p.y, b.x - p.x);
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'parry_shard',
+              x: b.x,
+              y: b.y,
+              vx: Math.cos(ang) * 560,
+              vy: Math.sin(ang) * 560,
+              radius: 5,
+              damage: 34 * p.damageMult * p.corePowerMult,
+              pierce: 1,
+              age: 0,
+              maxAge: 1.4,
+              color: '#5cd6d0',
+              homing: 9.5,
+              targetId: tgt?.id,
+              hitSet: new Set()
+            });
+          }
+        }
+      }
+      if (cleared > 0) {
+        this.particles.ripple(p.x, p.y, clearR, 12, '#5cd6d0', 0.3);
+      }
+    }
+
+    // Core-specific Perfect Sync amplifiers for entry/passive Cores (exit Cores amplify in activateStillpointCoreExit)
+    const coreR = p.areaMult * v.stats.coreAreaMult;
+    if (this.coreId === 'deflector') {
+      // Secondary gilded nova shockwave + 6 golden shrapnel shards!
+      const blastR = 148 * coreR;
+      const dmg = 44 * p.damageMult * p.corePowerMult;
+      for (const e of [...this.enemies]) {
+        if (e.hp <= 0) continue;
+        const dx = e.x - p.x;
+        const dy = e.y - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d <= blastR + e.radius) {
+          this.damageEnemy(e, dmg, '#f6c453', true);
+          if (!e.isBoss && e.hp > 0) {
+            e.x += (dx / d) * 44;
+            e.y += (dy / d) * 44;
+          }
+        }
+      }
+      for (let k = 0; k < 6; k++) {
+        if (this.playerBullets.length >= 180) break;
+        const ang = (k * Math.PI * 2) / 6 + p.facingAngle;
+        this.playerBullets.push({
+          id: this.nextEntityId++,
+          kind: 'shrapnel',
+          x: p.x,
+          y: p.y,
+          vx: Math.cos(ang) * 500,
+          vy: Math.sin(ang) * 500,
+          radius: 5,
+          damage: 26 * p.damageMult * p.corePowerMult,
+          pierce: 2,
+          age: 0,
+          maxAge: 0.85,
+          color: '#f6c453',
+          homing: 0,
+          hitSet: new Set()
+        });
+      }
+    } else if (this.coreId === 'aegis_dome') {
+      // Bonus exit Stasis wave erasing nearby bullets within 125px
+      const domeR = 125 * coreR;
+      let erased = 0;
+      for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+        const b = this.enemyBullets[i];
+        if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 <= domeR * domeR) {
+          this.enemyBullets.splice(i, 1);
+          erased++;
+          if (erased <= 5 && this.playerBullets.length < 180) {
+            const tgt = findNearestEnemy(b.x, b.y, this.enemies, 520, true);
+            const ang = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : Math.atan2(b.y - p.y, b.x - p.x);
+            this.playerBullets.push({
+              id: this.nextEntityId++,
+              kind: 'parry_shard',
+              x: b.x,
+              y: b.y,
+              vx: Math.cos(ang) * 540,
+              vy: Math.sin(ang) * 540,
+              radius: 5,
+              damage: 34 * p.damageMult * p.corePowerMult,
+              pierce: 1,
+              age: 0,
+              maxAge: 1.4,
+              color: '#62a4f5',
+              homing: 9,
+              targetId: tgt?.id,
+              hitSet: new Set()
+            });
+          }
+        }
+      }
+      this.particles.ripple(p.x, p.y, domeR, 12, '#62a4f5', 0.34);
+    } else if (this.coreId === 'chrono_echo') {
+      // Extend active rotary turrets by +2.5s and reset their fire timer for an immediate burst!
+      for (const ec of this.echoes) {
+        ec.age = Math.max(0, ec.age - 2.5);
+        ec.fireTimer = 0;
+        this.particles.ring(ec.x, ec.y, '#f6c453', 20, 0.28);
+      }
+    } else if (this.coreId === 'overclock') {
+      // Carry Overclock's guaranteed crits & fire-rate surge out of Stillpoint for 2.4s!
+      p.syncOverclockCarry = Math.max(p.syncOverclockCarry, deadeye ? 3.2 : 2.4);
+    } else if (this.coreId === 'berserk') {
+      // Grant Frenzy haste + shield/HP pulse on Perfect Sync!
+      p.frenzyTimer = Math.max(p.frenzyTimer, 2.6);
+      if (p.modules.includes('blood_pact')) {
+        p.hp = Math.min(p.maxHp, p.hp + 8);
+      } else {
+        p.shield = Math.min(p.maxShield, p.shield + 12);
+      }
+    } else if (this.coreId === 'catalyst_surge') {
+      // Emit a 165px mark wave & immediately ignite damaged marked foes!
+      const markR = 165 * coreR;
+      this.particles.ripple(p.x, p.y, markR, 14, '#e05fa8', 0.36);
+      for (const e of [...this.enemies]) {
+        if (e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= markR + e.radius) {
+          e.catalystMark = Math.max(e.catalystMark ?? 0, 6.5);
+          this.damageEnemy(e, 34 * p.damageMult * p.corePowerMult, '#e05fa8', true);
+        }
+      }
+    }
+  }
+
+  private activateStillpointCoreExit(perfectSync = false): void {
     const p = this.player;
     const v = VESSELS[this.vesselId];
 
@@ -1390,14 +1619,14 @@ export class StillpointGame {
       this.particles.ripple(p.x, p.y, 92 * p.areaMult, 12, '#a974e8', 0.35);
     }
 
-    // Rail Collapse Core: fire colossal charged directional beam on touch-down!
-    if (this.coreId === 'singularity_lance' && p.railChargeTime > 0.12) {
-      const chargePct = Math.min(1, p.railChargeTime / 1.4);
+    // Rail Collapse Core: fire colossal charged directional beam on touch-down (Perfect Sync snaps to 100% MAX!)
+    if (this.coreId === 'singularity_lance' && (p.railChargeTime > 0.12 || perfectSync)) {
+      const chargePct = perfectSync ? 1.0 : Math.min(1, p.railChargeTime / 1.4);
       const tgt = findNearestEnemy(p.x, p.y, this.enemies, 680, true);
       const aimAng = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : p.facingAngle;
       const beamLen = 680;
-      const beamW = (16 + chargePct * 18) * p.areaMult;
-      const dmg = (68 + chargePct * 185) * p.damageMult * p.corePowerMult;
+      const beamW = (16 + chargePct * 18) * p.areaMult * (perfectSync ? 1.2 : 1);
+      const dmg = (68 + chargePct * 185) * p.damageMult * p.corePowerMult * (perfectSync ? 1.25 : 1);
       const ex = p.x + Math.cos(aimAng) * beamLen;
       const ey = p.y + Math.sin(aimAng) * beamLen;
 
@@ -1433,17 +1662,17 @@ export class StillpointGame {
       }
     }
 
-    // Detonate Blink Decoys on touch-down!
+    // Detonate Blink Decoys on touch-down! (Perfect Sync amplifies damage 1.5x & doubles shrapnel!)
     if (this.coreId === 'blink' && this.decoys.length > 0) {
       for (const d of this.decoys) {
-        this.detonateDecoy(d);
+        this.detonateDecoy(d, perfectSync);
       }
       this.decoys.length = 0;
     }
 
     // Gravity Siphon: shatter all sucked-in enemies outward + fire shrapnel ring on touch-down!
     if (this.coreId === 'siphon' && p.stillpointTimeHeld > 0.14) {
-      const blastR = 180 * p.areaMult * v.stats.coreAreaMult;
+      const blastR = 180 * p.areaMult * v.stats.coreAreaMult * (perfectSync ? 1.2 : 1);
       this.hazards.push({
         id: this.nextEntityId++,
         kind: 'nova_wave',
@@ -1454,12 +1683,12 @@ export class StillpointGame {
         damagePerSec: 0,
         age: 0,
         maxAge: 0.3,
-        color: '#ff9f43',
+        color: perfectSync ? '#f6c453' : '#ff9f43',
         collapsed: false,
         evolved: true,
         pullStrength: 0
       });
-      this.particles.ripple(p.x, p.y, blastR * 1.35, 18, '#ff9f43', 0.45);
+      this.particles.ripple(p.x, p.y, blastR * 1.35, 18, perfectSync ? '#f6c453' : '#ff9f43', 0.45);
       sound.playCoreBurst(5, true);
       bridge.haptic('heavy');
       this.addShake(8);
@@ -1470,7 +1699,7 @@ export class StillpointGame {
         if (Math.hypot(e.x - p.x, e.y - p.y) <= blastR + e.radius) hitCount++;
       }
 
-      const dmg = (56 + hitCount * 10) * p.damageMult * p.corePowerMult;
+      const dmg = (56 + hitCount * 10) * p.damageMult * p.corePowerMult * (perfectSync ? 1.45 : 1);
       for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         const dx = e.x - p.x;
@@ -1479,14 +1708,15 @@ export class StillpointGame {
         if (dist <= blastR + e.radius) {
           this.damageEnemy(e, dmg, '#ff9f43', true);
           if (!e.isBoss && e.hp > 0) {
-            e.x += (dx / dist) * 64;
-            e.y += (dy / dist) * 64;
+            e.x += (dx / dist) * (perfectSync ? 82 : 64);
+            e.y += (dy / dist) * (perfectSync ? 82 : 64);
           }
         }
       }
 
-      for (let i = 0; i < 8; i++) {
-        const ang = (i * Math.PI * 2) / 8;
+      const shrapCount = perfectSync ? 12 : 8;
+      for (let i = 0; i < shrapCount; i++) {
+        const ang = (i * Math.PI * 2) / shrapCount;
         this.playerBullets.push({
           id: this.nextEntityId++,
           kind: 'shrapnel',
@@ -1495,11 +1725,11 @@ export class StillpointGame {
           vx: Math.cos(ang) * 480,
           vy: Math.sin(ang) * 480,
           radius: 5.5,
-          damage: 26 * p.damageMult * p.corePowerMult,
+          damage: 26 * p.damageMult * p.corePowerMult * (perfectSync ? 1.25 : 1),
           pierce: 2,
           age: 0,
           maxAge: 0.85,
-          color: '#ff9f43',
+          color: perfectSync ? '#f6c453' : '#ff9f43',
           homing: 0,
           hitSet: new Set()
         });
@@ -1511,20 +1741,21 @@ export class StillpointGame {
     }
   }
 
-  private detonateDecoy(d: BlinkDecoy): void {
+  private detonateDecoy(d: BlinkDecoy, amplified = false): void {
     const p = this.player;
-    const blastR = 135 * p.areaMult;
-    const dmg = 54 * p.damageMult * p.corePowerMult;
+    const blastR = 135 * p.areaMult * (amplified ? 1.2 : 1);
+    const dmg = 54 * p.damageMult * p.corePowerMult * (amplified ? 1.5 : 1);
     sound.playShoot('mortar');
-    this.particles.shatter(d.x, d.y, '#cf7dff', 10, 1.3);
-    this.particles.ripple(d.x, d.y, blastR * 1.2, 14, '#cf7dff', 0.4);
+    this.particles.shatter(d.x, d.y, amplified ? '#f6c453' : '#cf7dff', 10, 1.3);
+    this.particles.ripple(d.x, d.y, blastR * 1.2, 14, amplified ? '#f6c453' : '#cf7dff', 0.4);
     for (const e of [...this.enemies]) {
       if (e.hp > 0 && Math.hypot(e.x - d.x, e.y - d.y) <= blastR + e.radius) {
         this.damageEnemy(e, dmg, '#cf7dff', true);
       }
     }
-    for (let i = 0; i < 6; i++) {
-      const ang = (i * Math.PI * 2) / 6;
+    const shards = amplified ? 12 : 6;
+    for (let i = 0; i < shards; i++) {
+      const ang = (i * Math.PI * 2) / shards;
       this.playerBullets.push({
         id: this.nextEntityId++,
         kind: 'shrapnel',
@@ -1533,11 +1764,11 @@ export class StillpointGame {
         vx: Math.cos(ang) * 440,
         vy: Math.sin(ang) * 440,
         radius: 5,
-        damage: 24 * p.damageMult,
+        damage: 24 * p.damageMult * (amplified ? 1.25 : 1),
         pierce: 2,
         age: 0,
         maxAge: 0.9,
-        color: '#cf7dff',
+        color: amplified ? '#f6c453' : '#cf7dff',
         homing: 0,
         hitSet: new Set()
       });
@@ -2429,9 +2660,10 @@ export class StillpointGame {
             e.y += (b.vy / bSpd) * 18;
           }
 
-          // Auto-crit in Overclock Core Stillpoint!
+          // Auto-crit in Overclock Core Stillpoint (and during Sync Overclock carryover)!
           const isCrit =
-            (this.coreId === 'overclock' && this.player.inStillpoint) ||
+            (this.coreId === 'overclock' &&
+              (this.player.inStillpoint || this.player.syncOverclockCarry > 0)) ||
             Math.random() < this.player.critChance;
           if (isCrit) {
             finalDmg *= this.player.critMult;
@@ -2960,6 +3192,7 @@ export class StillpointGame {
     this.phase = 'levelup';
     this.input.setEnabled(false);
     this.player.inStillpoint = false;
+    this.player.syncActive = false;
     sound.setStillpointBlend(0);
     sound.playLevelUp();
     bridge.haptic('medium');
@@ -3006,7 +3239,22 @@ export class StillpointGame {
         (enemy.isBoss ? 0.8 : 1)
       : 1;
 
-    const dmg = rawDmg * bossScale * corrodeScale * rangeScale * redlineScale * gildedScale * stillpointScale;
+    const syncDmgScale =
+      p.syncBuffTimer > 0
+        ? 1 +
+          (p.modules.includes('deadeye_sync') ? 0.36 : 0.22) +
+          Math.max(0, p.syncStreak - 1) * 0.04
+        : 1;
+
+    const dmg =
+      rawDmg *
+      bossScale *
+      corrodeScale *
+      rangeScale *
+      redlineScale *
+      gildedScale *
+      stillpointScale *
+      syncDmgScale;
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
 
@@ -3681,7 +3929,7 @@ export class StillpointGame {
       maxHp: Math.ceil(this.player.maxHp),
       shield: Math.ceil(this.player.shield + this.player.kineticOvershield),
       maxShield: Math.ceil(
-        this.player.maxShield + (this.player.modules.includes('kinetic_shield') ? 35 : 0)
+        this.player.maxShield + (this.player.modules.includes('kinetic_shield') ? 18 : 0)
       ),
       charge: this.player.kineticCharge,
       maxCharge: this.player.maxKineticCharge,
@@ -3693,6 +3941,8 @@ export class StillpointGame {
       grazeCombo: this.player.grazeCombo,
       surgeTier: this.player.surgeTier,
       surgeActive: this.player.surgeTimer > 0,
+      syncBuffActive: this.player.syncBuffTimer > 0,
+      syncStreak: this.player.syncStreak,
       weapons: this.player.weapons,
       passives: this.player.passives,
       relics: this.player.relics,

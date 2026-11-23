@@ -1013,6 +1013,122 @@ export class WastelandRenderer {
       ctx.stroke();
     }
 
+    // 4b. Active-Reload Stillpoint Sync Arc (machined brass rangefinder arc cleanly ABOVE ship)
+    if (player.syncActive && blend > 0.1) {
+      const arcR = ringR + 11;
+      const aStart = -Math.PI * 0.86;
+      const aSpan = Math.PI * 0.72; // Sweeps cleanly left-to-right above ship (-155° to -25°)
+      const aEnd = aStart + aSpan;
+      const zStart = aStart + aSpan * player.syncZoneStart;
+      const zEnd = aStart + aSpan * player.syncZoneEnd;
+      const curA = aStart + aSpan * Math.min(1, Math.max(0, player.syncProgress));
+      const inZone =
+        player.syncProgress >= player.syncZoneStart && player.syncProgress <= player.syncZoneEnd;
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, blend * 1.15);
+
+      // Recessed dark gunmetal track trough
+      ctx.strokeStyle = 'rgba(13, 12, 11, 0.88)';
+      ctx.lineWidth = 7.5;
+      ctx.lineCap = 'butt';
+      ctx.beginPath();
+      ctx.arc(0, 0, arcR, aStart - 0.03, aEnd + 0.03);
+      ctx.stroke();
+
+      // Tarnished bronze inner/outer bezel lips
+      ctx.strokeStyle = 'rgba(163, 144, 102, 0.48)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, arcR - 3.6, aStart, aEnd);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, arcR + 3.6, aStart, aEnd);
+      ctx.stroke();
+
+      // Golden Sweet-Spot Notch (flares incandescent white-gold the instant the needle enters!)
+      if (inZone) {
+        ctx.strokeStyle = 'rgba(246, 196, 83, 0.45)';
+        ctx.lineWidth = 13;
+        ctx.beginPath();
+        ctx.arc(0, 0, arcR, zStart, zEnd);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = inZone ? '#fff3c4' : '#e5b34c';
+      ctx.lineWidth = inZone ? 5.6 : 4.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, arcR, zStart, zEnd);
+      ctx.stroke();
+
+      // Etched bracket ticks framing the sweet-spot & track ends
+      ctx.strokeStyle = inZone ? '#ffffff' : '#d6b672';
+      ctx.lineWidth = 1.4;
+      for (const tickA of [aStart, zStart, zEnd, aEnd]) {
+        const isZoneTick = tickA === zStart || tickA === zEnd;
+        const rIn = arcR - (isZoneTick ? 5.2 : 3.8);
+        const rOut = arcR + (isZoneTick ? 5.2 : 3.8);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(tickA) * rIn, Math.sin(tickA) * rIn);
+        ctx.lineTo(Math.cos(tickA) * rOut, Math.sin(tickA) * rOut);
+        ctx.stroke();
+      }
+
+      // Sweeping Active-Reload Needle Pointer
+      const nx = Math.cos(curA);
+      const ny = Math.sin(curA);
+      ctx.strokeStyle = '#11100e';
+      ctx.lineWidth = 4.4;
+      ctx.beginPath();
+      ctx.moveTo(nx * (arcR - 5.5), ny * (arcR - 5.5));
+      ctx.lineTo(nx * (arcR + 6), ny * (arcR + 6));
+      ctx.stroke();
+
+      ctx.strokeStyle = inZone ? '#ffffff' : '#ece3d3';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(nx * (arcR - 5.2), ny * (arcR - 5.2));
+      ctx.lineTo(nx * (arcR + 5.8), ny * (arcR + 5.8));
+      ctx.stroke();
+
+      if (inZone) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(nx * arcR, ny * arcR, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 4c. Active Sync Overdrive golden cadence shimmer & Perfect Sync snap ring!
+    if (player.syncBuffTimer > 0) {
+      const ratio = Math.min(1, player.syncBuffTimer / 2.8);
+      ctx.save();
+      ctx.rotate(realTime * 2.4);
+      ctx.strokeStyle = '#f6c453';
+      ctx.globalAlpha = 0.42 + ratio * 0.35;
+      ctx.lineWidth = 1.8;
+      for (let k = 0; k < 2; k++) {
+        const off = k * Math.PI;
+        ctx.beginPath();
+        ctx.arc(0, 0, ringR + 5, off, off + Math.PI * 0.48 * ratio);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    if (player.syncFlashTimer > 0) {
+      const f = player.syncFlashTimer / 0.42;
+      const expandR = ringR + (1 - f) * 32;
+      ctx.save();
+      ctx.strokeStyle = '#fff0b8';
+      ctx.globalAlpha = f * 0.88;
+      ctx.lineWidth = 3.2 * f + 0.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, expandR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     const shipArt = sprites.getCoatedShipArt(vesselId, coating);
     const shipShadow = sprites.getShipShadow(vesselId);
     const shipSize =
@@ -1858,8 +1974,13 @@ export class WastelandRenderer {
     ctx.textAlign = 'center';
     ctx.globalAlpha = pulse;
     ctx.font = '600 12px "Chakra Petch", -apple-system, sans-serif';
-    ctx.fillStyle = '#ece3d3';
-    const txt = state.input.hasInteracted ? 'Lift to slow time' : 'Drag to move';
+    const inSyncSweep = state.player.inStillpoint && state.player.syncActive;
+    ctx.fillStyle = inSyncSweep ? '#f6c453' : '#ece3d3';
+    const txt = inSyncSweep
+      ? 'Touch in gold to Sync'
+      : state.input.hasInteracted
+        ? 'Lift to slow time'
+        : 'Drag to move';
     ctx.fillText(txt, state.player.x, state.player.y + 52);
     ctx.restore();
   }
