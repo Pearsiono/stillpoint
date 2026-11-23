@@ -111,8 +111,8 @@ export interface PauseBuildInfo {
   coreId: CoreId;
   heatCount: number;
   elapsed: number;
-  syncHits: number;
-  bestSyncStreak: number;
+  brinkShocks: number;
+  pressureReleases: number;
   weapons: OwnedWeapon[];
   passives: OwnedPassive[];
   relics: RelicId[];
@@ -1429,11 +1429,11 @@ export class OverlayController {
         ]
       },
       {
-        title: 'Active-Reload Sync',
+        title: 'Brink Shock & Bullet Pressure',
         points: [
-          'Entering Stillpoint sweeps a brass arc above your ship. <strong>Touch back down inside the golden notch</strong> to trigger <strong>Perfect Sync</strong>.',
-          'Perfect Sync refunds Focus, grants <strong>Sync Overdrive</strong> (+damage and fire rate), chains up to <strong>×5</strong>, and amplifies all 9 Cores.',
-          'Fast micro-dodges before 22% keep your streak with zero penalty, and holding past the end disarms cleanly.'
+          '<strong>Brink Shockwave:</strong> Lift into Stillpoint right as an enemy shot scrapes your hull to unleash an electric shockwave that shoves enemies back and refunds Focus.',
+          '<strong>Bullet Pressure:</strong> Holding Stillpoint near live bullets siphons their energy into your reactor. Touch back down cleanly to trigger an <strong>Overpressure</strong> weapon surge and amplified Core exit.',
+          '<strong>Reactor Stall:</strong> Never drain Focus to <strong>0%</strong>! Bottoming out stalls your reactor for 2.4s, locking out slow-motion and losing banked Pressure.'
         ]
       },
       {
@@ -1456,7 +1456,7 @@ export class OverlayController {
           </div>
           <div class="manual-steps">
             <button class="manual-step-pill ${this.manualPage === 0 ? 'active' : ''}" data-mpage="0">01 · Core</button>
-            <button class="manual-step-pill ${this.manualPage === 1 ? 'active' : ''}" data-mpage="1">02 · Sync</button>
+            <button class="manual-step-pill ${this.manualPage === 1 ? 'active' : ''}" data-mpage="1">02 · Brink</button>
             <button class="manual-step-pill ${this.manualPage === 2 ? 'active' : ''}" data-mpage="2">03 · Builds</button>
           </div>
           <div class="manual-card">
@@ -2638,7 +2638,7 @@ export class OverlayController {
             <div class="pause-stat-pill"><span>DMG</span><strong>${Math.round(build.damageMult * 100)}%</strong></div>
             <div class="pause-stat-pill"><span>RATE</span><strong>${Math.round(build.fireRateMult * 100)}%</strong></div>
             <div class="pause-stat-pill"><span>CRIT</span><strong>${Math.round(build.critChance * 100)}%</strong></div>
-            <div class="pause-stat-pill"><span>SYNC</span><strong>${build.syncHits}</strong></div>
+            <div class="pause-stat-pill"><span>BRINK</span><strong>${build.brinkShocks}</strong></div>
           </div>
           <div class="pause-weapon-list">${weaponRows}</div>
           ${relicRow}
@@ -2708,8 +2708,8 @@ export class OverlayController {
       kills: 0,
       grazes: 0,
       bestGrazeCombo: 0,
-      syncHits: 0,
-      bestSyncStreak: 0,
+      brinkShocks: 0,
+      pressureReleases: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -2822,8 +2822,8 @@ export class OverlayController {
               </div>
             </div>
             <div class="summary-cell">
-              <span class="mono" style="font-size:10px;font-weight:800;color:var(--gold)">SYNC</span>
-              <span class="summary-num" style="color:var(--gold)">${st.syncHits}${st.bestSyncStreak > 1 ? ` · ×${st.bestSyncStreak}` : ''}</span>
+              <span class="mono" style="font-size:10px;font-weight:800;color:#7bf7ff">BRINK</span>
+              <span class="summary-num" style="color:#7bf7ff">${st.brinkShocks}${st.pressureReleases > 0 ? ` · ${st.pressureReleases}P` : ''}</span>
             </div>
             <div class="summary-cell">
               <span class="mono" style="font-size:10px;font-weight:800;color:var(--muted)">BOSS</span>

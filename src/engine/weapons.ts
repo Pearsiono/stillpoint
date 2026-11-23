@@ -183,10 +183,8 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     ? 0.85 + player.momentumMoveTime * 0.55
     : 1;
   const bastionStillMult = ctx.vesselId === 'bastion' && inStillpoint ? 1.25 : 1;
-  const syncBase = player.modules.includes('deadeye_sync') ? 1.46 : 1.28;
-  const syncStreak = Math.max(0, player.syncStreak - 1) * 0.04;
-  const syncMult = player.syncBuffTimer > 0 ? syncBase + syncStreak : 1;
-  const overclockCarryMult = player.syncOverclockCarry > 0 && !inStillpoint ? 1.35 : 1;
+  const overpressureMult =
+    player.overpressureTimer > 0 ? 1 + 0.1 + player.overpressurePower * 0.16 : 1;
   const totalRateMult =
     player.fireRateMult *
     overclockMult *
@@ -195,8 +193,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     berserkMult *
     momentumMult *
     bastionStillMult *
-    syncMult *
-    overclockCarryMult;
+    overpressureMult;
 
   // Integrate continuous orbital phases so Stillpoint transitions never snap blade/drone angles
   const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
@@ -227,7 +224,8 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
       minesDetonated++;
       const r = (b.blastRadius ?? 72) * 1.85 * blastMult;
       const dmg = b.damage * 1.45 * blastMult;
-      particles.shatter(b.x, b.y, '#ff5c38', 10, 1.3);
+      particles.explode(b.x, b.y, 1.3, '#ff5c38');
+      particles.shatter(b.x, b.y, '#ff5c38', 8, 1.2);
       particles.ripple(b.x, b.y, r * 1.2, 13, '#ff5c38', 0.36);
       for (const e of [...enemies]) {
         if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {

@@ -81,8 +81,9 @@ export interface HudSnapshot {
   grazeCombo: number;
   surgeTier: number;
   surgeActive: boolean;
-  syncBuffActive: boolean;
-  syncStreak: number;
+  overpressureActive: boolean;
+  overpressurePower: number;
+  stalled: boolean;
   weapons: PlayerState['weapons'];
   passives: PlayerState['passives'];
   relics: RelicId[];
@@ -165,7 +166,8 @@ export class StillpointGame {
     shards: 0,
     kills: 0,
     grazes: 0,
-    syncHits: 0,
+    brinkShocks: 0,
+    pressureReleases: 0,
     runCounted: false,
     heatClearCounted: false
   };
@@ -375,7 +377,8 @@ export class StillpointGame {
     if (this.phase !== 'playing') return;
     this.phase = 'paused';
     this.player.inStillpoint = false;
-    this.player.syncActive = false;
+    this.player.pressureCharge = 0;
+    this.player.pressureActiveBullets = 0;
     this.input.setEnabled(false);
     sound.setStillpointBlend(0);
     this.callbacks.onPhaseChange('paused');
@@ -617,15 +620,14 @@ export class StillpointGame {
       echoSalvoCounter: 0,
       haloOrbitAngle: 0,
       droneOrbitAngle: 0,
-      syncActive: false,
-      syncProgress: 0,
-      syncZoneStart: 0.44,
-      syncZoneEnd: 0.68,
-      syncCooldown: 0,
-      syncBuffTimer: 0,
-      syncStreak: 0,
-      syncFlashTimer: 0,
-      syncOverclockCarry: 0
+      brinkCooldown: 0,
+      brinkFlashTimer: 0,
+      pressureCharge: 0,
+      pressureActiveBullets: 0,
+      overpressureTimer: 0,
+      overpressurePower: 0,
+      stallTimer: 0,
+      stallMaxTimer: 2.4
     };
 
     this.recomputePlayerStats();
@@ -651,8 +653,8 @@ export class StillpointGame {
       kills: 0,
       grazes: 0,
       bestGrazeCombo: 0,
-      syncHits: 0,
-      bestSyncStreak: 0,
+      brinkShocks: 0,
+      pressureReleases: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -692,7 +694,8 @@ export class StillpointGame {
       shards: 0,
       kills: 0,
       grazes: 0,
-      syncHits: 0,
+      brinkShocks: 0,
+      pressureReleases: 0,
       runCounted: false,
       heatClearCounted: false
     };
@@ -771,6 +774,7 @@ export class StillpointGame {
     this.player.stillpointDrainMult =
       Math.pow(0.9, capLv) *
       (hasMod('risk_drain') ? 1.4 : 1.0) *
+      (hasMod('pressure_vent') ? 1.15 : 1.0) *
       overclockDrainMult *
       timeBankDrainMult *
       curseDrainMult;
@@ -874,43 +878,68 @@ export class StillpointGame {
       if (this.eventBannerTimer <= 0) this.eventBanner = null;
     }
 
-    // 1. Lift-to-Focus Stillpoint + 9 Core Powers!
-    const wasStillpoint = player.inStillpoint;
-    const minToEnter = wasStillpoint ? 0.5 : 5;
-    player.inStillpoint = input.wantsStillpoint && player.kineticCharge > minToEnter;
-    const justEntered = !wasStillpoint && player.inStillpoint;
-    let justExited = wasStillpoint && !player.inStillpoint;
-
+    // 1. Lift-to-Focus Stillpoint + Brink Shockwave + Bullet Pressure + Reactor Stall
     if (player.coreCooldown > 0) {
       player.coreCooldown = Math.max(0, player.coreCooldown - dtReal);
     }
-    if (player.syncCooldown > 0) {
-      player.syncCooldown = Math.max(0, player.syncCooldown - dtReal);
+    if (player.brinkCooldown > 0) {
+      player.brinkCooldown = Math.max(0, player.brinkCooldown - dtReal);
     }
-    if (player.syncBuffTimer > 0) {
-      player.syncBuffTimer = Math.max(0, player.syncBuffTimer - dtReal);
+    if (player.brinkFlashTimer > 0) {
+      player.brinkFlashTimer = Math.max(0, player.brinkFlashTimer - dtReal);
     }
-    if (player.syncFlashTimer > 0) {
-      player.syncFlashTimer = Math.max(0, player.syncFlashTimer - dtReal);
+    if (player.overpressureTimer > 0) {
+      player.overpressureTimer = Math.max(0, player.overpressureTimer - dtReal);
+      if (player.overpressureTimer <= 0) player.overpressurePower = 0;
     }
-    if (player.syncOverclockCarry > 0) {
-      player.syncOverclockCarry = Math.max(0, player.syncOverclockCarry - dtReal);
+    if (player.stallTimer > 0) {
+      player.stallTimer = Math.max(0, player.stallTimer - dtReal);
+      // Sputtering steam/soot vent while reactor is stalled
+      if (Math.random() < dtReal * 12) {
+        this.particles.smokePuff(
+          player.x + (Math.random() - 0.5) * 14,
+          player.y + (Math.random() - 0.5) * 14,
+          (Math.random() - 0.5) * 35,
+          -18 - Math.random() * 25,
+          4.5,
+          0.36
+        );
+        this.particles.burst(player.x, player.y, '#ff7043', 1, 20, 65, 2.3, 0.2);
+      }
     }
+
+    const wasStillpoint = player.inStillpoint;
+    const minToEnter = wasStillpoint ? 0.5 : 5;
+    player.inStillpoint =
+      player.stallTimer <= 0 && input.wantsStillpoint && player.kineticCharge > minToEnter;
+    const justEntered = !wasStillpoint && player.inStillpoint;
+    let justExited = wasStillpoint && !player.inStillpoint;
+    let stalledOut = false;
 
     if (justEntered) {
       this.hasUsedStillpoint = true;
       player.stillpointTimeHeld = 0;
       player.railChargeTime = 0;
+      player.pressureCharge = 0;
+      player.pressureActiveBullets = 0;
       sound.playStillpointEnter();
       bridge.haptic('light');
 
-      // Arm Active-Reload Sync timing arc above the ship when off cooldown
-      if (player.syncCooldown <= 0 && player.kineticCharge >= 12) {
-        const tight = player.modules.includes('deadeye_sync');
-        player.syncActive = true;
-        player.syncProgress = 0;
-        player.syncZoneStart = tight ? 0.49 : 0.44;
-        player.syncZoneEnd = tight ? 0.63 : 0.68;
+      // Brink Shockwave: entering Stillpoint RIGHT on the money as a bullet kisses your hull!
+      if (player.brinkCooldown <= 0) {
+        const hasCap = player.modules.includes('brink_capacitor');
+        const brinkR = hasCap ? 22.5 : 28;
+        let hitBrink = false;
+        for (const b of this.enemyBullets) {
+          const edgeDist = Math.hypot(b.x - player.x, b.y - player.y) - b.radius;
+          if (edgeDist <= brinkR) {
+            hitBrink = true;
+            break;
+          }
+        }
+        if (hitBrink) {
+          this.triggerBrinkShockwave(brinkR);
+        }
       }
 
       // Reflex Tap Pick-10 module: entering Stillpoint at 5+ graze combo gives 1.6s zero drain & resets core!
@@ -949,17 +978,28 @@ export class StillpointGame {
       }
     }
 
-    // 3. Kinetic Charge — Earned Focus Economy + Active-Reload Timing Sweep
+    // 3. Kinetic Charge — Earned Focus Economy + Bullet Pressure + Reactor Stall Risk
     if (player.inStillpoint) {
       player.stillpointTimeHeld += dtReal;
-      if (player.syncActive) {
-        player.syncProgress += dtReal / 1.15;
-        if (player.syncProgress >= 1) {
-          player.syncActive = false;
-          player.syncStreak = 0;
-          player.syncCooldown = 1.6;
+
+      // Bullet Pressure: live enemy bullets inside the nearby Pressure Ring supercharge your exit!
+      const pressureR = Math.min(132, player.grazeRadius * 2.15);
+      const pressureR2 = pressureR * pressureR;
+      let nearBullets = 0;
+      for (const b of this.enemyBullets) {
+        const dx = b.x - player.x;
+        const dy = b.y - player.y;
+        if (dx * dx + dy * dy <= pressureR2) {
+          nearBullets++;
         }
       }
+      player.pressureActiveBullets = nearBullets;
+      if (nearBullets > 0) {
+        const ventMult = player.modules.includes('pressure_vent') ? 1.45 : 1.0;
+        const chargeRate = Math.min(0.72, nearBullets * 0.17) * ventMult;
+        player.pressureCharge = Math.min(1, player.pressureCharge + chargeRate * dtReal);
+      }
+
       if (this.coreId === 'singularity_lance') {
         player.railChargeTime = Math.min(1.6, player.railChargeTime + dtReal);
       }
@@ -969,42 +1009,43 @@ export class StillpointGame {
       if (player.kineticCharge <= 0.1) {
         player.inStillpoint = false;
         justExited = true;
+        stalledOut = true;
       }
     } else {
+      player.pressureActiveBullets = 0;
       const ocBonus = player.inOverclockRing ? 2.1 : 1.0;
+      const stallPenalty = player.stallTimer > 0 ? 0.55 : 1.0;
       const moveBonus = input.isMoving ? 11.5 : 0;
       player.kineticCharge = Math.min(
         player.maxKineticCharge,
-        player.kineticCharge + moveBonus * player.chargeRateMult * ocBonus * dtReal
+        player.kineticCharge + moveBonus * player.chargeRateMult * ocBonus * stallPenalty * dtReal
       );
     }
 
     if (justExited) {
-      let perfectSync = false;
-      if (player.syncActive) {
-        const prog = player.syncProgress;
-        const playerTouchedDown = !input.wantsStillpoint;
-        const hitWindow =
-          playerTouchedDown && prog >= player.syncZoneStart && prog <= player.syncZoneEnd;
-        player.syncActive = false;
-        if (hitWindow) {
-          perfectSync = true;
-          this.triggerPerfectSync();
-        } else if (playerTouchedDown && prog < 0.22) {
-          // Fast micro-slow dodge: no penalty, preserves streak
-          player.syncCooldown = 0.85;
-        } else {
-          player.syncStreak = 0;
-          player.syncCooldown = 1.9;
-          sound.playSyncMiss();
-          if (player.modules.includes('deadeye_sync')) {
-            player.kineticCharge = Math.max(0, player.kineticCharge - 12);
-            this.particles.callout(player.x, player.y - 36, 'SYNC MISS', '#d97134', 0.95, 0.55);
-          }
+      let exitPressure = 0;
+      if (stalledOut) {
+        // Greedy Focus depletion -> Reactor Stall lockout + lose banked Pressure!
+        player.pressureCharge = 0;
+        player.pressureActiveBullets = 0;
+        const stallDur = player.modules.includes('pressure_vent') ? 1.35 : 2.4;
+        player.stallTimer = stallDur;
+        player.stallMaxTimer = stallDur;
+        sound.playReactorStall();
+        bridge.haptic('warning');
+        this.addShake(4.5);
+        this.particles.burst(player.x, player.y, '#ff7043', 10, 45, 145, 3.0, 0.34);
+        this.particles.callout(player.x, player.y - 42, 'REACTOR STALL', '#ff5c47', 1.12, 0.85);
+      } else {
+        exitPressure = player.pressureCharge;
+        player.pressureCharge = 0;
+        player.pressureActiveBullets = 0;
+        if (exitPressure >= 0.25) {
+          this.cashOutBulletPressure(exitPressure);
         }
       }
       sound.playStillpointExit();
-      this.activateStillpointCoreExit(perfectSync);
+      this.activateStillpointCoreExit(exitPressure);
       player.railChargeTime = 0;
     }
 
@@ -1505,177 +1546,126 @@ export class StillpointGame {
     }
   }
 
-  private triggerPerfectSync(): void {
+  private triggerBrinkShockwave(brinkR: number): void {
     const p = this.player;
-    const v = VESSELS[this.vesselId];
-    const deadeye = p.modules.includes('deadeye_sync');
-    p.syncStreak = Math.min(5, p.syncStreak + 1);
-    this.stats.syncHits++;
-    if (p.syncStreak > this.stats.bestSyncStreak) {
-      this.stats.bestSyncStreak = p.syncStreak;
+    const hasCap = p.modules.includes('brink_capacitor');
+    p.brinkCooldown = 2.6;
+    p.brinkFlashTimer = 0.42;
+    this.stats.brinkShocks++;
+
+    // Modest Focus refund + tight internal cooldown so Brink is clutch without being exploitable
+    const focusRefund = hasCap ? 22 : 16;
+    p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + focusRefund);
+    this.addMomentum(10);
+
+    // Vaporize ONLY the exact close-call bullet(s) inside the tight Brink ring so you don't eat the shot you timed
+    const vaporR = brinkR + 8;
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      const b = this.enemyBullets[i];
+      if (Math.hypot(b.x - p.x, b.y - p.y) - b.radius <= vaporR) {
+        this.particles.arc(p.x, p.y, b.x, b.y, '#7bf7ff', 2.4, 0.16);
+        this.particles.burst(b.x, b.y, '#7bf7ff', 5, 55, 155, 2.4, 0.22);
+        this.enemyBullets.splice(i, 1);
+      }
     }
-    p.syncCooldown = 2.1;
-    p.syncBuffTimer = Math.max(p.syncBuffTimer, deadeye ? 3.4 : 2.8);
-    p.syncFlashTimer = 0.42;
 
-    // Refund Focus + feed Momentum toward Surge
-    const baseRefund = deadeye ? 0.36 : 0.24;
-    const refundFrac = baseRefund + (p.syncStreak - 1) * 0.025;
-    p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + p.maxKineticCharge * refundFrac);
-    this.addMomentum(16 + (p.syncStreak - 1) * 4);
+    // Electric shockwave pushing nearby enemies back (light shock chip damage, bosses resist knockback)
+    const shockR = (hasCap ? 175 : 132) * p.areaMult;
+    const pushDist = hasCap ? 105 : 74;
+    const shockDmg = (hasCap ? 24 : 16) * p.damageMult;
+    let arced = 0;
+    for (const e of [...this.enemies]) {
+      if (e.hp <= 0) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist <= shockR + e.radius) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        if (!e.isBoss) {
+          const push = pushDist * (1 - 0.35 * Math.min(1, dist / shockR));
+          e.x += nx * push;
+          e.y += ny * push;
+          if (this.enclosure.active) {
+            const pad = e.radius + 8;
+            e.x = Math.max(
+              this.enclosure.cx - this.enclosure.halfW + pad,
+              Math.min(this.enclosure.cx + this.enclosure.halfW - pad, e.x)
+            );
+            e.y = Math.max(
+              this.enclosure.cy - this.enclosure.halfH + pad,
+              Math.min(this.enclosure.cy + this.enclosure.halfH - pad, e.y)
+            );
+          }
+          e.stunTimer = Math.max(e.stunTimer ?? 0, 0.35);
+        }
+        if (arced < 6) {
+          this.particles.arc(p.x, p.y, e.x, e.y, '#64e8ff', 2.6, 0.2);
+          arced++;
+        }
+        this.damageEnemy(e, shockDmg, '#64e8ff', false, 'core');
+      }
+    }
 
-    // Feedback: mechanical brass snap chime, heavy haptic, golden ripple & callout
-    sound.playSyncHit(p.syncStreak);
+    // Radiating electric storm rings around ship
+    for (let k = 0; k < 6; k++) {
+      const ang = (k * Math.PI * 2) / 6 + Math.random() * 0.4;
+      const rEnd = shockR * (0.68 + Math.random() * 0.28);
+      this.particles.arc(
+        p.x + Math.cos(ang) * 14,
+        p.y + Math.sin(ang) * 14,
+        p.x + Math.cos(ang) * rEnd,
+        p.y + Math.sin(ang) * rEnd,
+        k % 2 === 0 ? '#7bf7ff' : '#f6c453',
+        2.2,
+        0.18
+      );
+    }
+
+    this.hitStopTimer = Math.max(this.hitStopTimer, 0.04);
+    sound.playBrinkShock();
     bridge.haptic('heavy');
-    this.addShake(4.5);
-    this.particles.ripple(p.x, p.y, 128 * p.areaMult, 16, '#f6c453', 0.38);
-    this.particles.burst(p.x, p.y, '#f6c453', 9, 60, 175, 2.4, 0.26);
-    const label = p.syncStreak > 1 ? `SYNC ×${p.syncStreak}` : 'SYNC';
-    this.particles.callout(p.x, p.y - 44, label, '#f6c453', p.syncStreak >= 3 ? 1.25 : 1.12, 0.85);
+    this.addShake(5.5);
+    this.particles.ripple(p.x, p.y, shockR, 16, '#64e8ff', 0.36);
+    this.particles.ring(p.x, p.y, '#f6c453', 22, 0.28);
+    this.particles.callout(p.x, p.y - 44, 'BRINK SHOCK', '#7bf7ff', 1.18, 0.8);
+  }
 
-    // Purge Cadence Pick-10 module: erase bullets within 95px & return up to 4 as homing sparks!
-    if (p.modules.includes('shock_sync')) {
-      const clearR = 95 * p.areaMult;
-      let cleared = 0;
+  private cashOutBulletPressure(pressure: number): void {
+    const p = this.player;
+    const isFull = pressure >= 0.92;
+    p.overpressurePower = Math.max(p.overpressurePower, pressure);
+    p.overpressureTimer = Math.max(p.overpressureTimer, 2.2);
+    this.addMomentum(Math.round(8 + pressure * 14));
+
+    if (isFull) {
+      this.stats.pressureReleases++;
+      // Compact escape pocket clearing only hugging bullets right next to the hull on full Pressure release
+      const pocketR = 68 * Math.min(1.25, p.areaMult);
       for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
         const b = this.enemyBullets[i];
-        if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 <= clearR * clearR) {
+        if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 <= pocketR * pocketR) {
+          this.particles.burst(b.x, b.y, '#f6c453', 3, 40, 120, 2.2, 0.22);
           this.enemyBullets.splice(i, 1);
-          cleared++;
-          if (cleared <= 4 && this.playerBullets.length < 180) {
-            const tgt = findNearestEnemy(b.x, b.y, this.enemies, 520, true);
-            const ang = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : Math.atan2(b.y - p.y, b.x - p.x);
-            this.playerBullets.push({
-              id: this.nextEntityId++,
-              kind: 'parry_shard',
-              x: b.x,
-              y: b.y,
-              vx: Math.cos(ang) * 560,
-              vy: Math.sin(ang) * 560,
-              radius: 5,
-              damage: 34 * p.damageMult * p.corePowerMult,
-              pierce: 1,
-              age: 0,
-              maxAge: 1.4,
-              color: '#5cd6d0',
-              homing: 9.5,
-              targetId: tgt?.id,
-              hitSet: new Set()
-            });
-          }
         }
       }
-      if (cleared > 0) {
-        this.particles.ripple(p.x, p.y, clearR, 12, '#5cd6d0', 0.3);
-      }
-    }
-
-    // Core-specific Perfect Sync amplifiers for entry/passive Cores (exit Cores amplify in activateStillpointCoreExit)
-    const coreR = p.areaMult * v.stats.coreAreaMult;
-    if (this.coreId === 'deflector') {
-      // Secondary gilded nova shockwave + 6 golden shrapnel shards!
-      const blastR = 148 * coreR;
-      const dmg = 44 * p.damageMult * p.corePowerMult;
-      for (const e of [...this.enemies]) {
-        if (e.hp <= 0) continue;
-        const dx = e.x - p.x;
-        const dy = e.y - p.y;
-        const d = Math.hypot(dx, dy) || 1;
-        if (d <= blastR + e.radius) {
-          this.damageEnemy(e, dmg, '#f6c453', true);
-          if (!e.isBoss && e.hp > 0) {
-            e.x += (dx / d) * 44;
-            e.y += (dy / d) * 44;
-          }
-        }
-      }
-      for (let k = 0; k < 6; k++) {
-        if (this.playerBullets.length >= 180) break;
-        const ang = (k * Math.PI * 2) / 6 + p.facingAngle;
-        this.playerBullets.push({
-          id: this.nextEntityId++,
-          kind: 'shrapnel',
-          x: p.x,
-          y: p.y,
-          vx: Math.cos(ang) * 500,
-          vy: Math.sin(ang) * 500,
-          radius: 5,
-          damage: 26 * p.damageMult * p.corePowerMult,
-          pierce: 2,
-          age: 0,
-          maxAge: 0.85,
-          color: '#f6c453',
-          homing: 0,
-          hitSet: new Set()
-        });
-      }
-    } else if (this.coreId === 'aegis_dome') {
-      // Bonus exit Stasis wave erasing nearby bullets within 125px
-      const domeR = 125 * coreR;
-      let erased = 0;
-      for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-        const b = this.enemyBullets[i];
-        if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 <= domeR * domeR) {
-          this.enemyBullets.splice(i, 1);
-          erased++;
-          if (erased <= 5 && this.playerBullets.length < 180) {
-            const tgt = findNearestEnemy(b.x, b.y, this.enemies, 520, true);
-            const ang = tgt ? Math.atan2(tgt.y - b.y, tgt.x - b.x) : Math.atan2(b.y - p.y, b.x - p.x);
-            this.playerBullets.push({
-              id: this.nextEntityId++,
-              kind: 'parry_shard',
-              x: b.x,
-              y: b.y,
-              vx: Math.cos(ang) * 540,
-              vy: Math.sin(ang) * 540,
-              radius: 5,
-              damage: 34 * p.damageMult * p.corePowerMult,
-              pierce: 1,
-              age: 0,
-              maxAge: 1.4,
-              color: '#62a4f5',
-              homing: 9,
-              targetId: tgt?.id,
-              hitSet: new Set()
-            });
-          }
-        }
-      }
-      this.particles.ripple(p.x, p.y, domeR, 12, '#62a4f5', 0.34);
-    } else if (this.coreId === 'chrono_echo') {
-      // Extend active rotary turrets by +2.5s and reset their fire timer for an immediate burst!
-      for (const ec of this.echoes) {
-        ec.age = Math.max(0, ec.age - 2.5);
-        ec.fireTimer = 0;
-        this.particles.ring(ec.x, ec.y, '#f6c453', 20, 0.28);
-      }
-    } else if (this.coreId === 'overclock') {
-      // Carry Overclock's guaranteed crits & fire-rate surge out of Stillpoint for 2.4s!
-      p.syncOverclockCarry = Math.max(p.syncOverclockCarry, deadeye ? 3.2 : 2.4);
-    } else if (this.coreId === 'berserk') {
-      // Grant Frenzy haste + shield/HP pulse on Perfect Sync!
-      p.frenzyTimer = Math.max(p.frenzyTimer, 2.6);
-      if (p.modules.includes('blood_pact')) {
-        p.hp = Math.min(p.maxHp, p.hp + 8);
-      } else {
-        p.shield = Math.min(p.maxShield, p.shield + 12);
-      }
-    } else if (this.coreId === 'catalyst_surge') {
-      // Emit a 165px mark wave & immediately ignite damaged marked foes!
-      const markR = 165 * coreR;
-      this.particles.ripple(p.x, p.y, markR, 14, '#e05fa8', 0.36);
-      for (const e of [...this.enemies]) {
-        if (e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= markR + e.radius) {
-          e.catalystMark = Math.max(e.catalystMark ?? 0, 6.5);
-          this.damageEnemy(e, 34 * p.damageMult * p.corePowerMult, '#e05fa8', true);
-        }
-      }
+      this.particles.ripple(p.x, p.y, pocketR * 1.4, 14, '#f6c453', 0.32);
+      this.particles.callout(p.x, p.y - 42, 'PRESSURE MAX', '#f6c453', 1.18, 0.8);
+      sound.playPressureRelease(true);
+      bridge.haptic('heavy');
+      this.addShake(4.2);
+    } else if (pressure >= 0.55) {
+      this.particles.ring(p.x, p.y, '#f0a942', 18, 0.24);
+      this.particles.callout(p.x, p.y - 38, 'OVERPRESSURE', '#f0a942', 1.0, 0.65);
+      sound.playPressureRelease(false);
     }
   }
 
-  private activateStillpointCoreExit(perfectSync = false): void {
+  private activateStillpointCoreExit(pressureRatio = 0): void {
     const p = this.player;
     const v = VESSELS[this.vesselId];
+    const pBoost = pressureRatio >= 0.25 ? pressureRatio : 0;
+    const fullPressure = pressureRatio >= 0.92;
 
     // Pyre ship passive: exiting Stillpoint after a brief hold ignites a thermal fire ring!
     if (this.vesselId === 'pyre' && p.stillpointTimeHeld > 0.2) {
@@ -1702,14 +1692,14 @@ export class StillpointGame {
       this.particles.ripple(p.x, p.y, 92 * p.areaMult, 12, '#a974e8', 0.35);
     }
 
-    // Rail Collapse Core: fire colossal charged directional beam on touch-down (Perfect Sync snaps to 100% MAX!)
-    if (this.coreId === 'singularity_lance' && (p.railChargeTime > 0.12 || perfectSync)) {
-      const chargePct = perfectSync ? 1.0 : Math.min(1, p.railChargeTime / 1.4);
+    // Rail Collapse Core: fire colossal charged directional beam on touch-down (scales up to +25% with Pressure!)
+    if (this.coreId === 'singularity_lance' && (p.railChargeTime > 0.12 || fullPressure)) {
+      const chargePct = Math.min(1, p.railChargeTime / 1.4 + pBoost * 0.22);
       const tgt = findNearestEnemy(p.x, p.y, this.enemies, 680, true);
       const aimAng = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : p.facingAngle;
       const beamLen = 680;
-      const beamW = (16 + chargePct * 18) * p.areaMult * (perfectSync ? 1.2 : 1);
-      const dmg = (68 + chargePct * 185) * p.damageMult * p.corePowerMult * (perfectSync ? 1.25 : 1);
+      const beamW = (16 + chargePct * 18) * p.areaMult * (1 + pBoost * 0.18);
+      const dmg = (68 + chargePct * 185) * p.damageMult * p.corePowerMult * (1 + pBoost * 0.22);
       const ex = p.x + Math.cos(aimAng) * beamLen;
       const ey = p.y + Math.sin(aimAng) * beamLen;
 
@@ -1745,17 +1735,17 @@ export class StillpointGame {
       }
     }
 
-    // Detonate Blink Decoys on touch-down! (Perfect Sync amplifies damage 1.5x & doubles shrapnel!)
+    // Detonate Blink Decoys on touch-down! (Full Pressure amplifies detonation!)
     if (this.coreId === 'blink' && this.decoys.length > 0) {
       for (const d of this.decoys) {
-        this.detonateDecoy(d, perfectSync);
+        this.detonateDecoy(d, fullPressure);
       }
       this.decoys.length = 0;
     }
 
     // Gravity Siphon: shatter all sucked-in enemies outward + fire shrapnel ring on touch-down!
     if (this.coreId === 'siphon' && p.stillpointTimeHeld > 0.14) {
-      const blastR = 180 * p.areaMult * v.stats.coreAreaMult * (perfectSync ? 1.2 : 1);
+      const blastR = 180 * p.areaMult * v.stats.coreAreaMult * (1 + pBoost * 0.18);
       this.hazards.push({
         id: this.nextEntityId++,
         kind: 'nova_wave',
@@ -1766,12 +1756,12 @@ export class StillpointGame {
         damagePerSec: 0,
         age: 0,
         maxAge: 0.3,
-        color: perfectSync ? '#f6c453' : '#ff9f43',
+        color: fullPressure ? '#f6c453' : '#ff9f43',
         collapsed: false,
         evolved: true,
         pullStrength: 0
       });
-      this.particles.ripple(p.x, p.y, blastR * 1.35, 18, perfectSync ? '#f6c453' : '#ff9f43', 0.45);
+      this.particles.ripple(p.x, p.y, blastR * 1.35, 18, fullPressure ? '#f6c453' : '#ff9f43', 0.45);
       sound.playCoreBurst(5, true);
       bridge.haptic('heavy');
       this.addShake(8);
@@ -1782,7 +1772,7 @@ export class StillpointGame {
         if (Math.hypot(e.x - p.x, e.y - p.y) <= blastR + e.radius) hitCount++;
       }
 
-      const dmg = (56 + hitCount * 10) * p.damageMult * p.corePowerMult * (perfectSync ? 1.45 : 1);
+      const dmg = (56 + hitCount * 10) * p.damageMult * p.corePowerMult * (1 + pBoost * 0.25);
       for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         const dx = e.x - p.x;
@@ -1791,13 +1781,13 @@ export class StillpointGame {
         if (dist <= blastR + e.radius) {
           this.damageEnemy(e, dmg, '#ff9f43', true);
           if (!e.isBoss && e.hp > 0) {
-            e.x += (dx / dist) * (perfectSync ? 82 : 64);
-            e.y += (dy / dist) * (perfectSync ? 82 : 64);
+            e.x += (dx / dist) * (64 + pBoost * 18);
+            e.y += (dy / dist) * (64 + pBoost * 18);
           }
         }
       }
 
-      const shrapCount = perfectSync ? 12 : 8;
+      const shrapCount = fullPressure ? 10 : 8;
       for (let i = 0; i < shrapCount; i++) {
         const ang = (i * Math.PI * 2) / shrapCount;
         this.playerBullets.push({
@@ -1808,11 +1798,11 @@ export class StillpointGame {
           vx: Math.cos(ang) * 480,
           vy: Math.sin(ang) * 480,
           radius: 5.5,
-          damage: 26 * p.damageMult * p.corePowerMult * (perfectSync ? 1.25 : 1),
+          damage: 26 * p.damageMult * p.corePowerMult * (1 + pBoost * 0.2),
           pierce: 2,
           age: 0,
           maxAge: 0.85,
-          color: perfectSync ? '#f6c453' : '#ff9f43',
+          color: fullPressure ? '#f6c453' : '#ff9f43',
           homing: 0,
           hitSet: new Set()
         });
@@ -1829,7 +1819,8 @@ export class StillpointGame {
     const blastR = 135 * p.areaMult * (amplified ? 1.2 : 1);
     const dmg = 54 * p.damageMult * p.corePowerMult * (amplified ? 1.5 : 1);
     sound.playShoot('mortar');
-    this.particles.shatter(d.x, d.y, amplified ? '#f6c453' : '#cf7dff', 10, 1.3);
+    this.particles.explode(d.x, d.y, amplified ? 1.45 : 1.15, amplified ? '#f6c453' : '#cf7dff');
+    this.particles.shatter(d.x, d.y, amplified ? '#f6c453' : '#cf7dff', 8, 1.2);
     this.particles.ripple(d.x, d.y, blastR * 1.2, 14, amplified ? '#f6c453' : '#cf7dff', 0.4);
     for (const e of [...this.enemies]) {
       if (e.hp > 0 && Math.hypot(e.x - d.x, e.y - d.y) <= blastR + e.radius) {
@@ -1915,6 +1906,7 @@ export class StillpointGame {
       if (triggered) {
         this.mines.splice(i, 1);
         this.particles.shatter(m.x, m.y, '#ff7b47', 9, 1.1);
+        this.particles.explode(m.x, m.y, 1.15, '#ff7b47');
         this.particles.ripple(m.x, m.y, m.radius * 1.15, 11, '#ff7b47', 0.32);
         sound.playShoot('mortar');
         for (const e of [...this.enemies]) {
@@ -2280,7 +2272,8 @@ export class StillpointGame {
       const m = this.meteors[i];
       m.timer -= dtWorld;
       if (m.timer <= 0) {
-        this.particles.shatter(m.x, m.y, '#ff6a26', 8, 1.1);
+        this.particles.explode(m.x, m.y, 1.3, '#ff6a26');
+        this.particles.shatter(m.x, m.y, '#ff6a26', 6, 1.05);
         this.particles.ripple(m.x, m.y, m.radius * 1.5, 10, '#ff6a26', 0.35);
         sound.playShoot('mortar');
         const dp = Math.hypot(this.player.x - m.x, this.player.y - m.y);
@@ -2592,10 +2585,21 @@ export class StillpointGame {
         if (b.kind === 'mortar_shell') {
           b.x += b.vx * dt;
           b.y += b.vy * dt;
+          if (Math.random() < dt * 24) {
+            this.particles.smokePuff(
+              b.x - b.vx * 0.018,
+              b.y - b.vy * 0.018,
+              -b.vx * 0.08 + (Math.random() - 0.5) * 18,
+              -b.vy * 0.08 + (Math.random() - 0.5) * 18,
+              4.6,
+              0.28,
+              '#58446b'
+            );
+          }
           if (b.age >= b.maxAge) {
             const r = b.blastRadius ?? 68;
-            this.particles.burst(b.x, b.y, '#d387ff', 12, 50, 180, 3.2, 0.36);
-            this.particles.ring(b.x, b.y, '#d387ff', 16, 0.28);
+            this.particles.explode(b.x, b.y, 1.25, '#c678ff');
+            this.particles.ring(b.x, b.y, '#d387ff', 18, 0.28);
             for (const e of enemySnap) {
               if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
                 this.damageEnemy(e, b.damage, '#d387ff', false, 'void_mortars');
@@ -2646,6 +2650,19 @@ export class StillpointGame {
 
         b.x += b.vx * dt;
         b.y += b.vy * dt;
+
+        // Chunky Metal-Slug exhaust smoke puffs behind homing rockets!
+        if (b.kind === 'missile' && Math.random() < dt * 28) {
+          this.particles.smokePuff(
+            b.x - b.vx * 0.018,
+            b.y - b.vy * 0.018,
+            -b.vx * 0.08 + (Math.random() - 0.5) * 18,
+            -b.vy * 0.08 + (Math.random() - 0.5) * 18,
+            3.6,
+            0.28,
+            '#57524c'
+          );
+        }
 
         if (b.kind === 'ricochet' && this.enclosure.active && (b.bounces ?? 0) > 0) {
           const enc = this.enclosure;
@@ -2749,10 +2766,9 @@ export class StillpointGame {
             e.y += (b.vy / bSpd) * 18;
           }
 
-          // Auto-crit in Overclock Core Stillpoint (and during Sync Overclock carryover)!
+          // Auto-crit in Overclock Core Stillpoint!
           const isCrit =
-            (this.coreId === 'overclock' &&
-              (this.player.inStillpoint || this.player.syncOverclockCarry > 0)) ||
+            (this.coreId === 'overclock' && this.player.inStillpoint) ||
             Math.random() < this.player.critChance;
           if (isCrit) {
             finalDmg *= this.player.critMult;
@@ -2768,8 +2784,8 @@ export class StillpointGame {
 
           // Missile & Seeker Mine AoE splash!
           if ((b.kind === 'missile' || b.kind === 'seeker_mine') && b.blastRadius) {
-            const splashCol = b.kind === 'seeker_mine' ? '#e0533c' : '#ff7b47';
-            this.particles.burst(b.x, b.y, splashCol, 8, 40, 150, 2.8, 0.3);
+            const splashCol = b.kind === 'seeker_mine' ? '#ff5c38' : '#ff8636';
+            this.particles.explode(b.x, b.y, b.kind === 'seeker_mine' ? 1.15 : 0.85, splashCol);
             if (b.kind === 'seeker_mine') {
               this.particles.ripple(b.x, b.y, b.blastRadius * 1.1, 10, splashCol, 0.3);
               sound.playShoot('mortar');
@@ -3293,7 +3309,8 @@ export class StillpointGame {
     this.phase = 'levelup';
     this.input.setEnabled(false);
     this.player.inStillpoint = false;
-    this.player.syncActive = false;
+    this.player.pressureCharge = 0;
+    this.player.pressureActiveBullets = 0;
     sound.setStillpointBlend(0);
     sound.playLevelUp();
     bridge.haptic('medium');
@@ -3375,12 +3392,8 @@ export class StillpointGame {
         (enemy.isBoss ? 0.8 : 1)
       : 1;
 
-    const syncDmgScale =
-      p.syncBuffTimer > 0
-        ? 1 +
-          (p.modules.includes('deadeye_sync') ? 0.36 : 0.22) +
-          Math.max(0, p.syncStreak - 1) * 0.04
-        : 1;
+    const overpressureDmgScale =
+      p.overpressureTimer > 0 ? 1 + 0.1 + p.overpressurePower * 0.14 : 1;
 
     const dmg =
       rawDmg *
@@ -3390,7 +3403,7 @@ export class StillpointGame {
       redlineScale *
       gildedScale *
       stillpointScale *
-      syncDmgScale;
+      overpressureDmgScale;
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
     const dealt = Math.max(0, Math.min(prevHp, dmg));
@@ -3592,22 +3605,18 @@ export class StillpointGame {
       }
     }
 
+    this.particles.explode(
+      enemy.x,
+      enemy.y,
+      enemy.isBoss ? 2.1 : enemy.isElite || enemy.kind === 'hauler' ? 1.35 : 0.78,
+      enemy.isBoss ? '#ff9638' : enemy.accent
+    );
     this.particles.shatter(
       enemy.x,
       enemy.y,
       enemy.accent,
-      enemy.isBoss ? 22 : enemy.isElite || enemy.kind === 'hauler' ? 12 : 5,
-      enemy.isBoss ? 1.8 : enemy.isElite ? 1.25 : 0.9
-    );
-    this.particles.burst(
-      enemy.x,
-      enemy.y,
-      enemy.accent,
-      enemy.isBoss ? 36 : enemy.isElite ? 12 : 5,
-      60,
-      enemy.isBoss ? 320 : 180,
-      enemy.isBoss ? 4 : 2.5,
-      enemy.isBoss ? 0.75 : 0.34
+      enemy.isBoss ? 18 : enemy.isElite || enemy.kind === 'hauler' ? 9 : 4,
+      enemy.isBoss ? 1.65 : enemy.isElite ? 1.15 : 0.85
     );
 
     if (enemy.kind === 'splitter') {
@@ -3897,12 +3906,17 @@ export class StillpointGame {
     const deltaShards = Math.max(0, totalPayout - this.metaCommitted.shards);
     const deltaKills = Math.max(0, this.stats.kills - this.metaCommitted.kills);
     const deltaGrazes = Math.max(0, this.stats.grazes - this.metaCommitted.grazes);
-    const deltaSyncHits = Math.max(0, this.stats.syncHits - this.metaCommitted.syncHits);
+    const deltaBrinks = Math.max(0, this.stats.brinkShocks - this.metaCommitted.brinkShocks);
+    const deltaPressures = Math.max(
+      0,
+      this.stats.pressureReleases - this.metaCommitted.pressureReleases
+    );
 
     this.metaCommitted.shards += deltaShards;
     this.metaCommitted.kills += deltaKills;
     this.metaCommitted.grazes += deltaGrazes;
-    this.metaCommitted.syncHits += deltaSyncHits;
+    this.metaCommitted.brinkShocks += deltaBrinks;
+    this.metaCommitted.pressureReleases += deltaPressures;
 
     this.stats.weapons = this.player.weapons.map((w) => ({
       id: w.id,
@@ -3930,10 +3944,8 @@ export class StillpointGame {
     }
     this.save.totalKills += deltaKills;
     this.save.totalGrazes += deltaGrazes;
-    this.save.totalSyncHits += deltaSyncHits;
-    if (this.stats.bestSyncStreak > this.save.bestSyncStreak) {
-      this.save.bestSyncStreak = this.stats.bestSyncStreak;
-    }
+    this.save.totalBrinkShocks += deltaBrinks;
+    this.save.totalPressureReleases += deltaPressures;
 
     const isNewBestGraze = this.stats.bestGrazeCombo > prevBestGraze && this.stats.bestGrazeCombo >= 3;
     const isNewBestTime = Math.floor(this.stats.elapsed) > prevBestTime && this.stats.elapsed >= 15;
@@ -4125,8 +4137,9 @@ export class StillpointGame {
       grazeCombo: this.player.grazeCombo,
       surgeTier: this.player.surgeTier,
       surgeActive: this.player.surgeTimer > 0,
-      syncBuffActive: this.player.syncBuffTimer > 0,
-      syncStreak: this.player.syncStreak,
+      overpressureActive: this.player.overpressureTimer > 0,
+      overpressurePower: this.player.overpressurePower,
+      stalled: this.player.stallTimer > 0,
       weapons: this.player.weapons,
       passives: this.player.passives,
       relics: this.player.relics,

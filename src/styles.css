@@ -248,6 +248,20 @@ button:focus-visible,
   background: #f5efe2;
 }
 
+.focus-fill.stalled {
+  background: linear-gradient(90deg, #b8322a, #ff7043);
+  animation: stall-pulse 0.28s ease-in-out infinite alternate;
+}
+
+@keyframes stall-pulse {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .hud-meta-line {
   display: flex;
   align-items: center;

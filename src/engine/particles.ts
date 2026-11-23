@@ -9,9 +9,10 @@ export interface Particle {
   life: number;
   maxLife: number;
   drag: number;
-  shape: 'dot' | 'spark' | 'ring' | 'shard';
+  shape: 'dot' | 'spark' | 'ring' | 'shard' | 'fire' | 'smoke' | 'flash';
   rot?: number;
   vrot?: number;
+  grow?: number;
 }
 
 export interface GridRipple {
@@ -44,7 +45,7 @@ export interface ArcFlash {
   maxLife: number;
 }
 
-const MAX_PARTICLES = 460;
+const MAX_PARTICLES = 540;
 const MAX_TEXTS = 36;
 
 export class ParticleSystem {
@@ -135,6 +136,114 @@ export class ParticleSystem {
     });
   }
 
+  /** Chunky Metal-Slug layered fireball + drifting soot smoke + bright flashburst + hot sparks! */
+  explode(x: number, y: number, scale = 1, accent = '#ff8a34'): void {
+    const pushP = (p: Particle) => {
+      if (this.particles.length >= MAX_PARTICLES) this.particles.shift();
+      this.particles.push(p);
+    };
+
+    // 1. Expanding dark soot clouds behind fireball
+    const smokeCount = Math.min(6, Math.max(2, Math.round(3 * scale)));
+    for (let i = 0; i < smokeCount; i++) {
+      const ang = (i / smokeCount) * Math.PI * 2 + Math.random() * 0.9;
+      const spd = (24 + Math.random() * 54) * scale;
+      const life = 0.44 + Math.random() * 0.24;
+      pushP({
+        x: x + Math.cos(ang) * 4 * scale,
+        y: y + Math.sin(ang) * 4 * scale,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        size: (7.5 + Math.random() * 5.5) * scale,
+        color: '#2b2826',
+        alpha: 0.85,
+        life,
+        maxLife: life,
+        drag: 0.91,
+        shape: 'smoke',
+        grow: 16 * scale
+      });
+    }
+
+    // 2. Layered incandescent fireball puffs (white-gold -> amber -> ember with bold comic ink rim)
+    const fireCount = Math.min(8, Math.max(3, Math.round(4.5 * scale)));
+    for (let i = 0; i < fireCount; i++) {
+      const ang = (i / fireCount) * Math.PI * 2 + Math.random() * 0.7;
+      const spd = (28 + Math.random() * 82) * scale;
+      const life = 0.24 + Math.random() * 0.14;
+      pushP({
+        x: x + (Math.random() - 0.5) * 6 * scale,
+        y: y + (Math.random() - 0.5) * 6 * scale,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        size: (6.5 + Math.random() * 5.5) * scale,
+        color: accent,
+        alpha: 1,
+        life,
+        maxLife: life,
+        drag: 0.89,
+        shape: 'fire',
+        grow: 18 * scale
+      });
+    }
+
+    // 3. Incandescent starburst detonation flash at core
+    pushP({
+      x,
+      y,
+      vx: 0,
+      vy: 0,
+      size: 15 * scale,
+      color: accent,
+      alpha: 1,
+      life: 0.13,
+      maxLife: 0.13,
+      drag: 1,
+      shape: 'flash',
+      rot: Math.random() * Math.PI,
+      grow: 38 * scale
+    });
+
+    // 4. High-velocity molten sparks
+    const sparkCount = Math.min(10, Math.max(4, Math.round(5 * scale)));
+    for (let i = 0; i < sparkCount; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = (95 + Math.random() * 175) * scale;
+      const life = 0.22 + Math.random() * 0.16;
+      pushP({
+        x,
+        y,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        size: (2.2 + Math.random() * 1.6) * Math.min(1.5, scale),
+        color: i % 2 === 0 ? '#fff2be' : accent,
+        alpha: 1,
+        life,
+        maxLife: life,
+        drag: 0.91,
+        shape: 'spark'
+      });
+    }
+  }
+
+  smokePuff(x: number, y: number, vx = 0, vy = 0, size = 4.6, life = 0.34, color = '#4c4844'): void {
+    if (this.particles.length >= MAX_PARTICLES) this.particles.shift();
+    this.particles.push({
+      x,
+      y,
+      vx,
+      vy,
+      size,
+      color,
+      alpha: 0.72,
+      life,
+      maxLife: life,
+      drag: 0.9,
+      shape: 'smoke',
+      grow: 11
+    });
+  }
+
   ripple(
     x: number,
     y: number,
@@ -208,6 +317,9 @@ export class ParticleSystem {
         const damp = Math.pow(p.drag, dt * 60);
         p.vx *= damp;
         p.vy *= damp;
+        if (p.grow) {
+          p.size += p.grow * dt;
+        }
         if (p.rot !== undefined && p.vrot !== undefined) {
           p.rot += p.vrot * dt;
         }

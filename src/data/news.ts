@@ -34,12 +34,12 @@ export const BUNDLED_NEWS: NewsEntry[] = [
     version: '1.0.0',
     title: 'v1.0.0 Launch Release',
     summary:
-      'Full 1.0 release featuring Active-Reload Stillpoint Sync, Direct Drag controls, per-sector synth soundtracks, and App Store iOS integration.',
+      'Full 1.0 release featuring Brink Shockwave and Bullet Pressure slow-mo risk/reward, painted Metal-Slug combat hardware and arcade FX, Direct Drag controls, and per-sector synth soundtracks.',
     bullets: [
-      'Active-Reload Sync: touch back down in the golden sweep arc above your ship to refund Focus, trigger Sync Overdrive, chain streaks up to 5x, and amplify all 9 Cores.',
-      'Added Hairline Sync and Purge Cadence Pick-10 Loadout modules.',
-      'Added Direct 1:1 Drag alongside Floating Stick in Settings and Pause.',
-      'Added Pause Build Inspector with live stats and weapon Evolution pair hints, plus Run-End Damage Breakdown bars.',
+      'Brink Shockwave & Bullet Pressure: enter Stillpoint right as a shot scrapes your hull to trigger an electric pushback shockwave and Focus refund; hold inside live bullet curtains to build Overpressure, or suffer a Reactor Stall if Focus bottoms out at 0%.',
+      'Added Brink Capacitor and Pressure Vent Pick-10 Loadout modules.',
+      'Full Combat Visual Overhaul: painted industrial sprites for every deployed turret, drone, sawblade, flail, mine, missile, mortar, kunai, scythe, and pickup, plus inked arcade bullets, multi-layered lasers, and chunky fireball explosions.',
+      'Added Direct 1:1 Drag alongside Floating Stick, Pause Build Inspector with Evolution hints, and Run-End Damage Breakdown bars.',
       'Composed 4 distinct synth soundtracks for Ash Flats, Sunken Metro, Slag Foundry, and The Monolith.',
       'Added optional Armory Scanner Boost (+50% crate odds for 3 runs, max 2/day), iCloud save sync, and Game Center leaderboards.'
     ]

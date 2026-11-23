@@ -298,7 +298,7 @@ export type ModuleCategory = 'combat' | 'movement' | 'tactics' | 'risk';
 export type ModuleId =
   | 'point_blank'
   | 'snap_focus'
-  | 'deadeye_sync'
+  | 'brink_capacitor'
   | 'heavy_ordnance'
   | 'ricochet_rig'
   | 'specialist_lock'
@@ -308,7 +308,7 @@ export type ModuleId =
   | 'exit_vortex'
   | 'focus_surge'
   | 'kinetic_shield'
-  | 'shock_sync'
+  | 'pressure_vent'
   | 'emp_shell'
   | 'cryo_shatter'
   | 'blood_pact'
@@ -358,8 +358,8 @@ export interface MetaSave {
   totalKills: number;
   totalParries: number;
   totalGrazes: number;
-  totalSyncHits: number;
-  bestSyncStreak: number;
+  totalBrinkShocks: number;
+  totalPressureReleases: number;
   heatClears: number;
   bossesCleared: number;
   evolutionsCrafted: number;
@@ -574,16 +574,15 @@ export interface PlayerState {
   echoSalvoCounter: number;
   haloOrbitAngle: number;
   droneOrbitAngle: number;
-  // Active-Reload Stillpoint Sync timing gauge
-  syncActive: boolean;
-  syncProgress: number; // 0..1 sweep across top arc while in Stillpoint
-  syncZoneStart: number;
-  syncZoneEnd: number;
-  syncCooldown: number;
-  syncBuffTimer: number;
-  syncStreak: number;
-  syncFlashTimer: number;
-  syncOverclockCarry: number;
+  // Stillpoint spatial risk & skill expression: Brink Shockwave, Bullet Pressure, Reactor Stall
+  brinkCooldown: number;
+  brinkFlashTimer: number;
+  pressureCharge: number; // 0..1 built while holding Stillpoint near live enemy bullets
+  pressureActiveBullets: number;
+  overpressureTimer: number;
+  overpressurePower: number; // 0..1 scaled surge on clean Pressure exit
+  stallTimer: number; // >0 Reactor Stall lockout after draining Focus to 0%
+  stallMaxTimer: number;
 }
 
 export type EnemyKind =
@@ -786,8 +785,8 @@ export interface RunStats {
   kills: number;
   grazes: number;
   bestGrazeCombo: number;
-  syncHits: number;
-  bestSyncStreak: number;
+  brinkShocks: number;
+  pressureReleases: number;
   bossesDefeated: number;
   shardsEarned: number;
   cratesEarned: number;

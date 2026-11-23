@@ -97,6 +97,24 @@ class SpriteBank {
     this.loadArt('node_pact', './art/node_pact.png');
     this.loadArt('turret_echo', './art/turret_echo.png');
 
+    // Deployed hardware, orbitals, ordnance & pickups (hand-painted Metal Slug set)
+    this.loadArt('deploy_rail_pylon', './art/deploy_rail_pylon.png');
+    this.loadArt('deploy_prism_drone', './art/deploy_prism_drone.png');
+    this.loadArt('deploy_halo_blade', './art/deploy_halo_blade.png');
+    this.loadArt('deploy_grav_flail', './art/deploy_grav_flail.png');
+    this.loadArt('deploy_mine', './art/deploy_mine.png');
+    this.loadArt('deploy_blink_beacon', './art/deploy_blink_beacon.png');
+    this.loadArt('deploy_leviathan_seg', './art/deploy_leviathan_seg.png');
+    this.loadArt('deploy_overclock_pad', './art/deploy_overclock_pad.png', false);
+    this.loadArt('ord_missile', './art/ord_missile.png');
+    this.loadArt('ord_mortar', './art/ord_mortar.png');
+    this.loadArt('ord_dagger', './art/ord_dagger.png', false);
+    this.loadArt('ord_scythe', './art/ord_scythe.png');
+    this.loadArt('pickup_medkit', './art/pickup_medkit.png');
+    this.loadArt('pickup_relic_chest', './art/pickup_relic_chest.png');
+    this.loadArt('pickup_magnet', './art/pickup_magnet.png');
+    this.loadArt('pickup_xp_cell', './art/pickup_xp_cell.png', false);
+
     // Preload painterly seamless terrain floor tiles & rendered wreckage props!
     for (const sec of ['drift', 'helix', 'furnace', 'singularity']) {
       this.loadArt(`tile_${sec}`, `./art/tile_${sec}.jpg`, false);
@@ -146,23 +164,23 @@ class SpriteBank {
       preload.src = src;
     }
 
-    // Projectiles & pickups
-    this.bank.set('bullet_coral', this.makeEnemyShot(44, '#ff4d4d', '#b81d24', '#fff5e6'));
-    this.bank.set('bullet_amber', this.makeEnemyShot(44, '#ff9f1c', '#b34700', '#fff8db'));
-    this.bank.set('bullet_crimson', this.makeEnemyShot(48, '#ff2a55', '#8a0826', '#ffffff'));
-    this.bank.set('bullet_heavy', this.makeHeavyOrb(60));
+    // High-contrast inked arcade projectiles & faceted pickups
+    this.bank.set('bullet_coral', this.makeEnemyShellOrb(48, '#ff4d42', '#9e171e', '#fff6dc'));
+    this.bank.set('bullet_amber', this.makeDirectionalDiamond(48, '#ffaa2b', '#9e4706', '#fff9de'));
+    this.bank.set('bullet_crimson', this.makeDirectionalNeedle(52, '#ff2e5b', '#7a0a24', '#ffffff'));
+    this.bank.set('bullet_heavy', this.makeHeavyOrb(64));
 
-    this.bank.set('bullet_cyan', this.makeOrb(38, '#45e8d8', '#0f766e', '#eafffd'));
-    this.bank.set('bullet_shard', this.makeDiamond(42, '#5ef2e6', '#0d9488', '#ffffff'));
-    this.bank.set('bullet_prism', this.makeDiamond(38, '#9be8ff', '#4f46e5', '#ffffff'));
-    this.bank.set('bullet_violet', this.makeOrb(46, '#d387ff', '#6b21a8', '#fdf4ff'));
+    this.bank.set('bullet_cyan', this.makePlayerBolt(48, '#4beee0', '#0c6b66', '#effffe'));
+    this.bank.set('bullet_shard', this.makeDirectionalDiamond(46, '#7bf7ff', '#1b6d96', '#ffffff'));
+    this.bank.set('bullet_prism', this.makeDirectionalNeedle(44, '#92e2ff', '#3a4bd6', '#ffffff'));
+    this.bank.set('bullet_violet', this.makeEnemyShellOrb(48, '#d387ff', '#5b1e96', '#fdf4ff'));
 
-    this.bank.set('xp_small', this.makeDiamond(24, '#45e8d8', '#115e59', '#eafffd'));
-    this.bank.set('xp_mid', this.makeDiamond(30, '#72d2ff', '#1d4ed8', '#ffffff'));
-    this.bank.set('xp_large', this.makeDiamond(38, '#e5b34c', '#b45309', '#fffbe6'));
+    this.bank.set('xp_small', this.makeDiamond(26, '#45e8d8', '#115e59', '#eafffd'));
+    this.bank.set('xp_mid', this.makeDiamond(32, '#72d2ff', '#1d4ed8', '#ffffff'));
+    this.bank.set('xp_large', this.makeDiamond(40, '#e5b34c', '#b45309', '#fffbe6'));
     this.bank.set('pickup_heal', this.makeMedCell(40));
     this.bank.set('pickup_blood', this.makeDiamond(36, '#e03e4a', '#78141c', '#ffe6ea'));
-    this.bank.set('pickup_shard', this.makeDiamond(38, '#f472b6', '#9d174d', '#fff0f7'));
+    this.bank.set('pickup_shard', this.makeDiamond(40, '#f472b6', '#9d174d', '#fff0f7'));
     this.bank.set('pickup_magnet', this.makeRingOrb(38, '#45e8d8', '#0f766e'));
     this.bank.set('pickup_chest', this.makeRelicChest(44));
 
@@ -346,6 +364,16 @@ class SpriteBank {
 
   getTurretEchoShadow(): HTMLCanvasElement | null {
     return this.shadowCache.get('turret_echo') ?? null;
+  }
+
+  getArt(key: string): HTMLImageElement | null {
+    if (!this.initialized) this.init();
+    if (!this.artReady.has(key)) return null;
+    return this.artImages.get(key) ?? null;
+  }
+
+  getShadow(key: string): HTMLCanvasElement | null {
+    return this.shadowCache.get(key) ?? null;
   }
 
   getBiomeTile(sector: SectorId): HTMLCanvasElement {
@@ -637,72 +665,258 @@ class SpriteBank {
     return c;
   }
 
-  private makeEnemyShot(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+  private makeEnemyShellOrb(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+    // Crisp dark-ink-rimmed arcade plasma shell (high contrast Metal Slug readability!)
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
-    ctx.fillStyle = 'rgba(10, 4, 6, 0.55)';
-    ctx.beginPath();
-    ctx.arc(half, half, half * 0.62, 0, Math.PI * 2);
-    ctx.fill();
-    const g = ctx.createRadialGradient(half, half, 1, half, half, half);
-    g.addColorStop(0, core);
-    g.addColorStop(0.3, core);
-    g.addColorStop(0.5, mid);
-    g.addColorStop(0.76, outer + '88');
-    g.addColorStop(1, outer + '00');
-    ctx.fillStyle = g;
+
+    // Subtle heat halo
+    const aura = ctx.createRadialGradient(half, half, half * 0.25, half, half, half);
+    aura.addColorStop(0, mid + '78');
+    aura.addColorStop(0.68, outer + '44');
+    aura.addColorStop(1, outer + '00');
+    ctx.fillStyle = aura;
     ctx.beginPath();
     ctx.arc(half, half, half, 0, Math.PI * 2);
     ctx.fill();
+
+    // Bold comic-ink dark outer contour
+    const r = half * 0.56;
+    ctx.fillStyle = '#14080a';
+    ctx.beginPath();
+    ctx.arc(half, half, r + 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Rich shaded metallic-plasma shell body
+    const body = ctx.createRadialGradient(half - r * 0.28, half - r * 0.28, 1, half, half, r);
+    body.addColorStop(0, core);
+    body.addColorStop(0.42, mid);
+    body.addColorStop(1, outer);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(half, half, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sharp specular highlight + hot center core
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(half - r * 0.22, half - r * 0.22, r * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 250, 232, 0.72)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(half, half, r * 0.72, -Math.PI * 0.85, -Math.PI * 0.2);
+    ctx.stroke();
     return c;
   }
 
-  private makeOrb(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+  private makeDirectionalDiamond(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+    // Pointing RIGHT (+X) so renderer can rotate straight by atan2(vy, vx)!
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
-    const g = ctx.createRadialGradient(half, half, 1, half, half, half);
-    g.addColorStop(0, core);
-    g.addColorStop(0.3, core);
-    g.addColorStop(0.5, mid);
-    g.addColorStop(0.75, outer + '77');
-    g.addColorStop(1, outer + '00');
-    ctx.fillStyle = g;
+
+    const aura = ctx.createRadialGradient(half, half, 2, half, half, half);
+    aura.addColorStop(0, mid + '75');
+    aura.addColorStop(0.65, outer + '28');
+    aura.addColorStop(1, outer + '00');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.save();
+    ctx.translate(half, half);
+    const rx = half * 0.76;
+    const ry = half * 0.44;
     ctx.beginPath();
-    ctx.arc(half, half, half, 0, Math.PI * 2);
+    ctx.moveTo(rx, 0);
+    ctx.lineTo(0, -ry);
+    ctx.lineTo(-rx * 0.75, 0);
+    ctx.lineTo(0, ry);
+    ctx.closePath();
+
+    // Thick dark comic-ink casing outline
+    ctx.lineWidth = 4.2;
+    ctx.strokeStyle = '#140c0a';
+    ctx.stroke();
+
+    const g = ctx.createLinearGradient(-rx * 0.6, -ry, rx, ry);
+    g.addColorStop(0, outer);
+    g.addColorStop(0.5, mid);
+    g.addColorStop(1, core);
+    ctx.fillStyle = g;
     ctx.fill();
+
+    // Top bright facet bevel & blazing core spear
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.beginPath();
+    ctx.moveTo(rx * 0.9, 0);
+    ctx.lineTo(0, -ry * 0.85);
+    ctx.lineTo(-rx * 0.55, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.moveTo(rx * 0.62, 0);
+    ctx.lineTo(0, -ry * 0.36);
+    ctx.lineTo(-rx * 0.32, 0);
+    ctx.lineTo(0, ry * 0.36);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    return c;
+  }
+
+  private makeDirectionalNeedle(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+    // Sleek inked dart/needle pointing RIGHT (+X)
+    const [c, ctx] = this.createCanvas(size);
+    const half = size / 2;
+
+    const aura = ctx.createRadialGradient(half, half, 2, half, half, half);
+    aura.addColorStop(0, mid + '70');
+    aura.addColorStop(0.6, outer + '22');
+    aura.addColorStop(1, outer + '00');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.save();
+    ctx.translate(half, half);
+    const tip = half * 0.84;
+    const tail = -half * 0.76;
+    const fin = half * 0.34;
+
+    ctx.beginPath();
+    ctx.moveTo(tip, 0);
+    ctx.lineTo(-half * 0.15, -fin);
+    ctx.lineTo(tail, -fin * 0.45);
+    ctx.lineTo(tail * 0.62, 0);
+    ctx.lineTo(tail, fin * 0.45);
+    ctx.lineTo(-half * 0.15, fin);
+    ctx.closePath();
+
+    ctx.lineWidth = 4.0;
+    ctx.strokeStyle = '#14080e';
+    ctx.stroke();
+
+    const g = ctx.createLinearGradient(tail, 0, tip, 0);
+    g.addColorStop(0, outer);
+    g.addColorStop(0.55, mid);
+    g.addColorStop(1, core);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Hot glowing spine
+    ctx.strokeStyle = core;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(tail * 0.45, 0);
+    ctx.lineTo(tip * 0.75, 0);
+    ctx.stroke();
+    ctx.restore();
+    return c;
+  }
+
+  private makePlayerBolt(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+    // Chunky Metal-Slug brass-and-plasma tracer slug pointing RIGHT (+X)
+    const [c, ctx] = this.createCanvas(size);
+    const half = size / 2;
+
+    const aura = ctx.createRadialGradient(half + 2, half, 2, half, half, half);
+    aura.addColorStop(0, mid + '70');
+    aura.addColorStop(0.58, outer + '26');
+    aura.addColorStop(1, outer + '00');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.save();
+    ctx.translate(half, half);
+    const tip = half * 0.78;
+    const rear = -half * 0.68;
+    const w = half * 0.28;
+
+    // Tapered inked slug silhouette
+    ctx.beginPath();
+    ctx.moveTo(tip, 0);
+    ctx.quadraticCurveTo(tip * 0.4, -w * 1.1, rear * 0.35, -w);
+    ctx.lineTo(rear, -w * 0.55);
+    ctx.lineTo(rear, w * 0.55);
+    ctx.lineTo(rear * 0.35, w);
+    ctx.quadraticCurveTo(tip * 0.4, w * 1.1, tip, 0);
+    ctx.closePath();
+
+    ctx.lineWidth = 4.2;
+    ctx.strokeStyle = '#111618';
+    ctx.stroke();
+
+    const g = ctx.createLinearGradient(rear, 0, tip, 0);
+    g.addColorStop(0, '#c89b44');
+    g.addColorStop(0.26, outer);
+    g.addColorStop(0.65, mid);
+    g.addColorStop(1, core);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Hot white plasma ridge
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.ellipse(half * 0.14, 0, half * 0.42, w * 0.46, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     return c;
   }
 
   private makeHeavyOrb(size: number): HTMLCanvasElement {
-    // High-contrast molten crimson-gold heavy ordnance orb
+    // Riveted dark-iron collar enclosing a blazing molten crimson-gold plasma core!
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
-    ctx.fillStyle = 'rgba(20, 6, 8, 0.58)';
-    ctx.beginPath();
-    ctx.arc(half, half, half * 0.7, 0, Math.PI * 2);
-    ctx.fill();
 
-    const g = ctx.createRadialGradient(half, half, 2, half, half, half);
-    g.addColorStop(0, '#fff7dc');
-    g.addColorStop(0.28, '#ffbe4f');
-    g.addColorStop(0.52, '#ff3b30');
-    g.addColorStop(0.78, 'rgba(180, 22, 24, 0.38)');
-    g.addColorStop(1, 'rgba(140, 12, 16, 0)');
-    ctx.fillStyle = g;
+    const aura = ctx.createRadialGradient(half, half, half * 0.2, half, half, half);
+    aura.addColorStop(0, 'rgba(255, 190, 72, 0.85)');
+    aura.addColorStop(0.55, 'rgba(255, 58, 44, 0.45)');
+    aura.addColorStop(1, 'rgba(140, 12, 16, 0)');
+    ctx.fillStyle = aura;
     ctx.beginPath();
     ctx.arc(half, half, half, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#ffcf70';
-    ctx.lineWidth = 2.1;
+    const r = half * 0.64;
+    // Heavy dark inked rim
+    ctx.fillStyle = '#14080a';
     ctx.beginPath();
-    ctx.arc(half, half, half * 0.62, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.arc(half, half, r + 3, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.2;
+    // Armored iron outer ring with 4 molten thermal notches
+    ctx.fillStyle = '#4a3532';
     ctx.beginPath();
-    ctx.arc(half, half, half * 0.38, 0, Math.PI * 2);
+    ctx.arc(half, half, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ffbe4f';
+    ctx.lineWidth = 3.2;
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      ctx.beginPath();
+      ctx.moveTo(half + Math.cos(a) * (r * 0.5), half + Math.sin(a) * (r * 0.5));
+      ctx.lineTo(half + Math.cos(a) * (r * 1.04), half + Math.sin(a) * (r * 1.04));
+      ctx.stroke();
+    }
+
+    // Incandescent molten core
+    const g = ctx.createRadialGradient(half - r * 0.18, half - r * 0.18, 1, half, half, r * 0.74);
+    g.addColorStop(0, '#fffce6');
+    g.addColorStop(0.36, '#ffc854');
+    g.addColorStop(0.76, '#ff3b30');
+    g.addColorStop(1, '#7a0c12');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(half, half, r * 0.74, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#14080a';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(half, half, r * 0.74, 0, Math.PI * 2);
     ctx.stroke();
     return c;
   }

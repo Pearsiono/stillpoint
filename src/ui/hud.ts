@@ -103,26 +103,31 @@ export class HudView {
     this.shieldFill.style.width = `${shieldPct.toFixed(1)}%`;
 
     const focusPct = Math.max(0, Math.min(100, (h.charge / Math.max(1, h.maxCharge)) * 100));
-    this.focusFill.style.width = `${focusPct.toFixed(1)}%`;
-    this.focusFill.classList.toggle('active', h.inStillpoint);
+    this.focusFill.style.width = `${h.stalled ? Math.max(18, focusPct) : focusPct}%`;
+    this.focusFill.classList.toggle('active', h.inStillpoint && !h.stalled);
+    this.focusFill.classList.toggle('stalled', h.stalled);
 
     this.lvTag.textContent = `LV ${h.level}`;
     this.timerEl.textContent = h.endlessMode ? `∞ ${formatTime(h.elapsed)}` : formatTime(h.elapsed);
     this.scoreEl.textContent = h.score.toLocaleString();
 
-    const syncSuffix = h.syncBuffActive
-      ? h.syncStreak > 1
-        ? `Sync ×${h.syncStreak}`
-        : 'Sync'
+    const pressureSuffix = h.overpressureActive
+      ? h.overpressurePower >= 0.92
+        ? 'Pressure Max'
+        : 'Overpressure'
       : '';
-    if (h.surgeActive) {
+    if (h.stalled) {
+      this.comboEl.style.display = 'block';
+      this.comboEl.style.color = '#ff6a55';
+      this.comboEl.textContent = 'Reactor Stalled';
+    } else if (h.surgeActive) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = '#f6c453';
-      this.comboEl.textContent = syncSuffix ? `Surge ×4  ${syncSuffix}` : 'Surge ×4';
-    } else if (syncSuffix) {
+      this.comboEl.textContent = pressureSuffix ? `Surge ×4  ${pressureSuffix}` : 'Surge ×4';
+    } else if (pressureSuffix) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = '#f6c453';
-      this.comboEl.textContent = h.surgeTier >= 2 ? `×${h.surgeTier}  ${syncSuffix}` : syncSuffix;
+      this.comboEl.textContent = h.surgeTier >= 2 ? `×${h.surgeTier}  ${pressureSuffix}` : pressureSuffix;
     } else if (h.surgeTier >= 2) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = 'var(--accent)';

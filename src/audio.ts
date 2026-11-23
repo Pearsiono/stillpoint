@@ -767,47 +767,88 @@ export class SoundEngine {
     this.playNoiseTick(0.14, 0.25, now, false);
   }
 
-  playSyncHit(streak = 1): void {
+  playBrinkShock(): void {
     if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
     const now = this.ctx.currentTime;
-    // Crisp machined brass bolt-lock click
-    this.playNoiseTick(0.032, 0.22, now, true);
-    const pitch = Math.pow(1.06, Math.min(4, Math.max(0, streak - 1)));
-    const notes = [523.25 * pitch, 783.99 * pitch, 1046.5 * pitch];
-    notes.forEach((hz, idx) => {
+    // High-voltage electric snap crackle + punchy shockwave sub-thump
+    this.playNoiseTick(0.055, 0.34, now, true);
+    const sub = this.ctx.createOscillator();
+    const sg = this.ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(165, now);
+    sub.frequency.exponentialRampToValueAtTime(42, now + 0.2);
+    sg.gain.setValueAtTime(0.42, now);
+    sg.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    sub.connect(sg);
+    sg.connect(this.sfxGain);
+    sub.start(now);
+    sub.stop(now + 0.23);
+
+    // Crisp electric arc harmonics
+    [880, 1318.5, 1760].forEach((hz, idx) => {
       if (!this.ctx || !this.sfxGain) return;
       const osc = this.ctx.createOscillator();
+      const flt = this.ctx.createBiquadFilter();
       const g = this.ctx.createGain();
       osc.type = idx === 0 ? 'sawtooth' : 'triangle';
-      const flt = this.ctx.createBiquadFilter();
-      flt.type = 'lowpass';
-      flt.frequency.value = 3400;
-      const st = now + idx * 0.032;
+      flt.type = 'bandpass';
+      flt.frequency.value = hz * 1.4;
+      flt.Q.value = 2.4;
+      const st = now + idx * 0.022;
       osc.frequency.setValueAtTime(hz, st);
-      g.gain.setValueAtTime(idx === 2 ? 0.19 : 0.16, st);
-      g.gain.exponentialRampToValueAtTime(0.001, st + 0.28);
+      osc.frequency.exponentialRampToValueAtTime(hz * 0.72, st + 0.16);
+      g.gain.setValueAtTime(0.2, st);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.18);
       osc.connect(flt);
       flt.connect(g);
       g.connect(this.sfxGain);
       osc.start(st);
-      osc.stop(st + 0.3);
+      osc.stop(st + 0.2);
     });
   }
 
-  playSyncMiss(): void {
+  playPressureRelease(full: boolean): void {
     if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
     const now = this.ctx.currentTime;
+    this.playNoiseTick(full ? 0.09 : 0.05, full ? 0.22 : 0.14, now, true);
+    const notes = full ? [440, 659.25, 880] : [440, 659.25];
+    notes.forEach((hz, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'triangle';
+      const st = now + idx * 0.028;
+      osc.frequency.setValueAtTime(hz, st);
+      g.gain.setValueAtTime(full ? 0.19 : 0.13, st);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.24);
+      osc.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(st);
+      osc.stop(st + 0.26);
+    });
+  }
+
+  playReactorStall(): void {
+    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
+    const now = this.ctx.currentTime;
+    // Heavy industrial stall power-down groan + steam vent hiss
+    this.playNoiseTick(0.22, 0.26, now, false);
     const osc = this.ctx.createOscillator();
+    const flt = this.ctx.createBiquadFilter();
     const g = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(175, now);
-    osc.frequency.exponentialRampToValueAtTime(105, now + 0.09);
-    g.gain.setValueAtTime(0.11, now);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-    osc.connect(g);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(190, now);
+    osc.frequency.exponentialRampToValueAtTime(48, now + 0.34);
+    flt.type = 'lowpass';
+    flt.frequency.setValueAtTime(900, now);
+    flt.frequency.exponentialRampToValueAtTime(180, now + 0.34);
+    g.gain.setValueAtTime(0.28, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+    osc.connect(flt);
+    flt.connect(g);
     g.connect(this.sfxGain);
     osc.start(now);
-    osc.stop(now + 0.11);
+    osc.stop(now + 0.38);
   }
 
   playCrateTick(pitch = 1): void {

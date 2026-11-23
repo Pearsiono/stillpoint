@@ -226,19 +226,19 @@ export const MILESTONES: MilestoneDef[] = [
     })
   },
   {
-    id: 'sync_20',
-    name: 'Cadence',
-    goalText: '20 Perfect Syncs',
+    id: 'brink_15',
+    name: 'Dead-Stop',
+    goalText: '15 Brink shocks',
     rewardShards: 120,
-    check: (s) => ({ current: s.totalSyncHits, target: 20, done: s.totalSyncHits >= 20 })
+    check: (s) => ({ current: s.totalBrinkShocks, target: 15, done: s.totalBrinkShocks >= 15 })
   },
   {
-    id: 'sync_streak_4',
-    name: 'Metronome',
-    goalText: '4× Sync streak',
+    id: 'pressure_10',
+    name: 'Eye of the Storm',
+    goalText: '10 full Pressure exits',
     rewardShards: 180,
     rewardLabel: '+1 crate',
-    check: (s) => ({ current: s.bestSyncStreak, target: 4, done: s.bestSyncStreak >= 4 })
+    check: (s) => ({ current: s.totalPressureReleases, target: 10, done: s.totalPressureReleases >= 10 })
   },
   {
     id: 'heat_clear_2',
@@ -285,8 +285,8 @@ export function createDefaultSave(): MetaSave {
     totalKills: 0,
     totalParries: 0,
     totalGrazes: 0,
-    totalSyncHits: 0,
-    bestSyncStreak: 0,
+    totalBrinkShocks: 0,
+    totalPressureReleases: 0,
     heatClears: 0,
     bossesCleared: 0,
     evolutionsCrafted: 0,
@@ -378,14 +378,21 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
       }
     }
 
+    const remapMod = (id: unknown): unknown =>
+      id === 'deadeye_sync' ? 'brink_capacitor' : id === 'shock_sync' ? 'pressure_vent' : id;
+
     const unlockedModules = Array.isArray(parsed.unlockedModules)
-      ? Array.from(new Set([...STARTER_UNLOCKED_MODULES, ...parsed.unlockedModules.filter(validMod)]))
+      ? Array.from(
+          new Set([...STARTER_UNLOCKED_MODULES, ...parsed.unlockedModules.map(remapMod).filter(validMod)])
+        )
       : [...STARTER_UNLOCKED_MODULES];
 
     const rawPresets = Array.isArray(parsed.loadoutPresets) ? parsed.loadoutPresets : null;
     const sanitizePreset = (arr: unknown, idx: number): ModuleId[] => {
       if (!Array.isArray(arr)) return [...DEFAULT_PRESETS[idx]];
-      const kept = Array.from(new Set(arr.filter((m): m is ModuleId => validMod(m) && unlockedModules.includes(m))));
+      const kept = Array.from(
+        new Set(arr.map(remapMod).filter((m): m is ModuleId => validMod(m) && unlockedModules.includes(m)))
+      );
       if (needsTheoryMigration && kept.length === 0) return [...DEFAULT_PRESETS[idx]];
       return kept;
     };
@@ -473,13 +480,13 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
         typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt)
           ? parsed.savedAt
           : Date.now(),
-      totalSyncHits:
-        typeof parsed.totalSyncHits === 'number' && Number.isFinite(parsed.totalSyncHits)
-          ? Math.max(0, Math.floor(parsed.totalSyncHits))
+      totalBrinkShocks:
+        typeof parsed.totalBrinkShocks === 'number' && Number.isFinite(parsed.totalBrinkShocks)
+          ? Math.max(0, Math.floor(parsed.totalBrinkShocks))
           : 0,
-      bestSyncStreak:
-        typeof parsed.bestSyncStreak === 'number' && Number.isFinite(parsed.bestSyncStreak)
-          ? Math.max(0, Math.floor(parsed.bestSyncStreak))
+      totalPressureReleases:
+        typeof parsed.totalPressureReleases === 'number' && Number.isFinite(parsed.totalPressureReleases)
+          ? Math.max(0, Math.floor(parsed.totalPressureReleases))
           : 0,
       heatClears:
         typeof parsed.heatClears === 'number' && Number.isFinite(parsed.heatClears)
@@ -888,7 +895,7 @@ export function evaluateMilestones(save: MetaSave): string[] {
       save.shards += m.rewardShards;
       notices.push(`${m.name} (+${m.rewardShards})`);
 
-      if (m.id === 'no_hit_boss' || m.id === 'sync_streak_4') {
+      if (m.id === 'no_hit_boss' || m.id === 'pressure_10') {
         save.standardCrates += 1;
       }
       if (

@@ -38,15 +38,15 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     accent: '#4cb5ab',
     line: 'First 0.8s of slow-mo deals +70% damage; holding longer deals -25%'
   },
-  deadeye_sync: {
-    id: 'deadeye_sync',
-    name: 'Hairline Sync',
+  brink_capacitor: {
+    id: 'brink_capacitor',
+    name: 'Brink Capacitor',
     category: 'combat',
     points: 2,
     unlockCost: 175,
-    iconKey: 'mirror_beam',
-    accent: '#f0bc42',
-    line: '40% tighter Sync notch and misses cost 12 focus; Perfect Sync doubles surge and refund'
+    iconKey: 'arc_tether',
+    accent: '#64d8ff',
+    line: '20% tighter Brink window, but Brink Shockwave has +40% radius and pushback and refunds +6 extra focus'
   },
   heavy_ordnance: {
     id: 'heavy_ordnance',
@@ -142,15 +142,15 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     accent: '#62a4f5',
     line: 'Moving builds up to 18 overshield; taking damage pauses recharge for 4s'
   },
-  shock_sync: {
-    id: 'shock_sync',
-    name: 'Purge Cadence',
+  pressure_vent: {
+    id: 'pressure_vent',
+    name: 'Pressure Vent',
     category: 'tactics',
     points: 3,
     unlockCost: 225,
     iconKey: 'core',
-    accent: '#5cd6d0',
-    line: 'Perfect Sync erases enemy shots within 95px and returns up to 4 as homing sparks'
+    accent: '#f0a942',
+    line: 'Bullet Pressure charges 45% faster and Reactor Stall lasts 45% less; slow-mo drains 15% faster'
   },
   emp_shell: {
     id: 'emp_shell',
@@ -229,7 +229,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
 export const MODULE_ORDER: ModuleId[] = [
   'point_blank',
   'snap_focus',
-  'deadeye_sync',
+  'brink_capacitor',
   'heavy_ordnance',
   'ricochet_rig',
   'specialist_lock',
@@ -239,7 +239,7 @@ export const MODULE_ORDER: ModuleId[] = [
   'exit_vortex',
   'focus_surge',
   'kinetic_shield',
-  'shock_sync',
+  'pressure_vent',
   'emp_shell',
   'cryo_shatter',
   'blood_pact',
