@@ -91,7 +91,6 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Graze Streak',
     goalText: '12× graze combo',
     rewardShards: 110,
-    rewardLabel: '+1 crate',
     check: (s) => ({ current: s.bestSingleParry, target: 12, done: s.bestSingleParry >= 12 })
   },
   {
@@ -134,7 +133,6 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Archon Fall',
     goalText: '3 bosses cleared',
     rewardShards: 220,
-    rewardLabel: '+1 crate',
     check: (s) => ({ current: s.bossesCleared, target: 3, done: s.bossesCleared >= 3 })
   },
   {
@@ -142,7 +140,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'Untouched',
     goalText: 'No-hit boss clear',
     rewardShards: 220,
-    rewardLabel: '+1 classified',
+    rewardLabel: '+1 crate',
     check: (s) => ({ current: s.noHitBossClears, target: 1, done: s.noHitBossClears >= 1 })
   },
   {
@@ -178,13 +176,13 @@ export const MILESTONES: MilestoneDef[] = [
   {
     id: 'trophies_8',
     name: 'Ascendant',
-    goalText: '8 trials complete',
+    goalText: '10 trials complete',
     rewardShards: 300,
     rewardLabel: '+1 classified',
     check: (s) => ({
       current: s.claimedMilestones.length,
-      target: 8,
-      done: s.claimedMilestones.length >= 8
+      target: 10,
+      done: s.claimedMilestones.length >= 10
     })
   }
 ];
@@ -672,10 +670,10 @@ export function evaluateMilestones(save: MetaSave): string[] {
       save.shards += m.rewardShards;
       notices.push(`${m.name} (+${m.rewardShards})`);
 
-      if (m.id === 'parry_burst_8' || m.id === 'boss_3') {
+      if (m.id === 'no_hit_boss') {
         save.standardCrates += 1;
       }
-      if (m.id === 'sector_helix' || m.id === 'no_hit_boss' || m.id === 'trophies_8') {
+      if (m.id === 'sector_helix' || m.id === 'trophies_8') {
         save.relicCrates += 1;
       }
     }

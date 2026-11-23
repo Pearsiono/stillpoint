@@ -130,7 +130,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     unlockCost: 0,
     iconKey: 'shield',
     accent: '#62a4f5',
-    line: 'Moving charges up to 35 decaying overshield; standing still drains it'
+    line: 'Moving builds up to 18 overshield; taking damage pauses recharge for 4s'
   },
   emp_shell: {
     id: 'emp_shell',

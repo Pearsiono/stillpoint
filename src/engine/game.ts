@@ -498,6 +498,8 @@ export class StillpointGame {
       maxShield: bloodPact ? 0 : Math.max(20, startShield + 12),
       shieldRegenTimer: 0,
       invulnTimer: 0,
+      contactInvulnTimer: 0,
+      hitSfxCooldown: 0,
       hitFlash: 0,
       kineticCharge: vessel.stats.maxCharge,
       maxKineticCharge: vessel.stats.maxCharge,
@@ -553,6 +555,7 @@ export class StillpointGame {
       distanceMovedSinceMine: 0,
       momentumMoveTime: 0,
       kineticOvershield: 0,
+      kineticShieldDelay: 0,
       empCooldown: 0,
       exitVortexCooldown: 0,
       freeFocusTimer: 0,
@@ -952,8 +955,8 @@ export class StillpointGame {
       if (player.modules.includes('momentum_drive')) {
         player.momentumMoveTime = Math.min(1, player.momentumMoveTime + dtReal / 1.6);
       }
-      if (player.modules.includes('kinetic_shield') && !hasBloodPact) {
-        player.kineticOvershield = Math.min(35, player.kineticOvershield + dtReal * 14);
+      if (player.modules.includes('kinetic_shield') && !hasBloodPact && player.kineticShieldDelay <= 0) {
+        player.kineticOvershield = Math.min(18, player.kineticOvershield + dtReal * 4.5);
       }
       if (player.modules.includes('afterburner_mines')) {
         player.distanceMovedSinceMine += step;
@@ -984,7 +987,7 @@ export class StillpointGame {
         player.momentumMoveTime = Math.max(0, player.momentumMoveTime - dtReal / 0.65);
       }
       if (player.modules.includes('kinetic_shield')) {
-        player.kineticOvershield = Math.max(0, player.kineticOvershield - dtReal * 12);
+        player.kineticOvershield = Math.max(0, player.kineticOvershield - dtReal * 14);
       }
     }
 
@@ -1000,9 +1003,18 @@ export class StillpointGame {
     }
 
     if (player.invulnTimer > 0) {
-      // Scale i-frame decay gently during Stillpoint so slow-mo never causes 5x contact hits
-      const invulnDt = Math.max(dtWorld, dtReal * 0.35);
-      player.invulnTimer = Math.max(0, player.invulnTimer - invulnDt);
+      player.invulnTimer = Math.max(0, player.invulnTimer - dtReal);
+    }
+    if (player.contactInvulnTimer > 0) {
+      // Scale contact-overlap cooldown gently during Stillpoint so overlapping enemies never tick 5x/sec
+      const contactDt = Math.max(dtWorld, dtReal * 0.35);
+      player.contactInvulnTimer = Math.max(0, player.contactInvulnTimer - contactDt);
+    }
+    if (player.hitSfxCooldown > 0) {
+      player.hitSfxCooldown = Math.max(0, player.hitSfxCooldown - dtReal);
+    }
+    if (player.kineticShieldDelay > 0) {
+      player.kineticShieldDelay = Math.max(0, player.kineticShieldDelay - dtReal);
     }
     if (player.hitFlash > 0) player.hitFlash = Math.max(0, player.hitFlash - dtReal * 5);
     if (player.grazeComboTimer > 0) {
@@ -1959,7 +1971,7 @@ export class StillpointGame {
         sound.playShoot('mortar');
         const dp = Math.hypot(this.player.x - m.x, this.player.y - m.y);
         if (dp <= m.radius) {
-          this.damagePlayer(16);
+          this.damagePlayer(16, 'meteor');
         } else if (dp <= m.radius + this.player.grazeRadius) {
           this.registerGraze(m.x, m.y);
           this.pickups.push({
@@ -2197,7 +2209,7 @@ export class StillpointGame {
         const dist = pointToSegmentDist(p.x, p.y, l.x1, l.y1, l.x2, l.y2);
         if (!l.hitPlayer && dist <= hurtR + l.width * 0.42) {
           l.hitPlayer = true;
-          this.damagePlayer(l.damage);
+          this.damagePlayer(l.damage, 'laser');
           if (this.phase !== 'playing') return;
         } else if (dist <= p.grazeRadius + l.width * 0.5 && Math.random() < 0.22) {
           this.registerGraze(p.x, p.y);
@@ -2641,8 +2653,10 @@ export class StillpointGame {
 
       const hitDist = hurtR + b.radius * 0.72;
       if (d2 <= hitDist * hitDist) {
+        if (p.invulnTimer > 0) continue;
         this.enemyBullets.splice(i, 1);
-        this.damagePlayer(b.damage);
+        this.damagePlayer(b.damage, 'bullet');
+        if (this.phase !== 'playing') return;
         i = Math.min(i, this.enemyBullets.length);
         continue;
       }
@@ -2816,11 +2830,12 @@ export class StillpointGame {
 
   private updateEnemyContactCollisions(): void {
     const p = this.player;
+    if (p.invulnTimer > 0 || p.contactInvulnTimer > 0) return;
     const hurtR = p.inStillpoint ? 5 : 9.5;
     for (const e of this.enemies) {
       if (e.hp <= 0 || e.kind === 'hauler') continue;
       if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= (hurtR + e.radius * 0.8) ** 2) {
-        this.damagePlayer(e.isBoss ? 22 : e.isElite ? 17 : 14);
+        this.damagePlayer(e.isBoss ? 22 : e.isElite ? 17 : 14, 'contact');
         break;
       }
     }
@@ -3215,9 +3230,9 @@ export class StillpointGame {
 
     const noHeals = this.player.pacts.includes('execution');
     if (enemy.kind === 'hauler') {
-      // Treasure Hauler: Relic Cache Chest + Shards + 30% scarce chance for a Salvage Crate
+      // Treasure Hauler: Relic Cache Chest + Shards + rare 6% Salvage Crate jackpot
       sound.playBossDefeat();
-      if (Math.random() < 0.3) {
+      if (Math.random() < 0.06) {
         this.save.standardCrates++;
         this.stats.cratesEarned++;
         persistMetaSave(this.save);
@@ -3312,34 +3327,38 @@ export class StillpointGame {
     const shardBonus = Math.round((45 + bossIndexCleared * 35) * this.player.shardMult);
     this.stats.shardsEarned += shardBonus;
 
-    // Scarce crate economy: Boss 1 = 35%, Boss 2 = 60%, Final/Boss 3+ = guaranteed (Classified with Heat or No-Hit)
+    // Scarce crate economy: Boss 1 = 0%, Boss 2 = 12% Salvage (6% Classified on 2+ Heat),
+    // Final Boss / Sector Clear = 35% Salvage (scales up with Heat modifiers & No-Hit boss clear)
     const isFinalBoss =
       bossIndexCleared >= 2 ||
       boss.kind === (this.sectorId === 'singularity' ? 'boss_leviathan' : 'boss_archon');
+    const heat = this.save.activeHeat.length;
+    const noHit = !this.enclosure.playerHitDuringBoss;
     if (isFinalBoss) {
-      if (this.save.activeHeat.length >= 1 || !this.enclosure.playerHitDuringBoss) {
+      const classifiedChance =
+        heat >= 3 ? (noHit ? 0.75 : 0.45) : heat >= 1 ? (noHit ? 0.4 : 0.2) : noHit ? 0.15 : 0;
+      const salvageChance =
+        heat >= 3 ? (noHit ? 0.25 : 0.4) : heat >= 1 ? 0.35 : noHit ? 0.5 : 0.35;
+      const roll = Math.random();
+      if (roll < classifiedChance) {
         this.save.relicCrates++;
         this.stats.relicCratesEarned++;
         this.callbacks.onUnlockNotice('Classified crate dropped');
-      } else {
+      } else if (roll < classifiedChance + salvageChance) {
         this.save.standardCrates++;
         this.stats.cratesEarned++;
         this.callbacks.onUnlockNotice('Salvage crate dropped');
       }
     } else if (bossIndexCleared === 1) {
-      if (this.save.activeHeat.length >= 2 && Math.random() < 0.35) {
+      if (heat >= 2 && Math.random() < 0.06) {
         this.save.relicCrates++;
         this.stats.relicCratesEarned++;
         this.callbacks.onUnlockNotice('Classified crate dropped');
-      } else if (Math.random() < 0.6) {
+      } else if (Math.random() < 0.12) {
         this.save.standardCrates++;
         this.stats.cratesEarned++;
         this.callbacks.onUnlockNotice('Salvage crate dropped');
       }
-    } else if (Math.random() < 0.35) {
-      this.save.standardCrates++;
-      this.stats.cratesEarned++;
-      this.callbacks.onUnlockNotice('Salvage crate dropped');
     }
     this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.25);
     this.player.kineticCharge = this.player.maxKineticCharge;
@@ -3364,17 +3383,24 @@ export class StillpointGame {
     this.openUpgradeDraft(true);
   }
 
-  private damagePlayer(rawDmg: number): void {
+  private damagePlayer(
+    rawDmg: number,
+    source: 'bullet' | 'contact' | 'laser' | 'meteor' = 'bullet'
+  ): void {
     const p = this.player;
     if (p.invulnTimer > 0) return;
+    if (source === 'contact') {
+      if (p.contactInvulnTimer > 0) return;
+      p.contactInvulnTimer = 0.38;
+    }
 
     if (this.enclosure.active) this.enclosure.playerHitDuringBoss = true;
 
     const furyTaken = p.pacts.includes('berserker') ? 1.2 : 1.0;
     let dmg = Math.max(7, Math.round(rawDmg * furyTaken) - p.armor);
-    p.invulnTimer = 0.32;
     p.hitFlash = 1;
     p.grazeCombo = 0;
+    p.kineticShieldDelay = 4.0;
 
     // Kinetic Barrier overshield absorbs hits first!
     if (p.kineticOvershield > 0) {
@@ -3405,7 +3431,7 @@ export class StillpointGame {
           e.stunTimer = Math.max(e.stunTimer ?? 0, 1.8);
         }
       }
-      p.invulnTimer = Math.max(p.invulnTimer, 0.8);
+      p.invulnTimer = Math.max(p.invulnTimer, 0.65);
       this.particles.ripple(p.x, p.y, empR, 16, '#82c4e8', 0.44);
       this.particles.callout(p.x, p.y - 38, 'EMP BURST', '#82c4e8', 1.15, 0.85);
       sound.playCoreBurst(5, true);
@@ -3413,20 +3439,25 @@ export class StillpointGame {
 
     p.hp = Math.max(0, p.hp - dmg);
 
-    // Capacitor Burst relic: taking damage retaliates with lightning to 8 nearby foes!
-    if (p.relics.includes('overcharge_shield')) {
-      const nearby = [...this.enemies]
-        .filter((e) => e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= 280)
-        .slice(0, 8);
-      for (const t of nearby) {
-        this.particles.arc(p.x, p.y, t.x, t.y, '#62a4f5', 2.4, 0.22);
-        this.damageEnemy(t, 42 * p.damageMult, '#62a4f5', true);
-      }
-    }
+    const canTriggerFeedback = p.hitSfxCooldown <= 0;
+    if (canTriggerFeedback) {
+      p.hitSfxCooldown = 0.1;
 
-    // Pyre ship passive: taking damage ignites a thermal fire ring!
-    if (this.vesselId === 'pyre' && p.hp > 0) {
-      this.triggerPyreThermalRing();
+      // Capacitor Burst relic: taking damage retaliates with lightning to 8 nearby foes!
+      if (p.relics.includes('overcharge_shield')) {
+        const nearby = [...this.enemies]
+          .filter((e) => e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= 280)
+          .slice(0, 8);
+        for (const t of nearby) {
+          this.particles.arc(p.x, p.y, t.x, t.y, '#62a4f5', 2.4, 0.22);
+          this.damageEnemy(t, 42 * p.damageMult, '#62a4f5', true);
+        }
+      }
+
+      // Pyre ship passive: taking damage ignites a thermal fire ring!
+      if (this.vesselId === 'pyre' && p.hp > 0) {
+        this.triggerPyreThermalRing();
+      }
     }
 
     // Aegis Protocol (Last Stand) relic: cheat death once!
@@ -3444,17 +3475,12 @@ export class StillpointGame {
       return;
     }
 
-    sound.playPlayerHit();
-    bridge.haptic('error');
-    this.addShake(11);
-    this.particles.shatter(p.x, p.y, '#e34b42', 8, 1);
-    this.particles.ripple(p.x, p.y, 140, 12, '#e34b42', 0.32);
-
-    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-      const b = this.enemyBullets[i];
-      if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 34 * 34) {
-        this.enemyBullets.splice(i, 1);
-      }
+    if (canTriggerFeedback) {
+      sound.playPlayerHit();
+      bridge.haptic('error');
+      this.addShake(11);
+      this.particles.shatter(p.x, p.y, '#e34b42', 8, 1);
+      this.particles.ripple(p.x, p.y, 140, 12, '#e34b42', 0.32);
     }
 
     if (p.hp <= 0) this.handleGameOver();

@@ -642,7 +642,7 @@ export class OverlayController {
                   ×${this.save.standardCrates}
                 </span>
               </div>
-              <div class="ledger-sub">Pattern skins, thruster exhausts, and Stillpoint auras from haulers and bosses.</div>
+              <div class="ledger-sub">Rare drops from late bosses, sector clears, and haulers.</div>
             </div>
           </div>
           <button class="battle-btn ${this.save.standardCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-std" ${this.save.standardCrates > 0 ? '' : 'disabled'}>
@@ -662,7 +662,7 @@ export class OverlayController {
                   ×${this.save.relicCrates}
                 </span>
               </div>
-              <div class="ledger-sub">Higher rare and Relic ★ odds from sector clears and hard trials.</div>
+              <div class="ledger-sub">High-heat sector clears, no-hit bosses, and prestige trials.</div>
             </div>
           </div>
           <button class="battle-btn rust-btn ${this.save.relicCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>

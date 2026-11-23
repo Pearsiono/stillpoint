@@ -485,6 +485,8 @@ export interface PlayerState {
   maxShield: number;
   shieldRegenTimer: number;
   invulnTimer: number;
+  contactInvulnTimer: number;
+  hitSfxCooldown: number;
   hitFlash: number;
   kineticCharge: number;
   maxKineticCharge: number;
@@ -541,6 +543,7 @@ export interface PlayerState {
   distanceMovedSinceMine: number;
   momentumMoveTime: number;
   kineticOvershield: number;
+  kineticShieldDelay: number;
   empCooldown: number;
   exitVortexCooldown: number;
   freeFocusTimer: number;
