@@ -9,6 +9,7 @@ import {
   PlayerState,
   RailPylon,
   VesselId,
+  WeaponId,
   WorldNode
 } from '../types';
 import { ParticleSystem } from './particles';
@@ -26,7 +27,13 @@ export interface WeaponWorldContext {
   particles: ParticleSystem;
   accentColor: string;
   nextId: () => number;
-  damageEnemy: (enemy: Enemy, dmg: number, color: string, isCrit?: boolean) => void;
+  damageEnemy: (
+    enemy: Enemy,
+    dmg: number,
+    color: string,
+    isCrit?: boolean,
+    sourceKey?: WeaponId | 'core'
+  ) => void;
   damageShrinesInRadius: (x: number, y: number, radius: number, dmg: number) => void;
   damageShrinesAlongLine: (x1: number, y1: number, x2: number, y2: number, halfWidth: number, dmg: number) => void;
   spawnXp: (x: number, y: number, value: number) => void;
@@ -224,7 +231,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
       particles.ripple(b.x, b.y, r * 1.2, 13, '#ff5c38', 0.36);
       for (const e of [...enemies]) {
         if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
-          ctx.damageEnemy(e, dmg, '#ff5c38', true);
+          ctx.damageEnemy(e, dmg, '#ff5c38', true, 'shatter_mine');
         }
       }
       ctx.damageShrinesInRadius(b.x, b.y, r, dmg);
@@ -300,7 +307,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
         for (const e of [...enemies]) {
           if (e.hp <= 0) continue;
           if (Math.hypot(e.x - h.x, e.y - h.y) <= blastR + e.radius) {
-            ctx.damageEnemy(e, burstDmg, '#e09eff', true);
+            ctx.damageEnemy(e, burstDmg, '#e09eff', true, 'void_mortars');
           }
         }
         if (!h.evolved) hazards.splice(i, 1);
@@ -454,7 +461,7 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       for (const e of [...enemies]) {
         if (e.hp <= 0) continue;
         if (pointToSegmentDist(e.x, e.y, sx, sy, ex, ey) <= e.radius + beamWidth * 0.65) {
-          ctx.damageEnemy(e, dmg, w.evolved ? '#f6c453' : ctx.accentColor, true);
+          ctx.damageEnemy(e, dmg, w.evolved ? '#f6c453' : ctx.accentColor, true, 'pulse_lance');
           particles.burst(e.x, e.y, ctx.accentColor, 4, 40, 120, 2.5, 0.25);
         }
       }
@@ -557,7 +564,7 @@ function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       const dx = e.x - blade.x;
       const dy = e.y - blade.y;
       if (dx * dx + dy * dy <= (blade.radius + e.radius) ** 2) {
-        ctx.damageEnemy(e, dmg, '#4effb4');
+        ctx.damageEnemy(e, dmg, '#4effb4', false, 'halo_blades');
       }
     }
     ctx.damageShrinesInRadius(blade.x, blade.y, blade.radius, dmg);
@@ -593,7 +600,7 @@ function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       inFocus ? 3.2 : 2.2,
       inFocus ? 0.22 : 0.16
     );
-    ctx.damageEnemy(curr, dmg, '#6fa8ff');
+    ctx.damageEnemy(curr, dmg, '#6fa8ff', false, 'arc_tether');
 
     for (let c = 1; c < maxChains; c++) {
       let next: Enemy | null = null;
@@ -617,7 +624,7 @@ function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
         inFocus ? 2.6 : 1.8,
         inFocus ? 0.22 : 0.15
       );
-      ctx.damageEnemy(next, dmg * Math.pow(0.92, c), '#6fa8ff');
+      ctx.damageEnemy(next, dmg * Math.pow(0.92, c), '#6fa8ff', false, 'arc_tether');
       curr = next;
     }
     lastX = curr.x;
@@ -876,7 +883,7 @@ function fireNovaWave(
     const dy = e.y - player.y;
     const d = Math.hypot(dx, dy) || 1;
     if (d <= radius + e.radius) {
-      ctx.damageEnemy(e, dmg * (evolved ? 1.25 : 1), color, isStillpointBurst);
+      ctx.damageEnemy(e, dmg * (evolved ? 1.25 : 1), color, isStillpointBurst, 'nova_pulse');
       if (!e.isBoss) {
         const push = isStillpointBurst ? 56 : 32;
         e.x += (dx / d) * push;
@@ -944,7 +951,7 @@ function updateActivePylons(ctx: WeaponWorldContext, dtWorld: number, dtReal: nu
         for (const e of [...enemies]) {
           if (e.hp <= 0) continue;
           if (pointToSegmentDist(e.x, e.y, py.x, py.y, next.x, next.y) <= e.radius + 10) {
-            ctx.damageEnemy(e, py.damage * 1.4, '#f6c453', true);
+            ctx.damageEnemy(e, py.damage * 1.4, '#f6c453', true, 'rail_turret');
           }
         }
         ctx.damageShrinesAlongLine(py.x, py.y, next.x, next.y, 10, py.damage * 1.4);
@@ -1015,7 +1022,7 @@ export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       if (e.hp <= 0 || !(e.chillTimer && e.chillTimer > 0)) continue;
       if (Math.hypot(e.x - player.x, e.y - player.y) <= range) {
         shattered++;
-        ctx.damageEnemy(e, shatterDmg, '#9be8ff', true);
+        ctx.damageEnemy(e, shatterDmg, '#9be8ff', true, 'frost_nova');
         particles.shatter(e.x, e.y, '#9be8ff', 7, 1.15);
         hazards.push({
           id: ctx.nextId(),
@@ -1177,7 +1184,7 @@ function updateGravFlail(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       const dist = Math.hypot(dx, dy) || 1;
       if (dist <= fl.radius + e.radius) {
         slammed = true;
-        ctx.damageEnemy(e, dmg, fl.evolved ? '#f5d256' : '#e08538', player.inStillpoint);
+        ctx.damageEnemy(e, dmg, fl.evolved ? '#f5d256' : '#e08538', player.inStillpoint, 'grav_flail');
         if (!e.isBoss && e.hp > 0) {
           e.x += (dx / dist) * push;
           e.y += (dy / dist) * push;
@@ -1293,7 +1300,7 @@ function updateMirrorBeam(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       if (e.hp <= 0) continue;
       if (pointToSegmentDist(e.x, e.y, player.x, player.y, ex, ey) <= e.radius + beamW * 0.6) {
         if (!firstHit) firstHit = e;
-        ctx.damageEnemy(e, dmg, '#f0bc42', inFocus);
+        ctx.damageEnemy(e, dmg, '#f0bc42', inFocus, 'mirror_beam');
         particles.burst(e.x, e.y, '#f0bc42', 3, 40, 110, 2.2, 0.2);
       }
     }
@@ -1315,7 +1322,7 @@ function updateMirrorBeam(ctx: WeaponWorldContext, w: OwnedWeapon): void {
           maxLife: 0.2,
           isEnemy: false
         });
-        ctx.damageEnemy(next, dmg * 0.85, '#fff2b8', true);
+        ctx.damageEnemy(next, dmg * 0.85, '#fff2b8', true, 'mirror_beam');
       }
     }
   }

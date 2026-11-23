@@ -1,4 +1,4 @@
-import { InputSnapshot } from '../types';
+import { ControlMode, InputSnapshot } from '../types';
 
 const JOYSTICK_MAX_RADIUS = 56;
 const JOYSTICK_DEADZONE = 5;
@@ -11,6 +11,12 @@ export class InputController {
   private originY = 0;
   private currentX = 0;
   private currentY = 0;
+  private lastDirectX = 0;
+  private lastDirectY = 0;
+  private pendingDirectDx = 0;
+  private pendingDirectDy = 0;
+  private lastDirectMoveAt = 0;
+  private controlMode: ControlMode = 'joystick';
   private hasInteracted = false;
   private awaitingTouchAfterResume = false;
   private mode: 'touch' | 'keyboard' = 'touch';
@@ -22,6 +28,20 @@ export class InputController {
     this.canvas = canvas;
     this.onFirstGestureCallback = onFirstGesture;
     this.bindEvents();
+  }
+
+  setControlMode(mode: ControlMode): void {
+    this.controlMode = mode;
+    this.pendingDirectDx = 0;
+    this.pendingDirectDy = 0;
+  }
+
+  consumeDirectDelta(): { dx: number; dy: number } {
+    const dx = this.pendingDirectDx;
+    const dy = this.pendingDirectDy;
+    this.pendingDirectDx = 0;
+    this.pendingDirectDy = 0;
+    return { dx, dy };
   }
 
   setEnabled(enabled: boolean): void {
@@ -36,6 +56,8 @@ export class InputController {
       }
       this.pointerDown = false;
       this.activePointerId = null;
+      this.pendingDirectDx = 0;
+      this.pendingDirectDy = 0;
       this.awaitingTouchAfterResume = true;
     }
   }
@@ -43,6 +65,9 @@ export class InputController {
   resetForNewRun(): void {
     this.pointerDown = false;
     this.activePointerId = null;
+    this.pendingDirectDx = 0;
+    this.pendingDirectDy = 0;
+    this.lastDirectMoveAt = 0;
     this.hasInteracted = false;
     this.awaitingTouchAfterResume = false;
     this.keys.clear();
@@ -102,13 +127,30 @@ export class InputController {
     this.originY = e.clientY;
     this.currentX = e.clientX;
     this.currentY = e.clientY;
+    this.lastDirectX = e.clientX;
+    this.lastDirectY = e.clientY;
+    this.pendingDirectDx = 0;
+    this.pendingDirectDy = 0;
   };
 
   private onPointerMove = (e: PointerEvent): void => {
     if (!this.enabled || !this.pointerDown || e.pointerId !== this.activePointerId) return;
     e.preventDefault();
+    const stepDx = e.clientX - this.lastDirectX;
+    const stepDy = e.clientY - this.lastDirectY;
+    this.lastDirectX = e.clientX;
+    this.lastDirectY = e.clientY;
     this.currentX = e.clientX;
     this.currentY = e.clientY;
+
+    if (this.controlMode === 'direct') {
+      this.pendingDirectDx += stepDx;
+      this.pendingDirectDy += stepDy;
+      if (Math.hypot(stepDx, stepDy) > 0.65) {
+        this.lastDirectMoveAt = performance.now();
+      }
+      return;
+    }
 
     // Dynamic floating joystick: gently follows thumb if pulled past max radius
     const dx = this.currentX - this.originX;
@@ -173,7 +215,8 @@ export class InputController {
         joyOriginY: 0,
         joyCurrentX: 0,
         joyCurrentY: 0,
-        mode: this.mode
+        mode: this.mode,
+        controlMode: this.controlMode
       };
     }
 
@@ -203,7 +246,8 @@ export class InputController {
         joyOriginY: 0,
         joyCurrentX: 0,
         joyCurrentY: 0,
-        mode: 'keyboard'
+        mode: 'keyboard',
+        controlMode: this.controlMode
       };
     }
 
@@ -213,14 +257,26 @@ export class InputController {
     let isMoving = false;
 
     if (this.pointerDown) {
-      const dx = this.currentX - this.originX;
-      const dy = this.currentY - this.originY;
-      const dist = Math.hypot(dx, dy);
-      if (dist > JOYSTICK_DEADZONE) {
-        const clamped = Math.min(1, (dist - JOYSTICK_DEADZONE) / (JOYSTICK_MAX_RADIUS - JOYSTICK_DEADZONE));
-        mx = (dx / dist) * clamped;
-        my = (dy / dist) * clamped;
-        isMoving = clamped > 0.08;
+      if (this.controlMode === 'direct') {
+        const recent = performance.now() - this.lastDirectMoveAt < 110;
+        const pLen = Math.hypot(this.pendingDirectDx, this.pendingDirectDy);
+        if (pLen > 0.5) {
+          mx = this.pendingDirectDx / pLen;
+          my = this.pendingDirectDy / pLen;
+          isMoving = true;
+        } else if (recent) {
+          isMoving = true;
+        }
+      } else {
+        const dx = this.currentX - this.originX;
+        const dy = this.currentY - this.originY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > JOYSTICK_DEADZONE) {
+          const clamped = Math.min(1, (dist - JOYSTICK_DEADZONE) / (JOYSTICK_MAX_RADIUS - JOYSTICK_DEADZONE));
+          mx = (dx / dist) * clamped;
+          my = (dy / dist) * clamped;
+          isMoving = clamped > 0.08;
+        }
       }
     }
 
@@ -230,12 +286,13 @@ export class InputController {
       isMoving,
       wantsStillpoint: this.hasInteracted && !this.awaitingTouchAfterResume && !this.pointerDown,
       hasInteracted: this.hasInteracted,
-      joystickActive: this.pointerDown,
+      joystickActive: this.pointerDown && this.controlMode === 'joystick',
       joyOriginX: this.originX,
       joyOriginY: this.originY,
       joyCurrentX: this.currentX,
       joyCurrentY: this.currentY,
-      mode: 'touch'
+      mode: 'touch',
+      controlMode: this.controlMode
     };
   }
 }

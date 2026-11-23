@@ -344,6 +344,8 @@ export interface MilestoneDef {
   check: (save: MetaSave) => { current: number; target: number; done: boolean };
 }
 
+export type ControlMode = 'joystick' | 'direct';
+
 export interface MetaSave {
   shards: number;
   keys: number;
@@ -356,10 +358,15 @@ export interface MetaSave {
   totalKills: number;
   totalParries: number;
   totalGrazes: number;
+  totalSyncHits: number;
+  bestSyncStreak: number;
+  heatClears: number;
   bossesCleared: number;
   evolutionsCrafted: number;
   noHitBossClears: number;
   sectorsCleared: SectorId[];
+  bestScoreBySector: Partial<Record<SectorId, number>>;
+  bestTimeBySector: Partial<Record<SectorId, number>>;
   unlockedVessels: VesselId[];
   selectedVessel: VesselId;
   unlockedCores: CoreId[];
@@ -385,11 +392,14 @@ export interface MetaSave {
   activePreset: LoadoutPresetIndex;
   migratedToLoadout?: boolean;
   migratedToTheoryLoadout?: boolean;
+  tutorialSeen: boolean;
+  savedAt: number;
   settings: {
     music: boolean;
     sfx: boolean;
     haptics: boolean;
     reduceFlash: boolean;
+    controlMode: ControlMode;
   };
 }
 
@@ -772,6 +782,8 @@ export interface RunStats {
   kills: number;
   grazes: number;
   bestGrazeCombo: number;
+  syncHits: number;
+  bestSyncStreak: number;
   bossesDefeated: number;
   shardsEarned: number;
   cratesEarned: number;
@@ -783,8 +795,12 @@ export interface RunStats {
   heatCount: number;
   weapons: Array<{ id: WeaponId; level: number; evolved: boolean }>;
   relics: RelicId[];
+  weaponDamage: Record<string, number>;
   endlessMode: boolean;
   victory: boolean;
+  isNewBestScore?: boolean;
+  isNewBestTime?: boolean;
+  isNewBestGraze?: boolean;
 }
 
 export interface InputSnapshot {
@@ -799,4 +815,5 @@ export interface InputSnapshot {
   joyCurrentX: number;
   joyCurrentY: number;
   mode: 'touch' | 'keyboard';
+  controlMode: ControlMode;
 }

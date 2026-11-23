@@ -1,7 +1,7 @@
 import './styles.css';
 import { sound } from './audio';
 import { bridge } from './bridge';
-import { loadMetaSave } from './data/meta';
+import { loadMetaSave, parseMetaSaveJson, persistMetaSave, pickBetterSave } from './data/meta';
 import { StillpointGame } from './engine/game';
 import { HudView } from './ui/hud';
 import { OverlayController } from './ui/menus';
@@ -12,6 +12,7 @@ function bootstrap(): void {
 
   const save = loadMetaSave();
   sound.setSettings(save.settings.music, save.settings.sfx);
+  sound.setSector(save.selectedSector);
   bridge.setHapticsEnabled(save.settings.haptics);
 
   let game!: StillpointGame;
@@ -29,6 +30,7 @@ function bootstrap(): void {
     onToggleHeat: (heat) => game.toggleHeat(heat),
     onRandomizeBuild: () => game.randomizeBuild(),
     onVisualPrefsChanged: () => game.refreshVisualPrefs(),
+    onReplaceSave: (next) => game.replaceSave(next),
     onSheetToggle: (open) => game.setMenuSheetOpen(open),
     onSelectUpgrade: (choiceId) => game.selectUpgrade(choiceId),
     onReroll: () => game.rerollChoices(),
@@ -40,12 +42,33 @@ function bootstrap(): void {
   game = new StillpointGame(canvas, save, {
     onPhaseChange: (phase, choices, stats) => {
       hud.setVisible(phase === 'playing' || phase === 'levelup' || phase === 'paused');
+      const pauseBuild =
+        phase === 'paused'
+          ? {
+              sectorId: game.sectorId,
+              vesselId: game.vesselId,
+              coreId: game.coreId,
+              heatCount: save.activeHeat.length,
+              elapsed: game.stats.elapsed,
+              syncHits: game.stats.syncHits,
+              bestSyncStreak: game.stats.bestSyncStreak,
+              weapons: game.player.weapons,
+              passives: game.player.passives,
+              relics: game.player.relics,
+              damageMult: game.player.damageMult,
+              fireRateMult: game.player.fireRateMult,
+              critChance: game.player.critChance,
+              moveSpeed: game.player.moveSpeed,
+              armor: game.player.armor
+            }
+          : undefined;
       overlays.renderPhase(phase, {
         choices,
         level: game.player.level,
         rerolls: game.player.rerolls,
         isBossChest: game.isBossDraft,
-        stats
+        stats,
+        pauseBuild
       });
     },
     onHudTick: (snap) => {
@@ -54,6 +77,23 @@ function bootstrap(): void {
     onUnlockNotice: (text) => {
       overlays.showToast(text);
     }
+  });
+
+  bridge.onCloudSave((cloudJson) => {
+    if (game.phase !== 'menu') return;
+    const incoming = parseMetaSaveJson(cloudJson);
+    if (!incoming) return;
+    const best = pickBetterSave(save, incoming);
+    if (best === incoming) {
+      game.replaceSave(best);
+      persistMetaSave(save);
+      overlays.refreshExternalState();
+      overlays.showToast('iCloud save synced');
+    }
+  });
+
+  bridge.onGameCenterChange(() => {
+    overlays.refreshExternalState();
   });
 
   // Unlock WebAudio cleanly on very first menu tap on iOS

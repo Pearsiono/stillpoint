@@ -30,11 +30,14 @@ import {
   equipEffectItem,
   executeEffectTradeUp,
   executeTradeUp,
+  exportSaveCode,
   getEquippedAuraItem,
   getEquippedCoating,
   getEquippedTrailItem,
+  importSaveCode,
   MILESTONES,
   persistMetaSave,
+  resetMetaSave,
   scrapCoating,
   scrapEffectItem,
   selectLoadoutPreset,
@@ -42,6 +45,7 @@ import {
   unlockLoadoutModule
 } from '../data/meta';
 import { SECTOR_ORDER, SECTORS } from '../data/sectors';
+import { PASSIVES, WEAPONS } from '../data/upgrades';
 import { VESSEL_ORDER, VESSELS } from '../data/vessels';
 import {
   drawEffectStillpointAura,
@@ -61,11 +65,15 @@ import {
   LoadoutPresetIndex,
   MetaSave,
   ModuleId,
+  OwnedPassive,
+  OwnedWeapon,
+  RelicId,
   RunStats,
   SectorId,
   SkinId,
   UpgradeChoice,
-  VesselId
+  VesselId,
+  WeaponId
 } from '../types';
 import {
   artIconImg,
@@ -87,7 +95,28 @@ type ArmorySub = 'crates' | 'locker' | 'fx';
 type FxFilter = 'all' | 'trail' | 'aura';
 type FxDemoMode = 'auto' | 'flight' | 'stillpoint';
 
+type BoolSettingKey = 'music' | 'sfx' | 'haptics' | 'reduceFlash';
+
 const PRESET_LABELS: readonly string[] = ['A', 'B', 'C'];
+const APP_VERSION_LABEL = 'v1.0.0';
+
+export interface PauseBuildInfo {
+  sectorId: SectorId;
+  vesselId: VesselId;
+  coreId: CoreId;
+  heatCount: number;
+  elapsed: number;
+  syncHits: number;
+  bestSyncStreak: number;
+  weapons: OwnedWeapon[];
+  passives: OwnedPassive[];
+  relics: RelicId[];
+  damageMult: number;
+  fireRateMult: number;
+  critChance: number;
+  moveSpeed: number;
+  armor: number;
+}
 
 export interface OverlayActions {
   onStartRun: () => void;
@@ -98,6 +127,7 @@ export interface OverlayActions {
   onToggleHeat: (heat: HeatId) => void;
   onRandomizeBuild: () => void;
   onVisualPrefsChanged: () => void;
+  onReplaceSave: (next: MetaSave) => void;
   onSheetToggle: (open: boolean) => void;
   onSelectUpgrade: (choiceId: string) => void;
   onReroll: () => void;
@@ -118,6 +148,13 @@ export class OverlayController {
   private fxDemoMode: FxDemoMode = 'auto';
   private browsingSectorIdx = 0;
   private settingsOpen = false;
+  private manualOpen = false;
+  private manualPage = 0;
+  private privacyOpen = false;
+  private saveModalMode: 'none' | 'export' | 'import' = 'none';
+  private resetConfirmArmed = false;
+  private resetConfirmTimer = 0;
+  private lastPauseBuild?: PauseBuildInfo;
   private heatOpen = false;
   private oddsOpen = false;
   private inspectUid: string | null = null;
@@ -144,6 +181,10 @@ export class OverlayController {
     this.actions = actions;
     this.browsingSectorIdx = Math.max(0, SECTOR_ORDER.indexOf(save.selectedSector));
     this.inspectVesselIdx = Math.max(0, VESSEL_ORDER.indexOf(save.selectedVessel));
+    if (!save.tutorialSeen && save.totalRuns === 0) {
+      this.manualOpen = true;
+      this.manualPage = 0;
+    }
     parent.appendChild(this.container);
 
     sprites.onArtLoaded(() => {
@@ -151,6 +192,13 @@ export class OverlayController {
         this.hydrateVisualCanvases();
       }
     });
+  }
+
+  refreshExternalState(): void {
+    if (this.currentPhase === 'menu') {
+      this.browsingSectorIdx = Math.max(0, SECTOR_ORDER.indexOf(this.save.selectedSector));
+      this.renderHub(true);
+    }
   }
 
   showToast(message: string): void {
@@ -191,6 +239,7 @@ export class OverlayController {
       rerolls?: number;
       isBossChest?: boolean;
       stats?: RunStats;
+      pauseBuild?: PauseBuildInfo;
     }
   ): void {
     this.currentPhase = phase;
@@ -199,6 +248,9 @@ export class OverlayController {
 
     if (phase === 'playing') {
       this.settingsOpen = false;
+      this.manualOpen = false;
+      this.privacyOpen = false;
+      this.saveModalMode = 'none';
       this.heatOpen = false;
       this.oddsOpen = false;
       this.inspectUid = null;
@@ -221,7 +273,8 @@ export class OverlayController {
       return;
     }
     if (phase === 'paused') {
-      this.renderPause();
+      if (options?.pauseBuild) this.lastPauseBuild = options.pauseBuild;
+      this.renderPause(this.lastPauseBuild);
       return;
     }
     if (phase === 'gameover' || phase === 'victory') {
@@ -281,11 +334,17 @@ export class OverlayController {
           ? this.buildInspectModal()
           : this.oddsOpen
             ? this.buildCrateOddsModal()
-            : this.settingsOpen
-              ? this.buildSettingsModal()
-              : this.heatOpen
-                ? this.buildHeatModal()
-                : '';
+            : this.saveModalMode !== 'none'
+              ? this.buildSaveTransferModal()
+              : this.privacyOpen
+                ? this.buildPrivacyModal()
+                : this.manualOpen
+                  ? this.buildFieldManualModal()
+                  : this.settingsOpen
+                    ? this.buildSettingsModal()
+                    : this.heatOpen
+                      ? this.buildHeatModal()
+                      : '';
 
     this.container.innerHTML = `
       <div class="hub-shell">
@@ -1233,9 +1292,11 @@ export class OverlayController {
 
   private buildSettingsModal(): string {
     const s = this.save.settings;
+    const gcReady = bridge.isGameCenterReady();
+    const ctrlLabel = s.controlMode === 'direct' ? 'Direct 1:1 drag' : 'Floating stick';
     return `
       <div class="modal-backdrop" id="settings-bg">
-        <div class="modal-box">
+        <div class="modal-box scrollable">
           <div class="modal-head"><div class="modal-title">Settings</div></div>
           <div class="toggle-grid">
             <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">${svgIcon('music', 15)} <span>Music</span></button>
@@ -1243,7 +1304,138 @@ export class OverlayController {
             <button class="toggle-tile ${s.haptics ? 'on' : ''}" data-toggle="haptics">${svgIcon('haptics', 15)} <span>Haptics</span></button>
             <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">${svgIcon('flash', 15)} <span>Low flash</span></button>
           </div>
+          <button class="ctrl-mode-btn" id="btn-ctrl-mode">
+            <span>Steer mode</span>
+            <span class="ctrl-mode-pill">${ctrlLabel}</span>
+          </button>
+          <div class="settings-action-row" style="${gcReady ? '' : 'grid-template-columns:1fr'}">
+            <button class="mini-action-btn" id="btn-open-manual">${svgIcon('info', 13)} Field manual</button>
+            ${
+              gcReady
+                ? `<button class="mini-action-btn" id="btn-game-center">${svgIcon('trophy', 13, 'var(--gold)')} Game Center</button>`
+                : ''
+            }
+          </div>
+          <div class="settings-save-row">
+            <button class="mini-action-btn" id="btn-save-export">Backup</button>
+            <button class="mini-action-btn" id="btn-save-import">Restore</button>
+            <button class="mini-action-btn danger ${this.resetConfirmArmed ? 'armed' : ''}" id="btn-save-reset">
+              ${this.resetConfirmArmed ? 'Tap to wipe' : 'Reset'}
+            </button>
+          </div>
+          <div class="settings-foot">
+            <span>STILLPOINT ${APP_VERSION_LABEL}</span>
+            <button class="text-link-btn" id="btn-open-privacy">Privacy</button>
+          </div>
           <button class="ghost-btn" id="btn-close-settings">Done</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private buildFieldManualModal(): string {
+    const pages: Array<{ title: string; points: string[] }> = [
+      {
+        title: 'Move & Stillpoint',
+        points: [
+          '<strong>Hold and drag</strong> anywhere to steer your ship. Switch between Floating Stick and 1:1 Direct Drag anytime in Settings.',
+          '<strong>Lift your thumb</strong> to enter Stillpoint slow-motion and trigger your equipped <strong>Core</strong>.',
+          'Moving recharges <strong>Focus</strong>. Skimming close to enemy fire builds <strong>Graze</strong> combos and fills <strong>Momentum</strong>.'
+        ]
+      },
+      {
+        title: 'Active-Reload Sync',
+        points: [
+          'Entering Stillpoint sweeps a brass arc above your ship. <strong>Touch back down inside the golden notch</strong> to trigger <strong>Perfect Sync</strong>.',
+          'Perfect Sync refunds Focus, grants <strong>Sync Overdrive</strong> (+damage and fire rate), chains up to <strong>×5</strong>, and amplifies all 9 Cores.',
+          'Fast micro-dodges before 22% keep your streak with zero penalty, and holding past the end disarms cleanly.'
+        ]
+      },
+      {
+        title: 'Weapons, Evolutions & Loadout',
+        points: [
+          'Draft weapons, passives, and Relics as you level up. Raise a weapon to <strong>LV 5</strong> while holding its paired passive to forge an <strong>Evolved</strong> weapon.',
+          'Pause at any moment to inspect your active weapons, evolution pairs, relics, and live combat stats.',
+          'Customize a Pick-10 <strong>Loadout</strong> before launch and unlock cosmetic Crates in the <strong>Armory</strong> with Shards earned from runs and Trials.'
+        ]
+      }
+    ];
+    const p = pages[this.manualPage] ?? pages[0];
+    const isLast = this.manualPage >= pages.length - 1;
+    return `
+      <div class="modal-backdrop" id="manual-bg">
+        <div class="modal-box scrollable" style="border-top-color:var(--gold)">
+          <div class="modal-head">
+            <div class="modal-title" style="color:var(--gold)">Field manual</div>
+            <span class="mono" style="font-size:11px;color:var(--muted)">0${this.manualPage + 1} / 0${pages.length}</span>
+          </div>
+          <div class="manual-steps">
+            <button class="manual-step-pill ${this.manualPage === 0 ? 'active' : ''}" data-mpage="0">01 · Core</button>
+            <button class="manual-step-pill ${this.manualPage === 1 ? 'active' : ''}" data-mpage="1">02 · Sync</button>
+            <button class="manual-step-pill ${this.manualPage === 2 ? 'active' : ''}" data-mpage="2">03 · Builds</button>
+          </div>
+          <div class="manual-card">
+            <div class="manual-card-title">${p.title}</div>
+            <div class="manual-points">
+              ${p.points.map((pt) => `<div class="manual-point">${pt}</div>`).join('')}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            ${
+              this.manualPage > 0
+                ? `<button class="ghost-btn" id="btn-manual-prev" style="flex:1">Back</button>`
+                : ''
+            }
+            <button class="${isLast ? 'battle-btn' : 'ghost-btn'}" id="btn-manual-next" style="flex:1.4">
+              ${isLast ? 'Got it' : 'Next'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private buildPrivacyModal(): string {
+    return `
+      <div class="modal-backdrop" id="privacy-bg">
+        <div class="modal-box scrollable">
+          <div class="modal-head"><div class="modal-title">Privacy</div></div>
+          <div class="manual-card">
+            <div class="manual-points">
+              <div class="manual-point"><strong>No tracking or ads.</strong> STILLPOINT collects zero personal analytics, ad IDs, or behavioral telemetry.</div>
+              <div class="manual-point"><strong>Local &amp; iCloud saves.</strong> Your progress is stored on your device. On App Store builds signed into iCloud, Apple iCloud Key-Value Storage keeps your save synced privately across your own devices.</div>
+              <div class="manual-point"><strong>Game Center (optional).</strong> When signed into Apple Game Center, high scores and trial achievements sync directly with Apple's Game Center service.</div>
+            </div>
+          </div>
+          <button class="ghost-btn" id="btn-close-privacy">Close</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private buildSaveTransferModal(): string {
+    const isExport = this.saveModalMode === 'export';
+    const code = isExport ? exportSaveCode(this.save) : '';
+    return `
+      <div class="modal-backdrop" id="savexfer-bg">
+        <div class="modal-box scrollable">
+          <div class="modal-head">
+            <div class="modal-title">${isExport ? 'Save backup' : 'Restore save'}</div>
+          </div>
+          <div class="ledger-sub" style="margin-top:-2px">
+            ${
+              isExport
+                ? 'Copy this code and keep it somewhere safe to move your progress between devices.'
+                : 'Paste a STILLPOINT backup code (SP1:...) below to restore your progress.'
+            }
+          </div>
+          <textarea class="save-code-box" id="save-code-input" ${isExport ? 'readonly' : 'placeholder="SP1:..."'}>${code}</textarea>
+          ${
+            isExport
+              ? `<button class="battle-btn" id="btn-copy-save">Copy backup code</button>`
+              : `<button class="battle-btn" id="btn-apply-save">Restore progress</button>`
+          }
+          <button class="ghost-btn" id="btn-close-savexfer">Close</button>
         </div>
       </div>
     `;
@@ -1619,19 +1811,161 @@ export class OverlayController {
 
     this.container.querySelector('#btn-settings')?.addEventListener('click', () => {
       this.settingsOpen = true;
+      this.resetConfirmArmed = false;
       this.renderHub(true);
     });
 
     this.container.querySelector('#btn-close-settings')?.addEventListener('click', () => {
       this.settingsOpen = false;
+      this.resetConfirmArmed = false;
       this.renderHub(true);
     });
 
     this.container.querySelector('#settings-bg')?.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).id === 'settings-bg') {
         this.settingsOpen = false;
+        this.resetConfirmArmed = false;
         this.renderHub(true);
       }
+    });
+
+    this.container.querySelector('#btn-ctrl-mode')?.addEventListener('click', () => {
+      this.save.settings.controlMode =
+        this.save.settings.controlMode === 'direct' ? 'joystick' : 'direct';
+      persistMetaSave(this.save);
+      this.actions.onVisualPrefsChanged();
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+
+    this.container.querySelector('#btn-open-manual')?.addEventListener('click', () => {
+      this.manualOpen = true;
+      this.manualPage = 0;
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+
+    this.container.querySelector('#btn-game-center')?.addEventListener('click', () => {
+      bridge.haptic('light');
+      bridge.openGameCenter();
+    });
+
+    this.container.querySelector('#btn-open-privacy')?.addEventListener('click', () => {
+      this.privacyOpen = true;
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+
+    this.container.querySelector('#btn-close-privacy')?.addEventListener('click', () => {
+      this.privacyOpen = false;
+      this.renderHub(true);
+    });
+    this.container.querySelector('#privacy-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'privacy-bg') {
+        this.privacyOpen = false;
+        this.renderHub(true);
+      }
+    });
+
+    const closeManual = () => {
+      this.manualOpen = false;
+      if (!this.save.tutorialSeen) {
+        this.save.tutorialSeen = true;
+        persistMetaSave(this.save);
+      }
+      this.renderHub(true);
+    };
+    this.container.querySelector('#manual-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'manual-bg') closeManual();
+    });
+    this.container.querySelectorAll<HTMLButtonElement>('[data-mpage]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this.manualPage = Number(b.dataset.mpage) || 0;
+        bridge.haptic('light');
+        this.renderHub(true);
+      });
+    });
+    this.container.querySelector('#btn-manual-prev')?.addEventListener('click', () => {
+      this.manualPage = Math.max(0, this.manualPage - 1);
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+    this.container.querySelector('#btn-manual-next')?.addEventListener('click', () => {
+      bridge.haptic('light');
+      if (this.manualPage < 2) {
+        this.manualPage++;
+        this.renderHub(true);
+      } else {
+        closeManual();
+      }
+    });
+
+    this.container.querySelector('#btn-save-export')?.addEventListener('click', () => {
+      this.saveModalMode = 'export';
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+    this.container.querySelector('#btn-save-import')?.addEventListener('click', () => {
+      this.saveModalMode = 'import';
+      bridge.haptic('light');
+      this.renderHub(true);
+    });
+    this.container.querySelector('#btn-close-savexfer')?.addEventListener('click', () => {
+      this.saveModalMode = 'none';
+      this.renderHub(true);
+    });
+    this.container.querySelector('#savexfer-bg')?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).id === 'savexfer-bg') {
+        this.saveModalMode = 'none';
+        this.renderHub(true);
+      }
+    });
+    this.container.querySelector('#btn-copy-save')?.addEventListener('click', () => {
+      const box = this.container.querySelector<HTMLTextAreaElement>('#save-code-input');
+      if (!box) return;
+      box.select();
+      navigator.clipboard?.writeText(box.value).catch(() => {});
+      bridge.haptic('success');
+      this.showToast('Backup code copied');
+    });
+    this.container.querySelector('#btn-apply-save')?.addEventListener('click', () => {
+      const box = this.container.querySelector<HTMLTextAreaElement>('#save-code-input');
+      const restored = box ? importSaveCode(box.value) : null;
+      if (!restored) {
+        bridge.haptic('error');
+        this.showToast('Invalid backup code');
+        return;
+      }
+      this.saveModalMode = 'none';
+      this.settingsOpen = false;
+      this.actions.onReplaceSave(restored);
+      bridge.haptic('success');
+      this.showToast('Save restored');
+      this.renderHub();
+    });
+
+    this.container.querySelector('#btn-save-reset')?.addEventListener('click', () => {
+      if (!this.resetConfirmArmed) {
+        this.resetConfirmArmed = true;
+        bridge.haptic('warning');
+        window.clearTimeout(this.resetConfirmTimer);
+        this.resetConfirmTimer = window.setTimeout(() => {
+          this.resetConfirmArmed = false;
+          if (this.settingsOpen && this.currentPhase === 'menu') this.renderHub(true);
+        }, 4200);
+        this.renderHub(true);
+        return;
+      }
+      window.clearTimeout(this.resetConfirmTimer);
+      this.resetConfirmArmed = false;
+      this.settingsOpen = false;
+      const fresh = resetMetaSave();
+      fresh.tutorialSeen = true;
+      persistMetaSave(fresh);
+      this.actions.onReplaceSave(fresh);
+      bridge.haptic('heavy');
+      this.showToast('Save wiped');
+      this.renderHub();
     });
 
     this.container.querySelector('#btn-heat')?.addEventListener('click', (e) => {
@@ -1671,7 +2005,7 @@ export class OverlayController {
     this.container.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((b) => {
       b.addEventListener('click', () => {
         sound.unlock();
-        const key = b.dataset.toggle as keyof MetaSave['settings'];
+        const key = b.dataset.toggle as BoolSettingKey;
         this.save.settings[key] = !this.save.settings[key];
         sound.setSettings(this.save.settings.music, this.save.settings.sfx);
         bridge.setHapticsEnabled(this.save.settings.haptics);
@@ -2067,11 +2401,71 @@ export class OverlayController {
     this.container.querySelector('#btn-reroll')?.addEventListener('click', () => this.actions.onReroll());
   }
 
-  private renderPause(): void {
+  private renderPause(build?: PauseBuildInfo): void {
     const s = this.save.settings;
+    const ctrlLabel = s.controlMode === 'direct' ? 'Direct 1:1 drag' : 'Floating stick';
+
+    let buildHtml = '';
+    if (build) {
+      const sec = SECTORS[build.sectorId];
+      const core = CORES[build.coreId];
+      const ownedPassiveIds = new Set(build.passives.map((p) => p.id));
+      const weaponRows = build.weapons
+        .map((w) => {
+          const def = WEAPONS[w.id];
+          const pair = PASSIVES[def.catalystPassive];
+          const hasPair = ownedPassiveIds.has(def.catalystPassive);
+          const pairText = w.evolved
+            ? `<div class="pause-weapon-pair gold">★ ${def.evolvedName}</div>`
+            : `<div class="pause-weapon-pair ${hasPair ? 'ready' : ''}">${artIconImg(pair.id, 12)} <span>${hasPair ? `Pair ready: ${pair.name}` : `Evolves w/ ${pair.name}`}</span></div>`;
+          return `
+            <div class="pause-weapon-row ${w.evolved ? 'evolved' : ''}">
+              <span class="r-frame ${rarityForLevel(w.level, w.evolved)}" style="width:28px;height:28px">
+                ${artIconImg(w.id, 18)}
+                <span class="slot-lv">${w.evolved ? '★' : w.level}</span>
+              </span>
+              <div class="pause-weapon-info">
+                <div class="pause-weapon-name">${def.name}</div>
+                ${pairText}
+              </div>
+            </div>
+          `;
+        })
+        .join('');
+
+      const relicRow =
+        build.relics.length > 0
+          ? `<div class="build-strip" style="padding:5px 0 0;border-bottom:none">
+              ${build.relics
+                .map(
+                  (rid) =>
+                    `<span class="r-frame gold" style="width:24px;height:24px" title="${RELICS[rid].name}">${artIconImg(RELICS[rid].iconKey, 15)}</span>`
+                )
+                .join('')}
+            </div>`
+          : '';
+
+      buildHtml = `
+        <div class="pause-build-card">
+          <div class="pause-build-head">
+            <span>${sec.name} · ${core.name}</span>
+            <span>${formatTime(build.elapsed)}</span>
+          </div>
+          <div class="pause-stat-strip">
+            <div class="pause-stat-pill"><span>DMG</span><strong>${Math.round(build.damageMult * 100)}%</strong></div>
+            <div class="pause-stat-pill"><span>RATE</span><strong>${Math.round(build.fireRateMult * 100)}%</strong></div>
+            <div class="pause-stat-pill"><span>CRIT</span><strong>${Math.round(build.critChance * 100)}%</strong></div>
+            <div class="pause-stat-pill"><span>SYNC</span><strong>${build.syncHits}</strong></div>
+          </div>
+          <div class="pause-weapon-list">${weaponRows}</div>
+          ${relicRow}
+        </div>
+      `;
+    }
+
     this.container.innerHTML = `
       <div class="modal-backdrop">
-        <div class="modal-box">
+        <div class="modal-box scrollable">
           <div class="modal-head"><div class="modal-title">Paused</div></div>
           <div class="toggle-grid">
             <button class="toggle-tile ${s.music ? 'on' : ''}" id="p-music">${svgIcon('music', 15)} <span>Music</span></button>
@@ -2079,6 +2473,11 @@ export class OverlayController {
             <button class="toggle-tile ${s.haptics ? 'on' : ''}" id="p-haptics">${svgIcon('haptics', 15)} <span>Haptics</span></button>
             <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" id="p-flash">${svgIcon('flash', 15)} <span>Low flash</span></button>
           </div>
+          <button class="ctrl-mode-btn" id="p-ctrl">
+            <span>Steer mode</span>
+            <span class="ctrl-mode-pill">${ctrlLabel}</span>
+          </button>
+          ${buildHtml}
           <button class="battle-btn" id="btn-resume">Resume</button>
           <button class="ghost-btn" id="btn-quit">Quit run</button>
         </div>
@@ -2089,20 +2488,34 @@ export class OverlayController {
       this.tab = 'battle';
       this.actions.onQuitToMenu();
     });
-    const wire = (id: string, key: keyof MetaSave['settings']) => {
+    const wire = (id: string, key: BoolSettingKey) => {
       this.container.querySelector(id)!.addEventListener('click', () => {
         sound.unlock();
         s[key] = !s[key];
         sound.setSettings(s.music, s.sfx);
         bridge.setHapticsEnabled(s.haptics);
         persistMetaSave(this.save);
-        this.renderPause();
+        this.renderPause(build);
       });
     };
     wire('#p-music', 'music');
     wire('#p-sfx', 'sfx');
     wire('#p-haptics', 'haptics');
     wire('#p-flash', 'reduceFlash');
+    this.container.querySelector('#p-ctrl')!.addEventListener('click', () => {
+      s.controlMode = s.controlMode === 'direct' ? 'joystick' : 'direct';
+      persistMetaSave(this.save);
+      this.actions.onVisualPrefsChanged();
+      bridge.haptic('light');
+      this.renderPause(build);
+    });
+  }
+
+  private formatCompactDamage(val: number): string {
+    if (val >= 100000) return `${(val / 1000).toFixed(0)}k`;
+    if (val >= 10000) return `${(val / 1000).toFixed(1)}k`;
+    if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+    return `${Math.round(val)}`;
   }
 
   private renderRunEnd(isVictory: boolean, stats?: RunStats): void {
@@ -2112,6 +2525,8 @@ export class OverlayController {
       kills: 0,
       grazes: 0,
       bestGrazeCombo: 0,
+      syncHits: 0,
+      bestSyncStreak: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -2123,6 +2538,7 @@ export class OverlayController {
       heatCount: 0,
       weapons: [],
       relics: [],
+      weaponDamage: {},
       endlessMode: false,
       victory: false
     };
@@ -2142,9 +2558,45 @@ export class OverlayController {
       )
       .join('');
 
+    const dmgEntries = Object.entries(st.weaponDamage ?? {})
+      .filter(([, v]) => v >= 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    const totalDmg = dmgEntries.reduce((sum, [, v]) => sum + v, 0);
+    const dmgHtml =
+      dmgEntries.length > 0 && totalDmg > 0
+        ? `
+          <div class="dmg-breakdown">
+            <div class="dmg-head">Damage breakdown</div>
+            ${dmgEntries
+              .map(([key, val]) => {
+                const isCore = key === 'core' || !(key in WEAPONS);
+                const wDef = !isCore ? WEAPONS[key as WeaponId] : null;
+                const label = wDef ? wDef.name : CORES[st.coreId].name;
+                const icon = wDef ? artIconImg(wDef.id, 18) : coreIconImg(st.coreId, 18);
+                const pct = Math.max(2, Math.round((val / totalDmg) * 100));
+                const barCol = wDef ? wDef.accent : CORES[st.coreId].accent;
+                return `
+                  <div class="dmg-row">
+                    <span class="r-frame ${isCore ? 'gold' : 'rare'}" style="width:24px;height:24px">${icon}</span>
+                    <div class="dmg-bar-wrap">
+                      <div class="dmg-label-row">
+                        <span>${label}</span>
+                        <span class="dmg-val">${this.formatCompactDamage(val)} · ${pct}%</span>
+                      </div>
+                      <div class="dmg-track"><div class="dmg-fill" style="width:${pct}%;background:${barCol}"></div></div>
+                    </div>
+                  </div>
+                `;
+              })
+              .join('')}
+          </div>
+        `
+        : '';
+
     this.container.innerHTML = `
       <div class="modal-backdrop">
-        <div class="modal-box" style="border-top-color:${isVictory ? 'var(--gold)' : 'var(--danger)'}">
+        <div class="modal-box scrollable" style="border-top-color:${isVictory ? 'var(--gold)' : 'var(--danger)'}">
           <div class="modal-head">
             <div class="modal-title" style="color:${isVictory ? 'var(--gold)' : 'var(--ink)'}">
               ${isVictory ? 'Sector clear' : 'Hull destroyed'}
@@ -2164,11 +2616,39 @@ export class OverlayController {
           </div>
 
           <div class="summary-grid">
-            <div class="summary-cell">${svgIcon('timer', 15, 'var(--muted)')}<span class="summary-num">${formatTime(st.elapsed)}</span></div>
-            <div class="summary-cell">${svgIcon('trophy', 15, 'var(--muted)')}<span class="summary-num">${st.score.toLocaleString()}</span></div>
+            <div class="summary-cell">
+              ${svgIcon('timer', 15, 'var(--muted)')}
+              <div class="summary-cell-col">
+                ${st.isNewBestTime ? '<span class="new-best-tag">New best</span>' : ''}
+                <span class="summary-num">${formatTime(st.elapsed)}</span>
+              </div>
+            </div>
+            <div class="summary-cell">
+              ${svgIcon('trophy', 15, 'var(--muted)')}
+              <div class="summary-cell-col">
+                ${st.isNewBestScore ? '<span class="new-best-tag">New best</span>' : ''}
+                <span class="summary-num">${st.score.toLocaleString()}</span>
+              </div>
+            </div>
             <div class="summary-cell">${svgIcon('skull', 15, 'var(--muted)')}<span class="summary-num">${st.kills}</span></div>
-            <div class="summary-cell">${svgIcon('graze_conduit', 15, 'var(--accent)')}<span class="summary-num" style="color:var(--accent)">${st.grazes}</span></div>
+            <div class="summary-cell">
+              ${svgIcon('graze_conduit', 15, 'var(--accent)')}
+              <div class="summary-cell-col">
+                ${st.isNewBestGraze ? '<span class="new-best-tag">Best streak</span>' : ''}
+                <span class="summary-num" style="color:var(--accent)">${st.grazes}</span>
+              </div>
+            </div>
+            <div class="summary-cell">
+              <span class="mono" style="font-size:10px;font-weight:800;color:var(--gold)">SYNC</span>
+              <span class="summary-num" style="color:var(--gold)">${st.syncHits}${st.bestSyncStreak > 1 ? ` · ×${st.bestSyncStreak}` : ''}</span>
+            </div>
+            <div class="summary-cell">
+              <span class="mono" style="font-size:10px;font-weight:800;color:var(--muted)">BOSS</span>
+              <span class="summary-num">${st.bossesDefeated}</span>
+            </div>
           </div>
+
+          ${dmgHtml}
 
           ${
             isVictory

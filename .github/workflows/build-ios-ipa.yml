@@ -49,16 +49,19 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            STILLPOINT_APP_STORE_SERVICES=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             build
 
-      - name: Verify bundled WebApp inside Stillpoint.app
+      - name: Verify bundled WebApp & Privacy Manifest inside Stillpoint.app
         working-directory: ios
         run: |
           APP_PATH="build/Build/Products/Release-iphoneos/Stillpoint.app"
+          test -f "$APP_PATH/PrivacyInfo.xcprivacy"
           test -f "$APP_PATH/WebApp/index.html"
           test -f "$APP_PATH/WebApp/art/ship_vesper.png"
           test -f "$APP_PATH/WebApp/art/tile_drift.jpg"

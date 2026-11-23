@@ -1,31 +1,136 @@
+import { SectorId } from './types';
+
 // Multi-instrument Procedural Synth Soundtrack & SFX Engine for STILLPOINT
-// 4-bar cinematic post-apocalyptic synth progression (Dm -> Bb -> Gm -> A),
-// punchy drum synth, feedback delay lead, reactive Stillpoint low-pass sweep, instant mute.
+// 4 bespoke per-sector synth themes (Ash Flats, Sunken Metro, Slag Foundry, The Monolith),
+// punchy drum synth, tempo-synced feedback delay, reactive Stillpoint low-pass sweep, instant mute.
 
 const PENTATONIC_HZ = [293.66, 329.63, 349.23, 440.0, 523.25, 587.33, 659.25, 698.46, 880.0, 1046.5];
 
-// 4-bar D-minor Relic Wasteland progression (each bar = 16 sixteenth-steps)
-const CHORDS = [
-  { root: 73.42, pad: [293.66, 349.23, 440.0, 523.25], arp: [587.33, 523.25, 440.0, 349.23] }, // Dm7
-  { root: 58.27, pad: [233.08, 293.66, 349.23, 440.0], arp: [587.33, 440.0, 349.23, 293.66] }, // Bbmaj7
-  { root: 49.0,  pad: [196.0, 233.08, 293.66, 349.23], arp: [466.16, 392.0, 349.23, 293.66] }, // Gm7
-  { root: 55.0,  pad: [220.0, 277.18, 329.63, 440.0], arp: [554.37, 440.0, 329.63, 277.18] }  // A7
-];
+interface SectorTheme {
+  bpm: number;
+  delayGain: number;
+  bassCutoff: number;
+  kickSteps: number[];
+  snareSteps: number[];
+  bassPattern: number[];
+  chords: Array<{ root: number; pad: number[]; arp: number[] }>;
+  lead: number[];
+  bossLead: number[];
+}
 
-// Melodic lead motif across 64 steps (0 = rest, freq in Hz)
-const LEAD_A: number[] = [
-  587.33, 0, 0, 523.25, 0, 440.0, 0, 0, 523.25, 0, 587.33, 0, 659.25, 0, 587.33, 0,
-  698.46, 0, 0, 587.33, 0, 440.0, 0, 0, 466.16, 0, 587.33, 0, 523.25, 0, 440.0, 0,
-  392.0,  0, 0, 466.16, 0, 587.33, 0, 0, 698.46, 0, 659.25, 0, 587.33, 0, 466.16, 0,
-  440.0,  0, 554.37, 0, 659.25, 0, 554.37, 0, 880.0, 0, 0, 659.25, 587.33, 0, 554.37, 0
-];
+const SECTOR_THEMES: Record<SectorId, SectorTheme> = {
+  // 01 Ash Flats: D minor relic wasteland pulse (128 BPM)
+  drift: {
+    bpm: 128,
+    delayGain: 0.28,
+    bassCutoff: 860,
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    bassPattern: [1, 0, 2, 0, 1, 0, 2, 1, 1, 0, 2, 0, 1, 2, 0, 2],
+    chords: [
+      { root: 73.42, pad: [293.66, 349.23, 440.0, 523.25], arp: [587.33, 523.25, 440.0, 349.23] },
+      { root: 58.27, pad: [233.08, 293.66, 349.23, 440.0], arp: [587.33, 440.0, 349.23, 293.66] },
+      { root: 49.0,  pad: [196.0, 233.08, 293.66, 349.23], arp: [466.16, 392.0, 349.23, 293.66] },
+      { root: 55.0,  pad: [220.0, 277.18, 329.63, 440.0], arp: [554.37, 440.0, 329.63, 277.18] }
+    ],
+    lead: [
+      587.33, 0, 0, 523.25, 0, 440.0, 0, 0, 523.25, 0, 587.33, 0, 659.25, 0, 587.33, 0,
+      698.46, 0, 0, 587.33, 0, 440.0, 0, 0, 466.16, 0, 587.33, 0, 523.25, 0, 440.0, 0,
+      392.0,  0, 0, 466.16, 0, 587.33, 0, 0, 698.46, 0, 659.25, 0, 587.33, 0, 466.16, 0,
+      440.0,  0, 554.37, 0, 659.25, 0, 554.37, 0, 880.0, 0, 0, 659.25, 587.33, 0, 554.37, 0
+    ],
+    bossLead: [
+      587.33, 0, 587.33, 659.25, 698.46, 0, 659.25, 587.33, 880.0, 0, 698.46, 0, 659.25, 587.33, 523.25, 0,
+      466.16, 0, 587.33, 0, 698.46, 0, 880.0, 698.46, 587.33, 0, 659.25, 587.33, 523.25, 0, 440.0, 0,
+      392.0,  466.16, 587.33, 0, 783.99, 0, 698.46, 587.33, 698.46, 0, 659.25, 587.33, 466.16, 0, 587.33, 0,
+      554.37, 0, 659.25, 0, 880.0, 0, 1108.73, 0, 880.0, 659.25, 554.37, 659.25, 880.0, 0, 659.25, 0
+    ]
+  },
 
-const LEAD_BOSS: number[] = [
-  587.33, 0, 587.33, 659.25, 698.46, 0, 659.25, 587.33, 880.0, 0, 698.46, 0, 659.25, 587.33, 523.25, 0,
-  466.16, 0, 587.33, 0, 698.46, 0, 880.0, 698.46, 587.33, 0, 659.25, 587.33, 523.25, 0, 440.0, 0,
-  392.0,  466.16, 587.33, 0, 783.99, 0, 698.46, 587.33, 698.46, 0, 659.25, 587.33, 466.16, 0, 587.33, 0,
-  554.37, 0, 659.25, 0, 880.0, 0, 1108.73, 0, 880.0, 659.25, 554.37, 659.25, 880.0, 0, 659.25, 0
-];
+  // 02 Sunken Metro: C minor cavernous subterranean dub groove (122 BPM)
+  helix: {
+    bpm: 122,
+    delayGain: 0.36,
+    bassCutoff: 680,
+    kickSteps: [0, 3, 8, 11],
+    snareSteps: [4, 12],
+    bassPattern: [1, 0, 0, 2, 0, 1, 0, 2, 1, 0, 2, 0, 0, 1, 2, 0],
+    chords: [
+      { root: 65.41, pad: [261.63, 311.13, 392.0, 466.16], arp: [523.25, 466.16, 392.0, 311.13] }, // Cm7
+      { root: 51.91, pad: [207.65, 261.63, 311.13, 392.0], arp: [523.25, 392.0, 311.13, 261.63] }, // Abmaj7
+      { root: 43.65, pad: [174.61, 207.65, 261.63, 311.13], arp: [466.16, 349.23, 311.13, 261.63] }, // Fm7
+      { root: 49.0,  pad: [196.0, 246.94, 293.66, 392.0], arp: [493.88, 392.0, 293.66, 246.94] }  // G7
+    ],
+    lead: [
+      523.25, 0, 0, 0, 466.16, 0, 392.0, 0, 0, 311.13, 392.0, 0, 466.16, 0, 392.0, 0,
+      622.25, 0, 0, 523.25, 0, 392.0, 0, 0, 311.13, 0, 392.0, 0, 523.25, 0, 466.16, 0,
+      349.23, 0, 415.3, 0, 523.25, 0, 0, 466.16, 0, 392.0, 0, 349.23, 311.13, 0, 261.63, 0,
+      392.0, 0, 493.88, 0, 587.33, 0, 493.88, 0, 783.99, 0, 0, 587.33, 493.88, 0, 392.0, 0
+    ],
+    bossLead: [
+      523.25, 0, 523.25, 622.25, 587.33, 0, 523.25, 466.16, 783.99, 0, 622.25, 0, 587.33, 523.25, 466.16, 0,
+      415.3, 0, 523.25, 0, 622.25, 0, 783.99, 622.25, 523.25, 0, 587.33, 523.25, 466.16, 0, 392.0, 0,
+      349.23, 415.3, 523.25, 0, 698.46, 0, 622.25, 523.25, 622.25, 0, 587.33, 523.25, 415.3, 0, 523.25, 0,
+      493.88, 0, 587.33, 0, 783.99, 0, 987.77, 0, 783.99, 587.33, 493.88, 587.33, 783.99, 0, 587.33, 0
+    ]
+  },
+
+  // 03 Slag Foundry: E Phrygian aggressive industrial metal-synth (136 BPM)
+  furnace: {
+    bpm: 136,
+    delayGain: 0.22,
+    bassCutoff: 1180,
+    kickSteps: [0, 2, 6, 8, 10, 14],
+    snareSteps: [4, 12],
+    bassPattern: [1, 1, 2, 0, 1, 0, 2, 1, 1, 1, 2, 0, 1, 2, 1, 2],
+    chords: [
+      { root: 82.41, pad: [329.63, 392.0, 493.88, 587.33], arp: [659.25, 493.88, 392.0, 329.63] }, // Em
+      { root: 87.31, pad: [349.23, 440.0, 523.25, 659.25], arp: [698.46, 523.25, 440.0, 349.23] }, // Fmaj7
+      { root: 73.42, pad: [293.66, 349.23, 440.0, 523.25], arp: [587.33, 440.0, 349.23, 293.66] }, // Dm
+      { root: 61.74, pad: [246.94, 311.13, 369.99, 493.88], arp: [622.25, 493.88, 369.99, 311.13] }  // B7
+    ],
+    lead: [
+      659.25, 0, 698.46, 0, 659.25, 493.88, 0, 0, 587.33, 0, 659.25, 0, 783.99, 0, 659.25, 0,
+      698.46, 0, 659.25, 0, 523.25, 0, 440.0, 0, 523.25, 0, 659.25, 0, 698.46, 0, 659.25, 0,
+      587.33, 0, 523.25, 0, 440.0, 0, 587.33, 0, 659.25, 0, 587.33, 0, 523.25, 0, 440.0, 0,
+      493.88, 0, 622.25, 0, 739.99, 0, 622.25, 0, 987.77, 0, 739.99, 0, 659.25, 0, 622.25, 0
+    ],
+    bossLead: [
+      659.25, 698.46, 659.25, 0, 783.99, 0, 698.46, 659.25, 987.77, 0, 783.99, 0, 698.46, 659.25, 587.33, 0,
+      698.46, 0, 783.99, 0, 880.0, 0, 783.99, 698.46, 659.25, 0, 698.46, 659.25, 587.33, 0, 523.25, 0,
+      587.33, 659.25, 698.46, 0, 880.0, 0, 783.99, 698.46, 783.99, 0, 698.46, 659.25, 587.33, 0, 659.25, 0,
+      622.25, 0, 739.99, 0, 987.77, 0, 1244.51, 0, 987.77, 739.99, 622.25, 739.99, 987.77, 0, 739.99, 0
+    ]
+  },
+
+  // 04 The Monolith: F# minor crystalline cathedral tension (132 BPM)
+  singularity: {
+    bpm: 132,
+    delayGain: 0.34,
+    bassCutoff: 980,
+    kickSteps: [0, 4, 8, 12, 15],
+    snareSteps: [4, 12],
+    bassPattern: [1, 0, 2, 1, 0, 2, 1, 0, 1, 0, 2, 1, 2, 0, 1, 2],
+    chords: [
+      { root: 92.5,  pad: [369.99, 440.0, 554.37, 659.25], arp: [739.99, 659.25, 554.37, 440.0] }, // F#m7
+      { root: 73.42, pad: [293.66, 369.99, 440.0, 554.37], arp: [739.99, 554.37, 440.0, 369.99] }, // Dmaj7
+      { root: 61.74, pad: [246.94, 293.66, 369.99, 440.0], arp: [587.33, 493.88, 440.0, 369.99] }, // Bm7
+      { root: 69.3,  pad: [277.18, 349.23, 415.3, 554.37], arp: [698.46, 554.37, 415.3, 349.23] }  // C#7
+    ],
+    lead: [
+      739.99, 0, 0, 659.25, 0, 554.37, 0, 0, 659.25, 0, 739.99, 0, 880.0, 0, 739.99, 0,
+      880.0, 0, 0, 739.99, 0, 554.37, 0, 0, 587.33, 0, 739.99, 0, 659.25, 0, 554.37, 0,
+      493.88, 0, 0, 587.33, 0, 739.99, 0, 0, 880.0, 0, 830.61, 0, 739.99, 0, 587.33, 0,
+      554.37, 0, 698.46, 0, 830.61, 0, 698.46, 0, 1108.73, 0, 0, 830.61, 739.99, 0, 698.46, 0
+    ],
+    bossLead: [
+      739.99, 0, 739.99, 830.61, 880.0, 0, 830.61, 739.99, 1108.73, 0, 880.0, 0, 830.61, 739.99, 659.25, 0,
+      587.33, 0, 739.99, 0, 880.0, 0, 1108.73, 880.0, 739.99, 0, 830.61, 739.99, 659.25, 0, 554.37, 0,
+      493.88, 587.33, 739.99, 0, 987.77, 0, 880.0, 739.99, 880.0, 0, 830.61, 739.99, 587.33, 0, 739.99, 0,
+      698.46, 0, 830.61, 0, 1108.73, 0, 1396.91, 0, 1108.73, 830.61, 698.46, 830.61, 1108.73, 0, 830.61, 0
+    ]
+  }
+};
 
 export class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -46,6 +151,7 @@ export class SoundEngine {
   private phraseCount = 0;
   private inGame = false;
   private inBoss = false;
+  private sectorId: SectorId = 'drift';
   private stillpointBlend = 0;
   private lastShootAt = 0;
   private lastXpAt = 0;
@@ -109,6 +215,7 @@ export class SoundEngine {
     }
     if (!this.unlocked) {
       this.unlocked = true;
+      this.setSector(this.sectorId);
       this.startSequencer();
     }
     this.syncGains();
@@ -133,6 +240,16 @@ export class SoundEngine {
     this.inBoss = inBoss;
   }
 
+  setSector(sectorId: SectorId): void {
+    this.sectorId = sectorId;
+    if (!this.ctx || !this.delayNode || !this.delayGain) return;
+    const theme = SECTOR_THEMES[sectorId] ?? SECTOR_THEMES.drift;
+    const now = this.ctx.currentTime;
+    const dottedEighth = (60 / theme.bpm) * 0.75;
+    this.delayNode.delayTime.setTargetAtTime(Math.min(0.45, dottedEighth), now, 0.08);
+    this.delayGain.gain.setTargetAtTime(theme.delayGain, now, 0.08);
+  }
+
   setStillpointBlend(blend: number): void {
     this.stillpointBlend = Math.max(0, Math.min(1, blend));
     if (!this.ctx || !this.musicFilter) return;
@@ -152,7 +269,6 @@ export class SoundEngine {
 
   private startSequencer(): void {
     if (this.seqTimer !== null) return;
-    const stepDur = 60 / 128 / 4; // Exact 16th-note at 128 BPM (0.1171875s)
     const lookahead = 0.12;
     this.seqTimer = window.setInterval(() => {
       if (!this.ctx || this.ctx.state !== 'running' || !this.musicEnabled || !this.musicGain) {
@@ -160,81 +276,80 @@ export class SoundEngine {
         return;
       }
 
+      const theme = SECTOR_THEMES[this.sectorId] ?? SECTOR_THEMES.drift;
+      const stepDur = 60 / theme.bpm / 4;
       const ct = this.ctx.currentTime;
       if (this.nextStepTime < ct - 0.15 || this.nextStepTime > ct + 1.0) {
         this.nextStepTime = ct + 0.03;
       }
 
       while (this.nextStepTime < ct + lookahead) {
-        this.scheduleMusicStep(this.nextStepTime);
+        this.scheduleMusicStep(this.nextStepTime, theme);
         this.nextStepTime += stepDur;
       }
     }, 25);
   }
 
-  private scheduleMusicStep(now: number): void {
-      const step = this.seqStep % 64;
-      const bar = Math.floor(step / 16);
-      const sub = step % 16;
-      const chord = CHORDS[bar];
+  private scheduleMusicStep(now: number, theme: SectorTheme): void {
+    const step = this.seqStep % 64;
+    const bar = Math.floor(step / 16);
+    const sub = step % 16;
+    const chord = theme.chords[bar];
 
-      if (step === 0) this.phraseCount++;
+    if (step === 0) this.phraseCount++;
 
-      // 1. Warm Cinematic Pad Chord on beat 1 of each bar
-      if (sub === 0) {
-        chord.pad.forEach((hz, idx) => {
-          this.playPadVoice(hz, 1.82, this.inGame ? 0.042 : 0.052, now, idx % 2 === 0 ? -4 : 4);
-        });
+    // 1. Warm Cinematic Pad Chord on beat 1 of each bar
+    if (sub === 0) {
+      const barDur = (60 / theme.bpm) * 4 * 0.96;
+      chord.pad.forEach((hz, idx) => {
+        this.playPadVoice(hz, barDur, this.inGame ? 0.042 : 0.052, now, idx % 2 === 0 ? -4 : 4);
+      });
+    }
+
+    // 2. Driving Percussion (sector-specific groove; boss adds energetic fills)
+    if (this.inGame) {
+      if (theme.kickSteps.includes(sub) || (this.inBoss && sub === 14)) {
+        this.playKick(now, this.inBoss ? 0.36 : 0.28);
       }
-
-      // 2. Driving Percussion (active during combat; boss adds energetic fills!)
-      if (this.inGame) {
-        // Punchy four-on-the-floor / syncopated kick
-        if (sub === 0 || sub === 4 || sub === 8 || sub === 12 || (this.inBoss && sub === 14)) {
-          this.playKick(now, this.inBoss ? 0.36 : 0.28);
-        }
-        // Snappy synth snare on 2 & 4
-        if (sub === 4 || sub === 12) {
-          this.playSnare(now, this.inBoss ? 0.16 : 0.11);
-        }
-        // Crisp 16th hi-hats when not deeply slowed
-        if (this.stillpointBlend < 0.55 && (sub % 2 === 0 || this.inBoss)) {
-          const accent = sub % 4 === 2 ? 0.055 : 0.026;
-          this.playNoiseTick(0.025, accent, now, true);
-        }
-      } else {
-        // Subtle moody heartbeat pulse on menu
-        if (sub === 0 || sub === 10) {
-          this.playKick(now, 0.12);
-        }
+      if (theme.snareSteps.includes(sub)) {
+        this.playSnare(now, this.inBoss ? 0.16 : 0.11);
       }
-
-      // 3. Rolling Octave Sub-Bass Line
-      const bassPattern = this.inGame
-        ? [1, 0, 2, 0, 1, 0, 2, 1, 1, 0, 2, 0, 1, 2, 0, 2]
-        : [1, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0];
-      const bVal = bassPattern[sub];
-      if (bVal > 0) {
-        const freq = chord.root * (bVal === 2 ? 2 : 1);
-        this.playBassVoice(freq, 0.14, this.inGame ? 0.17 : 0.09, now);
+      if (this.stillpointBlend < 0.55 && (sub % 2 === 0 || this.inBoss)) {
+        const accent = sub % 4 === 2 ? 0.055 : 0.026;
+        this.playNoiseTick(0.025, accent, now, true);
       }
-
-      // 4. Shimmering Pluck Arpeggio (routed through delay!)
-      if (sub % 2 === 1 || (this.inBoss && sub % 2 === 0)) {
-        const arpHz = chord.arp[sub % chord.arp.length];
-        this.playPluckVoice(arpHz, 0.13, this.inGame ? 0.065 : 0.045, now, true);
+    } else {
+      if (sub === 0 || sub === 10) {
+        this.playKick(now, 0.12);
       }
+    }
 
-      // 5. Expressive Melodic Lead (enters after first bar in menu or immediately in combat)
-      if (this.inGame || this.phraseCount % 2 === 1) {
-        const motif = this.inBoss ? LEAD_BOSS : LEAD_A;
-        const leadHz = motif[step];
-        if (leadHz > 0) {
-          this.playLeadVoice(leadHz, 0.24, this.inBoss ? 0.11 : 0.085, now);
-        }
+    // 3. Rolling Octave Sub-Bass Line
+    const bassPattern = this.inGame
+      ? theme.bassPattern
+      : [1, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+    const bVal = bassPattern[sub];
+    if (bVal > 0) {
+      const freq = chord.root * (bVal === 2 ? 2 : 1);
+      this.playBassVoice(freq, 0.14, this.inGame ? 0.17 : 0.09, now, theme.bassCutoff);
+    }
+
+    // 4. Shimmering Pluck Arpeggio (routed through tempo-synced delay)
+    if (sub % 2 === 1 || (this.inBoss && sub % 2 === 0)) {
+      const arpHz = chord.arp[sub % chord.arp.length];
+      this.playPluckVoice(arpHz, 0.13, this.inGame ? 0.065 : 0.045, now, true);
+    }
+
+    // 5. Expressive Melodic Lead
+    if (this.inGame || this.phraseCount % 2 === 1) {
+      const motif = this.inBoss ? theme.bossLead : theme.lead;
+      const leadHz = motif[step];
+      if (leadHz > 0) {
+        this.playLeadVoice(leadHz, 0.24, this.inBoss ? 0.11 : 0.085, now);
       }
+    }
 
-      this.seqStep++;
+    this.seqStep++;
   }
 
   private playPadVoice(
@@ -268,7 +383,13 @@ export class SoundEngine {
     osc.stop(startTime + dur + 0.04);
   }
 
-  private playBassVoice(freq: number, dur: number, vol: number, startTime: number): void {
+  private playBassVoice(
+    freq: number,
+    dur: number,
+    vol: number,
+    startTime: number,
+    cutoff = 860
+  ): void {
     if (!this.ctx || !this.musicGain) return;
     const osc = this.ctx.createOscillator();
     const flt = this.ctx.createBiquadFilter();
@@ -277,8 +398,8 @@ export class SoundEngine {
     osc.frequency.setValueAtTime(freq, startTime);
 
     flt.type = 'lowpass';
-    flt.frequency.setValueAtTime(860, startTime);
-    flt.frequency.exponentialRampToValueAtTime(220, startTime + dur);
+    flt.frequency.setValueAtTime(cutoff, startTime);
+    flt.frequency.exponentialRampToValueAtTime(Math.max(180, cutoff * 0.25), startTime + dur);
 
     g.gain.setValueAtTime(0.0001, startTime);
     g.gain.linearRampToValueAtTime(vol, startTime + 0.008);

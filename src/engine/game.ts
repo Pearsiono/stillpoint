@@ -30,6 +30,7 @@ import {
   PhaseEcho,
   Pickup,
   PlayerBullet,
+  PlayerBulletKind,
   PlayerState,
   RailPylon,
   RelicId,
@@ -39,6 +40,7 @@ import {
   UpgradeChoice,
   VesselId,
   WakeMine,
+  WeaponId,
   WorldNode
 } from '../types';
 import {
@@ -155,7 +157,14 @@ export class StillpointGame {
   private lastDpr = 0;
   private scrapHarvestCounter = 0;
   private bonusHealDmg = 0;
-  private metaCommitted = { shards: 0, kills: 0, grazes: 0, runCounted: false };
+  private metaCommitted = {
+    shards: 0,
+    kills: 0,
+    grazes: 0,
+    syncHits: 0,
+    runCounted: false,
+    heatClearCounted: false
+  };
 
   get isBossDraft(): boolean {
     return this.pendingBossDraft;
@@ -171,6 +180,8 @@ export class StillpointGame {
     this.sectorId = save.selectedSector;
     this.renderer = new WastelandRenderer(canvas);
     this.input = new InputController(canvas, () => sound.unlock());
+    this.input.setControlMode(save.settings.controlMode);
+    sound.setSector(this.sectorId);
 
     this.applyAccentCss();
     this.resetWorldState(this.vesselId);
@@ -186,6 +197,14 @@ export class StillpointGame {
     document.addEventListener('visibilitychange', () => {
       sound.setSuspended(document.hidden);
       if (document.hidden && this.phase === 'playing') this.pauseGame();
+    });
+    bridge.onAppLifecycle((ev) => {
+      if (ev === 'resign' || ev === 'audio_began') {
+        sound.setSuspended(true);
+        if (ev === 'resign' && this.phase === 'playing') this.pauseGame();
+      } else if (ev === 'active' || ev === 'audio_ended') {
+        sound.setSuspended(false);
+      }
     });
   }
 
@@ -242,6 +261,7 @@ export class StillpointGame {
   setSector(id: SectorId): void {
     this.sectorId = id;
     this.save.selectedSector = id;
+    sound.setSector(id);
     persistMetaSave(this.save);
   }
 
@@ -307,6 +327,23 @@ export class StillpointGame {
 
   refreshVisualPrefs(): void {
     this.applyAccentCss();
+    this.input.setControlMode(this.save.settings.controlMode);
+  }
+
+  replaceSave(next: MetaSave): void {
+    Object.assign(this.save, next);
+    this.vesselId = this.save.selectedVessel;
+    this.coreId = this.save.selectedCore;
+    this.skinId = this.save.selectedSkin;
+    this.sectorId = this.save.selectedSector;
+    this.input.setControlMode(this.save.settings.controlMode);
+    sound.setSettings(this.save.settings.music, this.save.settings.sfx);
+    sound.setSector(this.sectorId);
+    bridge.setHapticsEnabled(this.save.settings.haptics);
+    this.applyAccentCss();
+    if (this.phase === 'menu') {
+      this.resetWorldState(this.vesselId);
+    }
   }
 
   startNewRun(): void {
@@ -315,6 +352,8 @@ export class StillpointGame {
     this.coreId = this.save.selectedCore;
     this.skinId = this.save.selectedSkin;
     this.sectorId = this.save.selectedSector;
+    this.input.setControlMode(this.save.settings.controlMode);
+    sound.setSector(this.sectorId);
     this.applyAccentCss();
     this.resetWorldState(this.vesselId);
     this.seedOpeningWave();
@@ -608,6 +647,8 @@ export class StillpointGame {
       kills: 0,
       grazes: 0,
       bestGrazeCombo: 0,
+      syncHits: 0,
+      bestSyncStreak: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -619,6 +660,7 @@ export class StillpointGame {
       heatCount: this.save.activeHeat.length,
       weapons: [],
       relics: [],
+      weaponDamage: {},
       endlessMode: false,
       victory: false
     };
@@ -640,7 +682,14 @@ export class StillpointGame {
     this.meteorSpawnTimer = 0;
     this.scrapHarvestCounter = 0;
     this.bonusHealDmg = 0;
-    this.metaCommitted = { shards: 0, kills: 0, grazes: 0, runCounted: false };
+    this.metaCommitted = {
+      shards: 0,
+      kills: 0,
+      grazes: 0,
+      syncHits: 0,
+      runCounted: false,
+      heatClearCounted: false
+    };
     this.hasUsedStillpoint = false;
     this.tutorialTimer = 9;
   }
@@ -1007,15 +1056,39 @@ export class StillpointGame {
       (player.surgeTimer > 0 ? 1.18 : 1) *
       (player.frenzyTimer > 0 ? 1.32 : 1) *
       (player.bloodSpeedTimer > 0 ? 1.2 : 1);
+    const directDelta =
+      input.mode === 'touch' && input.controlMode === 'direct'
+        ? this.input.consumeDirectDelta()
+        : { dx: 0, dy: 0 };
     const isActivelyMoving = !player.inStillpoint && input.isMoving;
     if (isActivelyMoving) {
-      player.vx = input.moveX * player.moveSpeed * speedBoost;
-      player.vy = input.moveY * player.moveSpeed * speedBoost;
-      const step = Math.hypot(player.vx * dtReal, player.vy * dtReal);
-      player.x += player.vx * dtReal;
-      player.y += player.vy * dtReal;
+      let step = 0;
+      if (input.mode === 'touch' && input.controlMode === 'direct') {
+        const rawDist = Math.hypot(directDelta.dx, directDelta.dy);
+        const maxStep = player.moveSpeed * speedBoost * 1.75 * dtReal;
+        if (rawDist > 0.05) {
+          const scale = rawDist > maxStep ? maxStep / rawDist : 1;
+          const stepX = directDelta.dx * scale;
+          const stepY = directDelta.dy * scale;
+          player.x += stepX;
+          player.y += stepY;
+          player.vx = stepX / dtReal;
+          player.vy = stepY / dtReal;
+          step = Math.hypot(stepX, stepY);
+          player.facingAngle = Math.atan2(stepY, stepX);
+        } else {
+          player.vx *= Math.pow(0.72, dtReal * 60);
+          player.vy *= Math.pow(0.72, dtReal * 60);
+        }
+      } else {
+        player.vx = input.moveX * player.moveSpeed * speedBoost;
+        player.vy = input.moveY * player.moveSpeed * speedBoost;
+        step = Math.hypot(player.vx * dtReal, player.vy * dtReal);
+        player.x += player.vx * dtReal;
+        player.y += player.vy * dtReal;
+        player.facingAngle = Math.atan2(player.vy, player.vx);
+      }
       player.distanceMovedSinceDagger += step;
-      player.facingAngle = Math.atan2(player.vy, player.vx);
 
       if (player.modules.includes('momentum_drive')) {
         player.momentumMoveTime = Math.min(1, player.momentumMoveTime + dtReal / 1.6);
@@ -1431,6 +1504,10 @@ export class StillpointGame {
     const v = VESSELS[this.vesselId];
     const deadeye = p.modules.includes('deadeye_sync');
     p.syncStreak = Math.min(5, p.syncStreak + 1);
+    this.stats.syncHits++;
+    if (p.syncStreak > this.stats.bestSyncStreak) {
+      this.stats.bestSyncStreak = p.syncStreak;
+    }
     p.syncCooldown = 2.1;
     p.syncBuffTimer = Math.max(p.syncBuffTimer, deadeye ? 3.4 : 2.8);
     p.syncFlashTimer = 0.42;
@@ -2385,7 +2462,13 @@ export class StillpointGame {
           if (h.kind === 'acid_pool') {
             e.corrodeTimer = Math.max(e.corrodeTimer ?? 0, 3.5);
           }
-          this.damageEnemy(e, h.damagePerSec * hazDmgMult * dtWorld, h.color);
+          const hazSource: WeaponId | 'core' =
+            h.kind === 'crater' || h.kind === 'singularity'
+              ? 'void_mortars'
+              : h.kind === 'acid_pool'
+                ? 'acid_sprayer'
+                : 'core';
+          this.damageEnemy(e, h.damagePerSec * hazDmgMult * dtWorld, h.color, false, hazSource);
           if (this.phase !== 'playing') return;
         }
         if (h.pullStrength > 0 && d <= h.radius * 1.9 && !e.isBoss && e.hp > 0) {
@@ -2509,7 +2592,7 @@ export class StillpointGame {
             this.particles.ring(b.x, b.y, '#d387ff', 16, 0.28);
             for (const e of enemySnap) {
               if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
-                this.damageEnemy(e, b.damage, '#d387ff');
+                this.damageEnemy(e, b.damage, '#d387ff', false, 'void_mortars');
               }
             }
             this.damageShrinesInRadius(b.x, b.y, r, b.damage);
@@ -2687,7 +2770,13 @@ export class StillpointGame {
             }
             for (const other of [...this.enemies]) {
               if (other.id !== e.id && other.hp > 0 && Math.hypot(other.x - b.x, other.y - b.y) <= b.blastRadius + other.radius) {
-                this.damageEnemy(other, finalDmg * (b.kind === 'seeker_mine' ? 0.85 : 0.55), splashCol);
+                this.damageEnemy(
+                  other,
+                  finalDmg * (b.kind === 'seeker_mine' ? 0.85 : 0.55),
+                  splashCol,
+                  false,
+                  b.kind === 'seeker_mine' ? 'shatter_mine' : 'swarm_missiles'
+                );
               }
             }
             if (b.kind === 'seeker_mine' && b.evolved && this.playerBullets.length < 180) {
@@ -2714,7 +2803,13 @@ export class StillpointGame {
             }
           }
 
-          this.damageEnemy(e, finalDmg, isCrit ? '#e5b34c' : b.color, isCrit || b.kind === 'parry_shard');
+          this.damageEnemy(
+            e,
+            finalDmg,
+            isCrit ? '#e5b34c' : b.color,
+            isCrit || b.kind === 'parry_shard',
+            this.bulletSourceKey(b.kind)
+          );
           this.particles.burst(b.x, b.y, b.color, 3, 40, 120, 2, 0.2);
 
           // Prism Split relic: crits split 2 homing prism shards!
@@ -3202,8 +3297,43 @@ export class StillpointGame {
     this.emitHud();
   }
 
-  private damageEnemy = (enemy: Enemy, rawDmg: number, color: string, isCrit = false): void => {
+  private bulletSourceKey(kind: PlayerBulletKind): WeaponId | 'core' {
+    switch (kind) {
+      case 'pulse':
+        return 'pulse_lance';
+      case 'prism_bolt':
+        return 'prism_drones';
+      case 'dagger_planted':
+      case 'dagger_homing':
+        return 'phase_daggers';
+      case 'mortar_shell':
+        return 'void_mortars';
+      case 'scythe':
+        return 'chrono_scythe';
+      case 'ricochet':
+        return 'ricochet_shard';
+      case 'frost_bolt':
+        return 'frost_nova';
+      case 'missile':
+        return 'swarm_missiles';
+      case 'acid_glob':
+        return 'acid_sprayer';
+      case 'seeker_mine':
+        return 'shatter_mine';
+      default:
+        return 'core';
+    }
+  }
+
+  private damageEnemy = (
+    enemy: Enemy,
+    rawDmg: number,
+    color: string,
+    isCrit = false,
+    sourceKey: WeaponId | 'core' = 'core'
+  ): void => {
     if (enemy.hp <= 0) return;
+    const prevHp = enemy.hp;
     const p = this.player;
     const bossScale = enemy.isBoss || enemy.isElite ? p.bossDmgMult : 1;
     const corrodeScale = enemy.corrodeTimer && enemy.corrodeTimer > 0 ? 1.25 : 1;
@@ -3257,6 +3387,8 @@ export class StillpointGame {
       syncDmgScale;
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
+    const dealt = Math.max(0, Math.min(prevHp, dmg));
+    this.stats.weaponDamage[sourceKey] = (this.stats.weaponDamage[sourceKey] ?? 0) + dealt;
 
     // Treasure Hauler spills Shards on a real-time cooldown so DoTs/120Hz cannot farm it
     if (enemy.kind === 'hauler' && !(enemy.shardSpillCooldown && enemy.shardSpillCooldown > 0)) {
@@ -3755,10 +3887,12 @@ export class StillpointGame {
     const deltaShards = Math.max(0, totalPayout - this.metaCommitted.shards);
     const deltaKills = Math.max(0, this.stats.kills - this.metaCommitted.kills);
     const deltaGrazes = Math.max(0, this.stats.grazes - this.metaCommitted.grazes);
+    const deltaSyncHits = Math.max(0, this.stats.syncHits - this.metaCommitted.syncHits);
 
     this.metaCommitted.shards += deltaShards;
     this.metaCommitted.kills += deltaKills;
     this.metaCommitted.grazes += deltaGrazes;
+    this.metaCommitted.syncHits += deltaSyncHits;
 
     this.stats.weapons = this.player.weapons.map((w) => ({
       id: w.id,
@@ -3771,13 +3905,30 @@ export class StillpointGame {
     this.stats.skinId = this.skinId;
     this.stats.heatCount = this.save.activeHeat.length;
 
+    const prevBestScore = this.save.bestScore;
+    const prevBestTime = this.save.bestTimeSec;
+    const prevBestGraze = this.save.bestSingleParry;
+
     this.save.shards += deltaShards;
     if (!this.metaCommitted.runCounted) {
       this.save.totalRuns += 1;
       this.metaCommitted.runCounted = true;
     }
+    if (hasVictory && this.save.activeHeat.length >= 2 && !this.metaCommitted.heatClearCounted) {
+      this.save.heatClears += 1;
+      this.metaCommitted.heatClearCounted = true;
+    }
     this.save.totalKills += deltaKills;
     this.save.totalGrazes += deltaGrazes;
+    this.save.totalSyncHits += deltaSyncHits;
+    if (this.stats.bestSyncStreak > this.save.bestSyncStreak) {
+      this.save.bestSyncStreak = this.stats.bestSyncStreak;
+    }
+
+    const isNewBestGraze = this.stats.bestGrazeCombo > prevBestGraze && this.stats.bestGrazeCombo >= 3;
+    const isNewBestTime = Math.floor(this.stats.elapsed) > prevBestTime && this.stats.elapsed >= 15;
+    const isNewBestScore = this.stats.score > prevBestScore && this.stats.score > 0;
+
     if (this.stats.bestGrazeCombo > this.save.bestSingleParry) {
       this.save.bestSingleParry = this.stats.bestGrazeCombo;
     }
@@ -3787,10 +3938,24 @@ export class StillpointGame {
     if (this.stats.score > this.save.bestScore) {
       this.save.bestScore = this.stats.score;
     }
+    const prevSecScore = this.save.bestScoreBySector[this.sectorId] ?? 0;
+    if (this.stats.score > prevSecScore) {
+      this.save.bestScoreBySector[this.sectorId] = this.stats.score;
+    }
+    const prevSecTime = this.save.bestTimeBySector[this.sectorId] ?? 0;
+    if (Math.floor(this.stats.elapsed) > prevSecTime) {
+      this.save.bestTimeBySector[this.sectorId] = Math.floor(this.stats.elapsed);
+    }
+
     persistMetaSave(this.save);
+    bridge.submitLeaderboardScore(this.sectorId, this.stats.score, this.save.bestScore);
     this.checkAndToastMilestones();
     return {
       ...this.stats,
+      weaponDamage: { ...this.stats.weaponDamage },
+      isNewBestScore,
+      isNewBestTime,
+      isNewBestGraze,
       shardsEarned: this.stats.endlessMode && !isVictory ? deltaShards : totalPayout
     };
   }

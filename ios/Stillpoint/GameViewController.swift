@@ -1,3 +1,4 @@
+import GameKit
 import UIKit
 import WebKit
 
@@ -76,13 +77,17 @@ private final class StillpointSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 }
 
-final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
+final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, GKGameCenterControllerDelegate {
     private var webView: WKWebView!
     private let lightImpact = UIImpactFeedbackGenerator(style: .light)
     private let mediumImpact = UIImpactFeedbackGenerator(style: .medium)
     private let heavyImpact = UIImpactFeedbackGenerator(style: .heavy)
     private let notifFeedback = UINotificationFeedbackGenerator()
     private let nativeSaveKey = "stillpoint_save_v1"
+
+    private var appStoreServicesEnabled: Bool {
+        (Bundle.main.object(forInfoDictionaryKey: "STILLPOINTAppStoreServices") as? String)?.uppercased() == "YES"
+    }
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
@@ -98,23 +103,15 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         heavyImpact.prepare()
         notifFeedback.prepare()
 
+        if appStoreServicesEnabled {
+            setupCloudSyncObserver()
+        }
+
         let contentController = WKUserContentController()
         contentController.add(self, name: "haptics")
         contentController.add(self, name: "storage")
-
-        // Inject native environment flags + UserDefaults save backup before game scripts boot
-        let savedJson = UserDefaults.standard.string(forKey: nativeSaveKey) ?? ""
-        let escapedSave = escapeJSString(savedJson)
-        let bootstrapSource = """
-        window.__STILLPOINT_NATIVE__ = true;
-        window.__STILLPOINT_NATIVE_SAVE__ = \(escapedSave);
-        """
-        let userScript = WKUserScript(
-            source: bootstrapSource,
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-        contentController.addUserScript(userScript)
+        contentController.add(self, name: "gameCenter")
+        injectBootstrapScript(into: contentController)
 
         let config = WKWebViewConfiguration()
         config.userContentController = contentController
@@ -146,12 +143,85 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         if let startURL = URL(string: "stillpoint://game/index.html") {
             wv.load(URLRequest(url: startURL))
         }
+
+        if appStoreServicesEnabled {
+            authenticateGameCenter()
+        }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if let wv = webView, wv.frame != view.bounds {
             wv.frame = view.bounds
+        }
+    }
+
+    func notifyLifecycle(_ event: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let wv = self?.webView else { return }
+            let js = "window.__stillpointOnAppLifecycle && window.__stillpointOnAppLifecycle('\(event)');"
+            wv.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
+    private func injectBootstrapScript(into controller: WKUserContentController) {
+        let savedJson = UserDefaults.standard.string(forKey: nativeSaveKey) ?? ""
+        let cloudJson = appStoreServicesEnabled
+            ? (NSUbiquitousKeyValueStore.default.string(forKey: nativeSaveKey) ?? "")
+            : ""
+        let gcReady = appStoreServicesEnabled && GKLocalPlayer.local.isAuthenticated
+        let bootstrapSource = """
+        window.__STILLPOINT_NATIVE__ = true;
+        window.__STILLPOINT_NATIVE_SAVE__ = \(escapeJSString(savedJson));
+        window.__STILLPOINT_CLOUD_SAVE__ = \(escapeJSString(cloudJson));
+        window.__STILLPOINT_GC_READY__ = \(gcReady ? "true" : "false");
+        """
+        controller.addUserScript(WKUserScript(
+            source: bootstrapSource,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+    }
+
+    private func setupCloudSyncObserver() {
+        NSUbiquitousKeyValueStore.default.synchronize()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleCloudStoreChange(_:)),
+            name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default
+        )
+    }
+
+    @objc private func handleCloudStoreChange(_ notification: Notification) {
+        guard let cloudJson = NSUbiquitousKeyValueStore.default.string(forKey: nativeSaveKey),
+              !cloudJson.isEmpty else {
+            return
+        }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let wv = self.webView else { return }
+            let js = "window.__stillpointOnCloudSave && window.__stillpointOnCloudSave(\(self.escapeJSString(cloudJson)));"
+            wv.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
+    private func authenticateGameCenter() {
+        let player = GKLocalPlayer.local
+        player.authenticateHandler = { [weak self] authVC, _ in
+            guard let self = self else { return }
+            if let vc = authVC {
+                DispatchQueue.main.async {
+                    if self.presentedViewController == nil {
+                        self.present(vc, animated: true)
+                    }
+                }
+                return
+            }
+            let ready = player.isAuthenticated
+            DispatchQueue.main.async {
+                let js = "window.__STILLPOINT_GC_READY__ = \(ready ? "true" : "false"); window.__stillpointOnGameCenterReady && window.__stillpointOnGameCenterReady(\(ready ? "true" : "false"));"
+                self.webView?.evaluateJavaScript(js, completionHandler: nil)
+            }
         }
     }
 
@@ -191,23 +261,49 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
            let key = dict["key"] as? String,
            let value = dict["value"] as? String {
             UserDefaults.standard.set(value, forKey: key)
+            if appStoreServicesEnabled {
+                NSUbiquitousKeyValueStore.default.set(value, forKey: key)
+                NSUbiquitousKeyValueStore.default.synchronize()
+            }
+            return
         }
+
+        if message.name == "gameCenter",
+           appStoreServicesEnabled,
+           GKLocalPlayer.local.isAuthenticated,
+           let dict = message.body as? [String: Any],
+           let action = dict["action"] as? String {
+            if action == "submitScore",
+               let lbId = dict["leaderboardId"] as? String,
+               let scoreNum = dict["score"] as? NSNumber,
+               scoreNum.intValue > 0 {
+                GKLeaderboard.submitScore(scoreNum.intValue, context: 0, player: GKLocalPlayer.local, leaderboardIDs: [lbId]) { _ in }
+            } else if action == "reportAchievement",
+                      let achId = dict["achievementId"] as? String,
+                      let pctNum = dict["percent"] as? NSNumber {
+                let ach = GKAchievement(identifier: achId)
+                ach.percentComplete = max(0, min(100, pctNum.doubleValue))
+                ach.showsCompletionBanner = true
+                GKAchievement.report([ach]) { _ in }
+            } else if action == "showLeaderboards" {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self, self.presentedViewController == nil else { return }
+                    let gcVC = GKGameCenterViewController(state: .leaderboards)
+                    gcVC.gameCenterDelegate = self
+                    self.present(gcVC, animated: true)
+                }
+            }
+        }
+    }
+
+    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
+        gameCenterViewController.dismiss(animated: true)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         let controller = webView.configuration.userContentController
         controller.removeAllUserScripts()
-        let savedJson = UserDefaults.standard.string(forKey: nativeSaveKey) ?? ""
-        let escapedSave = escapeJSString(savedJson)
-        let bootstrapSource = """
-        window.__STILLPOINT_NATIVE__ = true;
-        window.__STILLPOINT_NATIVE_SAVE__ = \(escapedSave);
-        """
-        controller.addUserScript(WKUserScript(
-            source: bootstrapSource,
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        ))
+        injectBootstrapScript(into: controller)
         if let startURL = URL(string: "stillpoint://game/index.html") {
             webView.load(URLRequest(url: startURL))
         }

@@ -167,6 +167,53 @@ export const MILESTONES: MilestoneDef[] = [
     })
   },
   {
+    id: 'sector_furnace',
+    name: 'Foundry Clear',
+    goalText: 'Clear Slag Foundry',
+    rewardShards: 260,
+    rewardLabel: '+1 classified',
+    check: (s) => ({
+      current: s.sectorsCleared.includes('furnace') ? 1 : 0,
+      target: 1,
+      done: s.sectorsCleared.includes('furnace')
+    })
+  },
+  {
+    id: 'sector_singularity',
+    name: 'Monolith Clear',
+    goalText: 'Clear The Monolith',
+    rewardShards: 400,
+    rewardLabel: '+1 classified',
+    check: (s) => ({
+      current: s.sectorsCleared.includes('singularity') ? 1 : 0,
+      target: 1,
+      done: s.sectorsCleared.includes('singularity')
+    })
+  },
+  {
+    id: 'sync_20',
+    name: 'Cadence',
+    goalText: '20 Perfect Syncs',
+    rewardShards: 120,
+    check: (s) => ({ current: s.totalSyncHits, target: 20, done: s.totalSyncHits >= 20 })
+  },
+  {
+    id: 'sync_streak_4',
+    name: 'Metronome',
+    goalText: '4× Sync streak',
+    rewardShards: 180,
+    rewardLabel: '+1 crate',
+    check: (s) => ({ current: s.bestSyncStreak, target: 4, done: s.bestSyncStreak >= 4 })
+  },
+  {
+    id: 'heat_clear_2',
+    name: 'Pressure Test',
+    goalText: 'Clear at 2+ Heat',
+    rewardShards: 250,
+    rewardLabel: '+1 classified',
+    check: (s) => ({ current: s.heatClears, target: 1, done: s.heatClears >= 1 })
+  },
+  {
     id: 'score_50k',
     name: 'High Signal',
     goalText: '50,000 score',
@@ -176,13 +223,13 @@ export const MILESTONES: MilestoneDef[] = [
   {
     id: 'trophies_8',
     name: 'Ascendant',
-    goalText: '10 trials complete',
-    rewardShards: 300,
+    goalText: '12 trials complete',
+    rewardShards: 320,
     rewardLabel: '+1 classified',
     check: (s) => ({
       current: s.claimedMilestones.length,
-      target: 10,
-      done: s.claimedMilestones.length >= 10
+      target: 12,
+      done: s.claimedMilestones.length >= 12
     })
   }
 ];
@@ -203,10 +250,15 @@ export function createDefaultSave(): MetaSave {
     totalKills: 0,
     totalParries: 0,
     totalGrazes: 0,
+    totalSyncHits: 0,
+    bestSyncStreak: 0,
+    heatClears: 0,
     bossesCleared: 0,
     evolutionsCrafted: 0,
     noHitBossClears: 0,
     sectorsCleared: [],
+    bestScoreBySector: {},
+    bestTimeBySector: {},
     unlockedVessels: ['vesper'],
     selectedVessel: 'vesper',
     unlockedCores: ['deflector'],
@@ -245,11 +297,14 @@ export function createDefaultSave(): MetaSave {
     activePreset: 0,
     migratedToLoadout: true,
     migratedToTheoryLoadout: true,
+    tutorialSeen: false,
+    savedAt: Date.now(),
     settings: {
       music: true,
       sfx: true,
       haptics: true,
-      reduceFlash: false
+      reduceFlash: false,
+      controlMode: 'joystick'
     }
   };
 }
@@ -266,12 +321,11 @@ function isValidEffectItem(x: unknown): x is EffectItem {
   return false;
 }
 
-export function loadMetaSave(): MetaSave {
+export function parseMetaSaveJson(raw: string): MetaSave | null {
   const fallback = createDefaultSave();
   try {
-    const raw = localStorage.getItem(SAVE_STORAGE_KEY) || bridge.getInitialNativeSave();
-    if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<MetaSave>;
+    if (!parsed || typeof parsed !== 'object') return null;
     const validMod = (id: unknown): id is ModuleId => typeof id === 'string' && id in MODULES;
 
     // Refund any old pre-v1.0.13 stat-stick loadout modules once so players can buy new theory-craft modules freely
@@ -345,6 +399,9 @@ export function loadMetaSave(): MetaSave {
         ? parsed.equippedAuraUid
         : effectItems.find((e) => e.slot === 'aura' && e.effectId === parsed.selectedParryFx)?.uid ?? starterAura.uid;
 
+    const rawCtrl = parsed.settings?.controlMode;
+    const controlMode = rawCtrl === 'direct' ? 'direct' : 'joystick';
+
     const merged: MetaSave = {
       ...fallback,
       ...parsed,
@@ -356,9 +413,38 @@ export function loadMetaSave(): MetaSave {
       loadoutPresets,
       activePreset,
       migratedToTheoryLoadout: true,
+      tutorialSeen:
+        typeof parsed.tutorialSeen === 'boolean'
+          ? parsed.tutorialSeen
+          : Boolean(parsed.totalRuns && parsed.totalRuns > 0),
+      savedAt:
+        typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt)
+          ? parsed.savedAt
+          : Date.now(),
+      totalSyncHits:
+        typeof parsed.totalSyncHits === 'number' && Number.isFinite(parsed.totalSyncHits)
+          ? Math.max(0, Math.floor(parsed.totalSyncHits))
+          : 0,
+      bestSyncStreak:
+        typeof parsed.bestSyncStreak === 'number' && Number.isFinite(parsed.bestSyncStreak)
+          ? Math.max(0, Math.floor(parsed.bestSyncStreak))
+          : 0,
+      heatClears:
+        typeof parsed.heatClears === 'number' && Number.isFinite(parsed.heatClears)
+          ? Math.max(0, Math.floor(parsed.heatClears))
+          : 0,
+      bestScoreBySector:
+        parsed.bestScoreBySector && typeof parsed.bestScoreBySector === 'object'
+          ? { ...parsed.bestScoreBySector }
+          : {},
+      bestTimeBySector:
+        parsed.bestTimeBySector && typeof parsed.bestTimeBySector === 'object'
+          ? { ...parsed.bestTimeBySector }
+          : {},
       settings: {
         ...fallback.settings,
-        ...(parsed.settings ?? {})
+        ...(parsed.settings ?? {}),
+        controlMode
       },
       unlockedVessels: Array.isArray(parsed.unlockedVessels)
         ? (Array.from(
@@ -458,18 +544,98 @@ export function loadMetaSave(): MetaSave {
     if (!merged.unlockedSectors.includes(merged.selectedSector)) merged.selectedSector = 'drift';
     return merged;
   } catch {
-    return fallback;
+    return null;
   }
+}
+
+function saveProgressWeight(s: MetaSave): number {
+  return (
+    s.totalRuns * 100 +
+    s.totalKills +
+    s.unlockedVessels.length * 250 +
+    s.unlockedCores.length * 250 +
+    s.unlockedModules.length * 120 +
+    s.coatings.length * 80 +
+    s.effectItems.length * 80 +
+    s.shards
+  );
+}
+
+export function pickBetterSave(local: MetaSave, incoming: MetaSave): MetaSave {
+  // Prefer whichever save has clearly more progression or a newer timestamp when tied
+  const wLocal = saveProgressWeight(local);
+  const wInc = saveProgressWeight(incoming);
+  if (wInc > wLocal + 40) return incoming;
+  if (wLocal > wInc + 40) return local;
+  return incoming.savedAt > local.savedAt ? incoming : local;
+}
+
+export function loadMetaSave(): MetaSave {
+  const fallback = createDefaultSave();
+  let best: MetaSave | null = null;
+  const candidates = [
+    (() => {
+      try {
+        return localStorage.getItem(SAVE_STORAGE_KEY);
+      } catch {
+        return null;
+      }
+    })(),
+    bridge.getInitialNativeSave(),
+    bridge.getInitialCloudSave()
+  ];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const parsed = parseMetaSaveJson(raw);
+    if (!parsed) continue;
+    best = best ? pickBetterSave(best, parsed) : parsed;
+  }
+  return best ?? fallback;
 }
 
 export function persistMetaSave(save: MetaSave): void {
   try {
+    save.savedAt = Date.now();
     const raw = JSON.stringify(save);
     localStorage.setItem(SAVE_STORAGE_KEY, raw);
     bridge.syncSaveToNative(SAVE_STORAGE_KEY, raw);
   } catch {
     // Ignore storage errors
   }
+}
+
+export function exportSaveCode(save: MetaSave): string {
+  const json = JSON.stringify(save);
+  const bytes = new TextEncoder().encode(json);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return `SP1:${btoa(bin)}`;
+}
+
+export function importSaveCode(code: string): MetaSave | null {
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  try {
+    let rawJson = trimmed;
+    if (trimmed.startsWith('SP1:')) {
+      const bin = atob(trimmed.slice(4).replace(/\s+/g, ''));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      rawJson = new TextDecoder().decode(bytes);
+    }
+    const parsed = parseMetaSaveJson(rawJson);
+    if (!parsed) return null;
+    persistMetaSave(parsed);
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function resetMetaSave(): MetaSave {
+  const fresh = createDefaultSave();
+  persistMetaSave(fresh);
+  return fresh;
 }
 
 export function getEquippedCoating(save: MetaSave): CoatingItem {
@@ -670,12 +836,19 @@ export function evaluateMilestones(save: MetaSave): string[] {
       save.shards += m.rewardShards;
       notices.push(`${m.name} (+${m.rewardShards})`);
 
-      if (m.id === 'no_hit_boss') {
+      if (m.id === 'no_hit_boss' || m.id === 'sync_streak_4') {
         save.standardCrates += 1;
       }
-      if (m.id === 'sector_helix' || m.id === 'trophies_8') {
+      if (
+        m.id === 'sector_helix' ||
+        m.id === 'sector_furnace' ||
+        m.id === 'sector_singularity' ||
+        m.id === 'heat_clear_2' ||
+        m.id === 'trophies_8'
+      ) {
         save.relicCrates += 1;
       }
+      bridge.reportAchievement(m.id, 100);
     }
   }
   if (notices.length > 0) persistMetaSave(save);

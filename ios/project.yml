@@ -16,16 +16,22 @@ targets:
           - "WebApp/**"
           - "WebApp"
           - "Info.plist"
+          - "Stillpoint.entitlements"
       - path: Stillpoint/WebApp
         type: folder
         buildPhase: resources
+    dependencies:
+      - sdk: GameKit.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.pearsiono.stillpoint
         PRODUCT_NAME: Stillpoint
         INFOPLIST_FILE: Stillpoint/Info.plist
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        STILLPOINT_APP_STORE_SERVICES: "NO"
         SWIFT_VERSION: "5.0"
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_BITCODE: NO
         CODE_SIGNING_ALLOWED: NO
