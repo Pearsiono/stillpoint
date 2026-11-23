@@ -1,11 +1,13 @@
 import { SKINS } from '../data/skins';
-import { EnemyKind, SectorId, SkinId, VesselId } from '../types';
+import { CoatingItem, EnemyKind, SectorId, SkinId, VesselId } from '../types';
+import { bakeCoatedShipCanvas } from './patternBaker';
 
 export type SpriteKey =
   | 'bullet_coral'
   | 'bullet_amber'
   | 'bullet_crimson'
   | 'bullet_parry'
+  | 'bullet_void'
   | 'bullet_cyan'
   | 'bullet_shard'
   | 'bullet_prism'
@@ -59,7 +61,13 @@ class SpriteBank {
   private artReady = new Set<string>();
   private shadowCache = new Map<string, HTMLCanvasElement>();
   private skinShipCache = new Map<string, HTMLCanvasElement>();
+  private coatingShipCache = new Map<string, HTMLCanvasElement>();
+  private onArtLoadedCallbacks: Array<() => void> = [];
   private initialized = false;
+
+  onArtLoaded(cb: () => void): void {
+    this.onArtLoadedCallbacks.push(cb);
+  }
 
   init(): void {
     if (this.initialized) return;
@@ -74,6 +82,14 @@ class SpriteBank {
     }
     this.loadArt('node_shrine', './art/node_shrine.png');
     this.loadArt('node_pact', './art/node_pact.png');
+
+    // Preload painterly seamless terrain floor tiles & rendered wreckage props!
+    for (const sec of ['drift', 'helix', 'furnace', 'singularity']) {
+      this.loadArt(`tile_${sec}`, `./art/tile_${sec}.jpg`, false);
+    }
+    for (const prop of ['slab', 'gear', 'grate', 'monolith']) {
+      this.loadArt(`prop_${prop}`, `./art/prop_${prop}.png`, false);
+    }
 
     // Warm browser image cache for menu banners & painted weapon icons so tabs render instantaneously
     for (const src of [
@@ -107,6 +123,7 @@ class SpriteBank {
     this.bank.set('bullet_amber', this.makeEnemyShot(44, '#ff9f1c', '#b34700', '#fff8db'));
     this.bank.set('bullet_crimson', this.makeEnemyShot(48, '#ff2a55', '#8a0826', '#ffffff'));
     this.bank.set('bullet_parry', this.makeParryOrb(60));
+    this.bank.set('bullet_void', this.makeVoidUnparryableShot(58));
 
     this.bank.set('bullet_cyan', this.makeOrb(38, '#45e8d8', '#0f766e', '#eafffd'));
     this.bank.set('bullet_shard', this.makeDiamond(42, '#5ef2e6', '#0d9488', '#ffffff'));
@@ -140,13 +157,17 @@ class SpriteBank {
     this.ruinProps.set('hazard_plate', this.makeHazardPlate());
   }
 
-  private loadArt(key: string, src: string): void {
+  private loadArt(key: string, src: string, withShadow = true): void {
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => {
       this.artReady.add(key);
-      // Pre-bake exact silhouette drop shadow
-      this.buildShadow(key, img);
+      if (withShadow) {
+        this.buildShadow(key, img);
+      }
+      if (key.startsWith('ship_')) {
+        for (const cb of this.onArtLoadedCallbacks) cb();
+      }
     };
     img.src = src;
     this.artImages.set(key, img);
@@ -165,6 +186,42 @@ class SpriteBank {
   get(key: SpriteKey): HTMLCanvasElement {
     if (!this.initialized) this.init();
     return this.bank.get(key)!;
+  }
+
+  getCoatedShipArt(
+    vesselId: VesselId,
+    coating: CoatingItem,
+    size = 192
+  ): HTMLCanvasElement | HTMLImageElement | null {
+    if (!this.initialized) this.init();
+    const baseKey = `ship_${vesselId}`;
+    if (!this.artReady.has(baseKey)) return null;
+    const baseImg = this.artImages.get(baseKey)!;
+    if (coating.finishId === 'factory_issue') return baseImg;
+
+    const cacheKey = `${vesselId}:${coating.finishId}:${coating.seed}:${coating.floatVal.toFixed(4)}:${size}`;
+    const existing = this.coatingShipCache.get(cacheKey);
+    if (existing) return existing;
+
+    const baked = bakeCoatedShipCanvas(baseImg, coating, size);
+    if (this.coatingShipCache.size >= 40) {
+      const oldest = this.coatingShipCache.keys().next().value;
+      if (oldest) this.coatingShipCache.delete(oldest);
+    }
+    this.coatingShipCache.set(cacheKey, baked);
+    return baked;
+  }
+
+  getPaintedBiomeTile(sector: SectorId): HTMLImageElement | null {
+    if (!this.initialized) this.init();
+    const key = `tile_${sector}`;
+    return this.artReady.has(key) ? this.artImages.get(key) ?? null : null;
+  }
+
+  getPaintedProp(key: 'slab' | 'gear' | 'grate' | 'monolith'): HTMLImageElement | null {
+    if (!this.initialized) this.init();
+    const full = `prop_${key}`;
+    return this.artReady.has(full) ? this.artImages.get(full) ?? null : null;
   }
 
   getShipArt(vesselId: VesselId, skinId: SkinId): HTMLCanvasElement | HTMLImageElement | null {
@@ -600,6 +657,48 @@ class SpriteBank {
     ctx.beginPath();
     ctx.arc(half, half, half * 0.44, 0, Math.PI * 2);
     ctx.stroke();
+    return c;
+  }
+
+  private makeVoidUnparryableShot(size: number): HTMLCanvasElement {
+    // Unmistakable jagged obsidian-crimson threat shot: CANNOT BE PARRIED, MUST BE DODGED!
+    const [c, ctx] = this.createCanvas(size);
+    const half = size / 2;
+    const g = ctx.createRadialGradient(half, half, 2, half, half, half);
+    g.addColorStop(0, 'rgba(255, 36, 66, 0.95)');
+    g.addColorStop(0.55, 'rgba(210, 22, 42, 0.52)');
+    g.addColorStop(1, 'rgba(120, 0, 18, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(half, half, half, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sharp 4-pointed jagged crimson hazard star
+    ctx.save();
+    ctx.translate(half, half);
+    ctx.fillStyle = '#ff2942';
+    ctx.strokeStyle = '#ffd1c2';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const r = i % 2 === 0 ? half * 0.78 : half * 0.38;
+      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Pitch-black void core inside crimson ring (instant visual signal: UNPARRYABLE!)
+    ctx.fillStyle = '#0a0608';
+    ctx.beginPath();
+    ctx.arc(0, 0, half * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ff5468';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.restore();
     return c;
   }
 

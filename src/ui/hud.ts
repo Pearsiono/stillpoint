@@ -206,22 +206,41 @@ export function renderUpgradeDraftHtml(
           ? 'EVO'
           : c.kind === 'relic'
             ? 'RELIC'
-            : c.isSynergy
-              ? 'EVO PAIR'
-              : c.isNew
-                ? 'NEW'
-                : '';
+            : c.isOverclocked
+              ? '+2 LV · CURSED'
+              : c.isSynergy
+                ? 'EVO PAIR'
+                : c.isNew
+                  ? 'NEW'
+                  : '';
+      const cardClass =
+        c.kind === 'evolution'
+          ? 'evo'
+          : c.kind === 'relic'
+            ? 'relic'
+            : c.isOverclocked
+              ? 'cursed'
+              : '';
+      const titleColor =
+        c.kind === 'evolution'
+          ? '#ff7c76'
+          : c.kind === 'relic'
+            ? 'var(--gold)'
+            : c.isOverclocked
+              ? '#f28a52'
+              : 'var(--ink)';
       return `
-        <button class="draft-card ${c.kind === 'evolution' ? 'evo' : c.kind === 'relic' ? 'relic' : ''}" data-choice="${c.id}">
+        <button class="draft-card ${cardClass}" data-choice="${c.id}">
           <div class="r-frame draft-icon-box ${tier}">
             ${artIconImg(c.iconKey, 36)}
           </div>
           <div class="draft-body">
             <div class="draft-top">
-              <span class="draft-name" style="color:${c.kind === 'evolution' ? '#ff7c86' : c.kind === 'relic' ? 'var(--gold)' : '#efece3'}">${c.title}</span>
-              ${tag ? `<span class="draft-tag">${tag}</span>` : ''}
+              <span class="draft-name" style="color:${titleColor}">${c.title}</span>
+              ${tag ? `<span class="draft-tag" style="${c.isOverclocked ? 'color:#f0655d' : ''}">${tag}</span>` : ''}
             </div>
             <div class="draft-line">${c.line}</div>
+            ${c.curseLine ? `<div class="draft-curse-line">DRAWBACK: ${c.curseLine}</div>` : ''}
             ${pips}
           </div>
         </button>

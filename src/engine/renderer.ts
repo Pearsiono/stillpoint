@@ -4,6 +4,7 @@ import { PACTS } from '../data/upgrades';
 import {
   BlinkDecoy,
   BossEnclosure,
+  CoatingItem,
   CoreId,
   Enemy,
   EnemyBullet,
@@ -31,6 +32,10 @@ export interface RenderState {
   vesselId: VesselId;
   coreId: CoreId;
   skinId: SkinId;
+  coating: CoatingItem;
+  trailColor: string;
+  trailCoreColor: string;
+  accentColor: string;
   sectorId: SectorId;
   enemies: Enemy[];
   enemyBullets: EnemyBullet[];
@@ -59,8 +64,8 @@ export interface RenderState {
   menuSheetOpen: boolean;
 }
 
-const TILE_SIZE = 256;
-const RUIN_CELL = 340;
+const TILE_SIZE = 512;
+const RUIN_CELL = 440;
 const RUIN_KEYS: RuinPropKey[] = ['slab', 'girder', 'gear', 'pillar', 'hazard_plate'];
 
 export class WastelandRenderer {
@@ -178,15 +183,17 @@ export class WastelandRenderer {
     halfW: number,
     halfH: number
   ): void {
-    const tile = sprites.getBiomeTile(state.sectorId);
-    const minX = Math.floor((state.cameraX - halfW) / TILE_SIZE) * TILE_SIZE;
-    const maxX = Math.ceil((state.cameraX + halfW) / TILE_SIZE) * TILE_SIZE;
-    const minY = Math.floor((state.cameraY - halfH) / TILE_SIZE) * TILE_SIZE;
-    const maxY = Math.ceil((state.cameraY + halfH) / TILE_SIZE) * TILE_SIZE;
+    const painted = sprites.getPaintedBiomeTile(state.sectorId);
+    const tile = painted ?? sprites.getBiomeTile(state.sectorId);
+    const step = painted ? TILE_SIZE : 256;
+    const minX = Math.floor((state.cameraX - halfW) / step) * step;
+    const maxX = Math.ceil((state.cameraX + halfW) / step) * step;
+    const minY = Math.floor((state.cameraY - halfH) / step) * step;
+    const maxY = Math.ceil((state.cameraY + halfH) / step) * step;
 
-    for (let x = minX; x < maxX; x += TILE_SIZE) {
-      for (let y = minY; y < maxY; y += TILE_SIZE) {
-        ctx.drawImage(tile, x, y);
+    for (let x = minX; x < maxX; x += step) {
+      for (let y = minY; y < maxY; y += step) {
+        ctx.drawImage(tile, x, y, step, step);
       }
     }
   }
@@ -206,27 +213,42 @@ export class WastelandRenderer {
       for (let cy = minCy; cy <= maxCy; cy++) {
         const h1 = Math.sin(cx * 127.1 + cy * 311.7) * 43758.5453;
         const f1 = h1 - Math.floor(h1);
-        if (f1 < 0.3) continue;
+        if (f1 < 0.42) continue;
 
         const h2 = Math.sin(cx * 269.5 + cy * 183.3) * 43758.5453;
         const f2 = h2 - Math.floor(h2);
         const h3 = Math.sin(cx * 419.2 + cy * 97.1) * 43758.5453;
         const f3 = h3 - Math.floor(h3);
 
-        const px = (cx + 0.15 + f1 * 0.7) * RUIN_CELL;
-        const py = (cy + 0.15 + f2 * 0.7) * RUIN_CELL;
+        const px = (cx + 0.18 + f1 * 0.64) * RUIN_CELL;
+        const py = (cy + 0.18 + f2 * 0.64) * RUIN_CELL;
 
-        let propKey: RuinPropKey = RUIN_KEYS[Math.floor(f3 * RUIN_KEYS.length)];
-        if (state.sectorId === 'singularity' && f3 > 0.45) propKey = 'gear';
-        else if (state.sectorId === 'furnace' && f3 > 0.55) propKey = 'hazard_plate';
-        else if (state.sectorId === 'helix' && f3 > 0.55) propKey = 'pillar';
+        // Biome-matched painterly wreckage props!
+        let paintedKey: 'slab' | 'gear' | 'grate' | 'monolith' = 'slab';
+        if (state.sectorId === 'singularity') {
+          paintedKey = f3 > 0.38 ? 'monolith' : 'gear';
+        } else if (state.sectorId === 'furnace') {
+          paintedKey = f3 > 0.4 ? 'grate' : 'gear';
+        } else if (state.sectorId === 'helix') {
+          paintedKey = f3 > 0.5 ? 'gear' : f3 > 0.25 ? 'slab' : 'grate';
+        } else {
+          paintedKey = f3 > 0.55 ? 'slab' : f3 > 0.28 ? 'grate' : 'gear';
+        }
 
-        const img = sprites.getRuinProp(propKey);
+        const painted = sprites.getPaintedProp(paintedKey);
+        const drawSz = 96 + f2 * 36;
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate((f1 - 0.5) * Math.PI * 2);
-        ctx.globalAlpha = 0.82;
-        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        if (painted) {
+          ctx.globalAlpha = 0.78;
+          ctx.drawImage(painted, -drawSz / 2, -drawSz / 2, drawSz, drawSz);
+        } else {
+          const propKey: RuinPropKey = RUIN_KEYS[Math.floor(f3 * RUIN_KEYS.length)];
+          const img = sprites.getRuinProp(propKey);
+          ctx.globalAlpha = 0.65;
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        }
         ctx.restore();
       }
     }
@@ -452,7 +474,7 @@ export class WastelandRenderer {
     }
 
     // Phantom Blink exploding decoys
-    const shipArt = sprites.getShipArt(state.vesselId, state.skinId);
+    const shipArt = sprites.getCoatedShipArt(state.vesselId, state.coating);
     for (const d of state.decoys) {
       const ratio = 1 - d.age / d.maxAge;
       ctx.save();
@@ -564,17 +586,18 @@ export class WastelandRenderer {
   }
 
   private drawPlayer(ctx: CanvasRenderingContext2D, state: RenderState, skin: SkinDef): void {
-    const { player, vesselId, skinId, realTime } = state;
+    const { player, vesselId, coating, realTime } = state;
     const blend = player.stillpointBlend;
     const chargeRatio = Math.max(0, Math.min(1, player.kineticCharge / player.maxKineticCharge));
     const parryReady = player.parryCooldown <= 0 && player.kineticCharge >= 18;
+    const accent = state.accentColor;
 
     // 1. Thruster exhaust wake
     for (const t of player.trail) {
       ctx.save();
       ctx.translate(t.x, t.y);
-      ctx.globalAlpha = t.alpha * 0.42;
-      ctx.fillStyle = skin.trailColor;
+      ctx.globalAlpha = t.alpha * 0.45;
+      ctx.fillStyle = state.trailColor;
       ctx.beginPath();
       ctx.arc(0, 0, 5.2 * t.alpha, 0, Math.PI * 2);
       ctx.fill();
@@ -587,7 +610,7 @@ export class WastelandRenderer {
     // 2. Subtle Graze Halo
     ctx.save();
     ctx.rotate(realTime * (0.35 + blend * 1.2));
-    ctx.strokeStyle = player.grazeCombo > 0 ? skin.accent : 'rgba(235, 231, 220, 0.14)';
+    ctx.strokeStyle = player.grazeCombo > 0 ? accent : 'rgba(235, 231, 220, 0.14)';
     ctx.globalAlpha = player.grazeCombo > 0 ? 0.52 : 1;
     ctx.lineWidth = 1.1;
     ctx.setLineDash([4, 9]);
@@ -611,12 +634,12 @@ export class WastelandRenderer {
       ctx.rotate(-realTime * (state.coreId === 'siphon' ? 2.4 : 0.9));
       ctx.strokeStyle =
         state.coreId === 'siphon'
-          ? '#ff9f43'
+          ? '#e08538'
           : state.coreId === 'berserk'
-            ? '#ff4858'
+            ? '#d94842'
             : state.coreId === 'overclock'
-              ? '#e5b34c'
-              : skin.accent;
+              ? '#e2a93b'
+              : accent;
       ctx.lineWidth = 1.25;
       ctx.setLineDash([12, 8, 2, 8]);
       ctx.beginPath();
@@ -644,11 +667,13 @@ export class WastelandRenderer {
     if (chargeRatio > 0.01) {
       ctx.strokeStyle = player.overchargeReady
         ? '#f6c453'
-        : blend > 0.25
-          ? '#ffffff'
-          : parryReady
-            ? skin.accent
-            : 'rgba(235,231,220,0.45)';
+        : player.focusStallTimer > 0
+          ? '#8c5349'
+          : blend > 0.25
+            ? '#ffffff'
+            : parryReady
+              ? accent
+              : 'rgba(235,231,220,0.45)';
       ctx.lineWidth = player.overchargeReady ? 3.8 : parryReady ? 3 : 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * chargeRatio);
@@ -663,7 +688,7 @@ export class WastelandRenderer {
       ctx.stroke();
     }
 
-    const shipArt = sprites.getShipArt(vesselId, skinId);
+    const shipArt = sprites.getCoatedShipArt(vesselId, coating);
     const shipShadow = sprites.getShipShadow(vesselId);
     const shipSize = vesselId === 'aegis' || vesselId === 'nova' ? 50 : 48;
     const rot = player.facingAngle + Math.PI / 2; // PNGs point straight UP (-PI/2)
@@ -677,14 +702,14 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    // 6. Rendered Hover-Rig Sprite + Thruster Jet Plumes!
+    // 6. Rendered Hover-Rig Sprite (with baked CS:GO pattern & float wear!) + Custom Thruster Jet Plumes!
     ctx.save();
     ctx.rotate(rot);
     const invulnBlink = player.invulnTimer > 0 && Math.floor(realTime * 22) % 2 === 0;
     ctx.globalAlpha = invulnBlink ? 0.35 : 1 - blend * 0.42;
 
     if (Math.hypot(player.vx, player.vy) > 20 && !player.inStillpoint) {
-      this.drawThrusterPlumeVertical(ctx, vesselId, skin.trailColor, 0.8 + Math.random() * 0.3);
+      this.drawThrusterPlumeVertical(ctx, vesselId, state.trailColor, state.trailCoreColor, 0.8 + Math.random() * 0.3);
     }
 
     if (shipArt) {
@@ -723,7 +748,7 @@ export class WastelandRenderer {
       ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = skin.accent;
+      ctx.strokeStyle = accent;
       ctx.lineWidth = 1.6;
       ctx.beginPath();
       ctx.arc(0, 0, 8.8, 0, Math.PI * 2);
@@ -738,6 +763,7 @@ export class WastelandRenderer {
     ctx: CanvasRenderingContext2D,
     vesselId: VesselId,
     color: string,
+    coreColor: string,
     intensity: number
   ): void {
     const len = 10 + intensity * 12;
@@ -745,14 +771,14 @@ export class WastelandRenderer {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.85;
       ctx.beginPath();
       ctx.moveTo(x - w, y);
       ctx.lineTo(x, y + len);
       ctx.lineTo(x + w, y);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = coreColor;
       ctx.beginPath();
       ctx.moveTo(x - w * 0.45, y);
       ctx.lineTo(x, y + len * 0.55);
@@ -1177,6 +1203,17 @@ export class WastelandRenderer {
     realTime: number
   ): void {
     for (const b of bullets) {
+      if (b.kind === 'void_unparryable') {
+        const img = sprites.get('bullet_void');
+        const pulse = 1 + Math.sin(realTime * 18 + b.id) * 0.1;
+        const size = b.radius * 4.7 * pulse;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(realTime * 4.5 + b.id);
+        ctx.drawImage(img, -size / 2, -size / 2, size, size);
+        ctx.restore();
+        continue;
+      }
       const key = b.isParryBonus
         ? 'bullet_parry'
         : b.kind === 'diamond'
@@ -1350,12 +1387,27 @@ export class WastelandRenderer {
     ctx.fillRect(0, 0, w, h);
 
     if (!state.menuMode && blend > 0.04 && !state.reduceFlash) {
-      ctx.strokeStyle = skin.accent;
-      ctx.globalAlpha = blend * 0.5;
+      // Subtle military corner rangefinder ticks instead of a neon screen-edge box!
+      const m = 12;
+      const len = 18;
+      ctx.strokeStyle = state.accentColor;
+      ctx.globalAlpha = blend * 0.55;
       ctx.lineWidth = 2;
-      ctx.strokeRect(4, 4, w - 8, h - 8);
+      for (const [cx, cy, sx, sy] of [
+        [m, m, 1, 1],
+        [w - m, m, -1, 1],
+        [m, h - m, 1, -1],
+        [w - m, h - m, -1, -1]
+      ]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + sx * len, cy);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx, cy + sy * len);
+        ctx.stroke();
+      }
       ctx.globalAlpha = 1;
     }
+    void skin;
   }
 
   private drawOffscreenNodePips(

@@ -625,6 +625,53 @@ export class SoundEngine {
     osc.stop(now + 0.25);
     this.playNoiseTick(0.14, 0.25, now, false);
   }
+
+  playCrateTick(pitch = 1): void {
+    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(640 * pitch, now);
+    osc.frequency.exponentialRampToValueAtTime(220 * pitch, now + 0.025);
+    g.gain.setValueAtTime(0.11, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    osc.connect(g);
+    g.connect(this.sfxGain);
+    osc.start(now);
+    osc.stop(now + 0.035);
+  }
+
+  playCrateReveal(rarityOrder: number): void {
+    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
+    const now = this.ctx.currentTime;
+    const notes =
+      rarityOrder >= 4
+        ? [293.66, 440, 587.33, 880, 1174.66]
+        : rarityOrder >= 3
+          ? [293.66, 440, 587.33, 880]
+          : rarityOrder >= 2
+            ? [293.66, 440, 659.25]
+            : [293.66, 440];
+    notes.forEach((hz, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = rarityOrder >= 3 ? 'sawtooth' : 'triangle';
+      const flt = this.ctx.createBiquadFilter();
+      flt.type = 'lowpass';
+      flt.frequency.value = 2800;
+      const st = now + idx * 0.065;
+      osc.frequency.setValueAtTime(hz, st);
+      g.gain.setValueAtTime(0.2, st);
+      g.gain.exponentialRampToValueAtTime(0.001, st + 0.45);
+      osc.connect(flt);
+      flt.connect(g);
+      g.connect(this.sfxGain);
+      osc.start(st);
+      osc.stop(st + 0.48);
+    });
+  }
 }
 
 export const sound = new SoundEngine();

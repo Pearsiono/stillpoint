@@ -1,14 +1,26 @@
 import { bridge } from '../bridge';
 import { HEAT_ORDER } from './builds';
 import {
+  CRATE_COSTS,
+  createStarterCoating,
+  FINISHES,
+  forgeTradeUpCoating,
+  getCoatingScrapValue,
+  PARRY_FX,
+  TRAILS
+} from './finishes';
+import {
+  CoatingItem,
   CoreId,
   HeatId,
   MetaSave,
   MetaUpgradeDef,
   MetaUpgradeId,
   MilestoneDef,
+  ParryFxId,
   SectorId,
   SkinId,
+  TrailId,
   VesselId
 } from '../types';
 
@@ -116,7 +128,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'SHATTER',
     goalText: '8× Single Parry',
     rewardShards: 110,
-    rewardLabel: 'AMETHYST',
+    rewardLabel: '+1 CRATE',
     check: (s) => ({ current: s.bestSingleParry, target: 8, done: s.bestSingleParry >= 8 })
   },
   {
@@ -124,7 +136,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'RAZOR EDGE',
     goalText: '200 Grazes',
     rewardShards: 100,
-    rewardLabel: 'FROSTGLASS',
+    rewardLabel: '+1 CRATE',
     check: (s) => ({ current: s.totalGrazes, target: 200, done: s.totalGrazes >= 200 })
   },
   {
@@ -178,7 +190,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'UNTOUCHED',
     goalText: 'No-Hit Boss',
     rewardShards: 200,
-    rewardLabel: 'SLAG CORE',
+    rewardLabel: '+2 CLASSIFIED',
     check: (s) => ({ current: s.noHitBossClears, target: 1, done: s.noHitBossClears >= 1 })
   },
   {
@@ -198,7 +210,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'METRO CLEAR',
     goalText: 'Clear 02 Sunken Metro',
     rewardShards: 200,
-    rewardLabel: 'SUMI BONE',
+    rewardLabel: '+1 CLASSIFIED',
     check: (s) => ({
       current: s.sectorsCleared.includes('helix') ? 1 : 0,
       target: 1,
@@ -217,7 +229,7 @@ export const MILESTONES: MilestoneDef[] = [
     name: 'ASCENDANT',
     goalText: '8 Trophies',
     rewardShards: 300,
-    rewardLabel: 'AURELIA',
+    rewardLabel: '+3 CLASSIFIED',
     check: (s) => ({
       current: s.claimedMilestones.length,
       target: 8,
@@ -227,8 +239,11 @@ export const MILESTONES: MilestoneDef[] = [
 ];
 
 export function createDefaultSave(): MetaSave {
+  const starter = createStarterCoating();
   return {
     shards: 0,
+    standardCrates: 1,
+    relicCrates: 0,
     bestTimeSec: 0,
     bestScore: 0,
     bestSingleParry: 0,
@@ -246,6 +261,12 @@ export function createDefaultSave(): MetaSave {
     selectedCore: 'deflector',
     unlockedSkins: ['cyanide'],
     selectedSkin: 'cyanide',
+    coatings: [starter],
+    equippedCoatingUid: starter.uid,
+    unlockedTrails: ['ion_ash'],
+    selectedTrail: 'ion_ash',
+    unlockedParryFx: ['steel_ring'],
+    selectedParryFx: 'steel_ring',
     unlockedSectors: ['drift'],
     selectedSector: 'drift',
     activeHeat: [],
@@ -299,6 +320,36 @@ export function loadMetaSave(): MetaSave {
       unlockedSkins: Array.isArray(parsed.unlockedSkins)
         ? (Array.from(new Set(['cyanide', ...parsed.unlockedSkins])) as SkinId[])
         : ['cyanide'],
+      coatings:
+        Array.isArray(parsed.coatings) && parsed.coatings.length > 0
+          ? parsed.coatings.filter((c) => c && c.finishId in FINISHES)
+          : fallback.coatings,
+      equippedCoatingUid:
+        typeof parsed.equippedCoatingUid === 'string'
+          ? parsed.equippedCoatingUid
+          : fallback.equippedCoatingUid,
+      unlockedTrails: Array.isArray(parsed.unlockedTrails)
+        ? (Array.from(new Set(['ion_ash', ...parsed.unlockedTrails])) as TrailId[])
+        : ['ion_ash'],
+      selectedTrail:
+        parsed.selectedTrail && parsed.selectedTrail in TRAILS
+          ? parsed.selectedTrail
+          : 'ion_ash',
+      unlockedParryFx: Array.isArray(parsed.unlockedParryFx)
+        ? (Array.from(new Set(['steel_ring', ...parsed.unlockedParryFx])) as ParryFxId[])
+        : ['steel_ring'],
+      selectedParryFx:
+        parsed.selectedParryFx && parsed.selectedParryFx in PARRY_FX
+          ? parsed.selectedParryFx
+          : 'steel_ring',
+      standardCrates:
+        typeof parsed.standardCrates === 'number' && Number.isFinite(parsed.standardCrates)
+          ? Math.max(0, Math.floor(parsed.standardCrates))
+          : 1,
+      relicCrates:
+        typeof parsed.relicCrates === 'number' && Number.isFinite(parsed.relicCrates)
+          ? Math.max(0, Math.floor(parsed.relicCrates))
+          : 0,
       unlockedSectors: Array.isArray(parsed.unlockedSectors)
         ? (Array.from(new Set(['drift', ...parsed.unlockedSectors])) as SectorId[])
         : ['drift'],
@@ -310,10 +361,16 @@ export function loadMetaSave(): MetaSave {
       sectorsCleared: Array.isArray(parsed.sectorsCleared) ? parsed.sectorsCleared : [],
       claimedMilestones: Array.isArray(parsed.claimedMilestones) ? parsed.claimedMilestones : []
     };
+    if (merged.coatings.length === 0) merged.coatings = [createStarterCoating()];
+    if (!merged.coatings.some((c) => c.uid === merged.equippedCoatingUid)) {
+      merged.equippedCoatingUid = merged.coatings[0].uid;
+    }
     if (!Number.isFinite(merged.shards) || merged.shards < 0) merged.shards = 0;
     if (!merged.unlockedVessels.includes(merged.selectedVessel)) merged.selectedVessel = 'vesper';
     if (!merged.unlockedCores.includes(merged.selectedCore)) merged.selectedCore = 'deflector';
     if (!merged.unlockedSkins.includes(merged.selectedSkin)) merged.selectedSkin = 'cyanide';
+    if (!merged.unlockedTrails.includes(merged.selectedTrail)) merged.selectedTrail = 'ion_ash';
+    if (!merged.unlockedParryFx.includes(merged.selectedParryFx)) merged.selectedParryFx = 'steel_ring';
     if (!merged.unlockedSectors.includes(merged.selectedSector)) merged.selectedSector = 'drift';
     return merged;
   } catch {
@@ -329,6 +386,65 @@ export function persistMetaSave(save: MetaSave): void {
   } catch {
     // Ignore storage errors
   }
+}
+
+export function getEquippedCoating(save: MetaSave): CoatingItem {
+  return (
+    save.coatings.find((c) => c.uid === save.equippedCoatingUid) ??
+    save.coatings[0] ??
+    createStarterCoating()
+  );
+}
+
+export function equipCoating(save: MetaSave, uid: string): boolean {
+  if (!save.coatings.some((c) => c.uid === uid)) return false;
+  save.equippedCoatingUid = uid;
+  persistMetaSave(save);
+  return true;
+}
+
+export function scrapCoating(save: MetaSave, uid: string): number {
+  const idx = save.coatings.findIndex((c) => c.uid === uid);
+  if (idx < 0 || save.coatings[idx].finishId === 'factory_issue') return 0;
+  const item = save.coatings[idx];
+  const payout = getCoatingScrapValue(item);
+  save.coatings.splice(idx, 1);
+  if (save.equippedCoatingUid === uid) {
+    save.equippedCoatingUid = save.coatings[0]?.uid ?? createStarterCoating().uid;
+  }
+  save.shards += payout;
+  persistMetaSave(save);
+  return payout;
+}
+
+export function buyCrate(save: MetaSave, kind: 'standard' | 'relic'): boolean {
+  const cost = CRATE_COSTS[kind];
+  if (save.shards < cost) return false;
+  save.shards -= cost;
+  if (kind === 'standard') save.standardCrates++;
+  else save.relicCrates++;
+  persistMetaSave(save);
+  return true;
+}
+
+export function executeTradeUp(save: MetaSave, uids: string[]): CoatingItem | null {
+  if (uids.length !== 5) return null;
+  const unique = Array.from(new Set(uids));
+  if (unique.length !== 5) return null;
+  const items = unique
+    .map((id) => save.coatings.find((c) => c.uid === id))
+    .filter((x): x is CoatingItem => Boolean(x && x.finishId !== 'factory_issue'));
+  if (items.length !== 5) return null;
+  const forged = forgeTradeUpCoating(items);
+  if (!forged) return null;
+
+  save.coatings = save.coatings.filter((c) => !unique.includes(c.uid));
+  save.coatings.unshift(forged);
+  if (unique.includes(save.equippedCoatingUid)) {
+    save.equippedCoatingUid = forged.uid;
+  }
+  persistMetaSave(save);
+  return forged;
 }
 
 export function buyMetaUpgrade(save: MetaSave, id: MetaUpgradeId): boolean {
@@ -371,20 +487,20 @@ export function evaluateMilestones(save: MetaSave): string[] {
       if (m.id === 'boss_3' && !save.unlockedVessels.includes('seraph')) {
         save.unlockedVessels.push('seraph');
       }
-      if (m.id === 'graze_200' && !save.unlockedSkins.includes('monolith')) {
-        save.unlockedSkins.push('monolith');
+      if (m.id === 'graze_200') {
+        save.standardCrates += 1;
       }
-      if (m.id === 'parry_burst_8' && !save.unlockedSkins.includes('ultraviolet')) {
-        save.unlockedSkins.push('ultraviolet');
+      if (m.id === 'parry_burst_8') {
+        save.standardCrates += 1;
       }
-      if (m.id === 'sector_helix' && !save.unlockedSkins.includes('ink')) {
-        save.unlockedSkins.push('ink');
+      if (m.id === 'sector_helix') {
+        save.relicCrates += 1;
       }
-      if (m.id === 'no_hit_boss' && !save.unlockedSkins.includes('eclipse')) {
-        save.unlockedSkins.push('eclipse');
+      if (m.id === 'no_hit_boss') {
+        save.relicCrates += 2;
       }
-      if (m.id === 'trophies_8' && !save.unlockedSkins.includes('prismatic')) {
-        save.unlockedSkins.push('prismatic');
+      if (m.id === 'trophies_8') {
+        save.relicCrates += 3;
       }
     }
   }

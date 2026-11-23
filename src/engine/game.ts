@@ -1,7 +1,8 @@
 import { sound } from '../audio';
 import { bridge } from '../bridge';
 import { CORES, HEAT_MODS, RELICS } from '../data/builds';
-import { evaluateMilestones, persistMetaSave } from '../data/meta';
+import { FINISHES, PARRY_FX, TRAILS } from '../data/finishes';
+import { evaluateMilestones, getEquippedCoating, persistMetaSave } from '../data/meta';
 import { SECTORS } from '../data/sectors';
 import { resolveSkinColors, SKINS } from '../data/skins';
 import { generateUpgradeChoices, PACTS, PASSIVES, WEAPONS } from '../data/upgrades';
@@ -233,7 +234,9 @@ export class StillpointGame {
   randomizeBuild(): void {
     const vPool = this.save.unlockedVessels;
     const cPool = this.save.unlockedCores;
-    const sPool = this.save.unlockedSkins;
+    const coatPool = this.save.coatings;
+    const tPool = this.save.unlockedTrails;
+    const pPool = this.save.unlockedParryFx;
     const pick = <T,>(arr: T[], cur: T): T => {
       if (arr.length <= 1) return arr[0] ?? cur;
       const others = arr.filter((x) => x !== cur);
@@ -241,19 +244,42 @@ export class StillpointGame {
     };
     let nextV = vPool[Math.floor(Math.random() * vPool.length)];
     let nextC = cPool[Math.floor(Math.random() * cPool.length)];
-    let nextS = sPool[Math.floor(Math.random() * sPool.length)];
-    if (nextV === this.vesselId && nextC === this.coreId && nextS === this.skinId) {
-      if (vPool.length > 1) nextV = pick(vPool, this.vesselId);
-      else if (cPool.length > 1) nextC = pick(cPool, this.coreId);
-      else if (sPool.length > 1) nextS = pick(sPool, this.skinId);
+    let nextCoat = coatPool[Math.floor(Math.random() * coatPool.length)].uid;
+    const nextT = tPool[Math.floor(Math.random() * tPool.length)];
+    const nextP = pPool[Math.floor(Math.random() * pPool.length)];
+    if (
+      nextV === this.vesselId &&
+      nextC === this.coreId &&
+      nextCoat === this.save.equippedCoatingUid
+    ) {
+      if (coatPool.length > 1) {
+        nextCoat = pick(
+          coatPool.map((x) => x.uid),
+          this.save.equippedCoatingUid
+        );
+      } else if (vPool.length > 1) {
+        nextV = pick(vPool, this.vesselId);
+      } else if (cPool.length > 1) {
+        nextC = pick(cPool, this.coreId);
+      }
     }
     this.setVessel(nextV);
     this.setCore(nextC);
-    this.setSkin(nextS);
+    this.save.equippedCoatingUid = nextCoat;
+    this.save.selectedTrail = nextT;
+    this.save.selectedParryFx = nextP;
+    this.applyAccentCss();
+    persistMetaSave(this.save);
   }
 
   private applyAccentCss(): void {
-    document.documentElement.style.setProperty('--accent', SKINS[this.skinId].accent);
+    const coating = getEquippedCoating(this.save);
+    const accent = FINISHES[coating.finishId]?.accent ?? '#4cb5ab';
+    document.documentElement.style.setProperty('--accent', accent);
+  }
+
+  refreshVisualPrefs(): void {
+    this.applyAccentCss();
   }
 
   startNewRun(): void {
@@ -335,25 +361,41 @@ export class StillpointGame {
         this.particles.callout(this.player.x, this.player.y - 42, r.name.toUpperCase(), r.accent, 1.15, 1.1);
       }
     } else if (picked.kind === 'weapon' && picked.weaponId) {
+      const addLv = picked.bonusLevels ?? 1;
       const existing = this.player.weapons.find((w) => w.id === picked.weaponId);
-      if (existing) existing.level = Math.min(WEAPONS[existing.id].maxLevel, existing.level + 1);
+      if (existing) existing.level = Math.min(WEAPONS[existing.id].maxLevel, existing.level + addLv);
       else {
         this.player.weapons.push({
           id: picked.weaponId,
-          level: 1,
+          level: Math.min(WEAPONS[picked.weaponId].maxLevel, addLv),
           evolved: false,
           cooldown: 0.1,
           auxTimer: 0
         });
       }
     } else if (picked.kind === 'passive' && picked.passiveId) {
+      const addLv = picked.bonusLevels ?? 1;
       const existing = this.player.passives.find((p) => p.id === picked.passiveId);
-      if (existing) existing.level = Math.min(PASSIVES[existing.id].maxLevel, existing.level + 1);
-      else this.player.passives.push({ id: picked.passiveId, level: 1 });
+      if (existing) existing.level = Math.min(PASSIVES[existing.id].maxLevel, existing.level + addLv);
+      else {
+        this.player.passives.push({
+          id: picked.passiveId,
+          level: Math.min(PASSIVES[picked.passiveId].maxLevel, addLv)
+        });
+      }
     } else if (picked.kind === 'heal') {
-      this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.35);
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.3);
       this.player.kineticCharge = this.player.maxKineticCharge;
       this.bonusHealDmg += 0.06;
+    }
+
+    // Apply OVERCLOCKED draft curse tradeoff when accepted!
+    if (picked.curseId) {
+      this.player.curses.push(picked.curseId);
+      if (picked.curseId === 'blood_tax') {
+        this.player.hp = Math.max(12, Math.round(this.player.hp * 0.78));
+      }
+      this.particles.callout(this.player.x, this.player.y - 36, `CURSE: ${picked.curseLine ?? ''}`, '#d94842', 0.95, 1.0);
     }
 
     this.recomputePlayerStats();
@@ -426,7 +468,8 @@ export class StillpointGame {
       stillpointBlend: 0,
       stillpointTimeHeld: 0,
       parryCooldown: 0,
-      parryCooldownMax: vesselId === 'phantom' ? 0.36 : 0.46,
+      parryCooldownMax: vesselId === 'phantom' ? 0.38 : 0.5,
+      focusStallTimer: 0,
       level: 1,
       xp: 0,
       xpToNext: 26,
@@ -464,6 +507,7 @@ export class StillpointGame {
       passives: [],
       relics: [],
       pacts: [],
+      curses: [],
       trail: [],
       distanceMovedSinceDagger: 0
     };
@@ -493,6 +537,8 @@ export class StillpointGame {
       grazes: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
+      cratesEarned: 0,
+      relicCratesEarned: 0,
       sectorId: this.sectorId,
       vesselId: this.vesselId,
       coreId: this.coreId,
@@ -556,7 +602,11 @@ export class StillpointGame {
 
     const glassHpMult =
       (this.player.pacts.includes('glass_cannon') ? 0.8 : 1.0) *
-      (this.save.activeHeat.includes('fragile') ? 0.75 : 1.0);
+      (this.save.activeHeat.includes('fragile') ? 0.75 : 1.0) *
+      (this.player.relics.includes('glass_prism') ? 0.82 : 1.0);
+    const curseHpLoss = this.player.curses.filter((c) => c === 'fragile_hull').length * 16;
+    const curseDrainMult = Math.pow(1.25, this.player.curses.filter((c) => c === 'heavy_drain').length);
+    const curseSlowMult = Math.pow(0.88, this.player.curses.filter((c) => c === 'slow_rig').length);
     const dmgBonus =
       (this.player.pacts.includes('bloodlust') ? 1.4 : 1.0) *
       (this.save.activeHeat.includes('fragile') ? 1.25 : 1.0);
@@ -566,22 +616,33 @@ export class StillpointGame {
       1 + this.save.activeHeat.reduce((acc, h) => acc + (HEAT_MODS[h]?.shardBonus ?? 0), 0);
 
     const prevMaxHp = this.player.maxHp;
-    this.player.maxHp = Math.max(40, Math.round((v.stats.maxHp + (u.hull_integrity ?? 0) * 14) * glassHpMult));
+    this.player.maxHp = Math.max(
+      36,
+      Math.round((v.stats.maxHp + (u.hull_integrity ?? 0) * 14) * glassHpMult) - curseHpLoss
+    );
     if (this.player.maxHp > prevMaxHp) this.player.hp += this.player.maxHp - prevMaxHp;
     this.player.hp = Math.min(this.player.hp, this.player.maxHp);
 
-    this.player.maxShield = Math.max(20, v.stats.shield + plateLv * 12 + 12);
+    const bloodShieldMult = this.player.relics.includes('blood_engine') ? 0.85 : 1.0;
+    this.player.maxShield = Math.max(16, Math.round((v.stats.shield + plateLv * 12 + 12) * bloodShieldMult));
+    this.player.shield = Math.min(this.player.shield, this.player.maxShield);
     this.player.armor = v.stats.armor + plateLv;
     this.player.maxKineticCharge = v.stats.maxCharge + capLv * 18;
-    const overclockDrainMult = this.coreId === 'overclock' ? 0.6 : 1.0;
+    const overclockDrainMult = this.coreId === 'overclock' ? 0.62 : 1.0;
+    const timeBankDrainMult = this.player.relics.includes('time_bank') ? 1.22 : 1.0;
     this.player.stillpointDrainMult =
-      Math.pow(0.9, capLv) * Math.pow(0.93, u.time_lattice ?? 0) * overclockDrainMult;
-    this.player.moveSpeed = v.stats.moveSpeed * (1 + thrLv * 0.09);
+      Math.pow(0.9, capLv) *
+      Math.pow(0.93, u.time_lattice ?? 0) *
+      overclockDrainMult *
+      timeBankDrainMult *
+      curseDrainMult;
+    this.player.moveSpeed = v.stats.moveSpeed * (1 + thrLv * 0.09) * curseSlowMult;
     this.player.chargeRateMult =
       v.stats.chargeRateMult * (1 + thrLv * 0.16) * (1 + (u.kinetic_core ?? 0) * 0.1);
-    this.player.fireRateMult = 1 + coilLv * 0.13;
+    const doubleTapRofMult = this.player.relics.includes('double_tap') ? 0.86 : 1.0;
+    this.player.fireRateMult = (1 + coilLv * 0.13) * doubleTapRofMult;
     this.player.parryCooldownMax =
-      (this.vesselId === 'phantom' ? 0.36 : 0.46) * Math.pow(0.88, coilLv);
+      (this.vesselId === 'phantom' ? 0.38 : 0.5) * Math.pow(0.88, coilLv);
     this.player.areaMult = 1 + lensLv * 0.15;
     this.player.damageMult = Math.max(1, (1 + coreLv * 0.16 + this.bonusHealDmg) * dmgBonus);
     this.player.bossDmgMult = 1 + tgtLv * 0.16;
@@ -708,17 +769,20 @@ export class StillpointGame {
       }
     }
 
-    // 3. Kinetic Charge (checked before exit triggers so drain-to-0 also fires Swarm Missiles & Siphon!)
+    // 3. Kinetic Charge — Earned Focus Economy (zero free idle regen; whiff stalls regen!)
+    if (player.focusStallTimer > 0) {
+      player.focusStallTimer = Math.max(0, player.focusStallTimer - dtReal);
+    }
     if (player.inStillpoint) {
       player.stillpointTimeHeld += dtReal;
-      player.kineticCharge = Math.max(0, player.kineticCharge - 25 * player.stillpointDrainMult * dtReal);
+      player.kineticCharge = Math.max(0, player.kineticCharge - 28 * player.stillpointDrainMult * dtReal);
       if (player.kineticCharge <= 0.1) {
         player.inStillpoint = false;
         justExited = true;
       }
-    } else {
-      const ocBonus = player.inOverclockRing ? 2.0 : 1.0;
-      const moveBonus = input.isMoving ? 15.5 : 4.2;
+    } else if (player.focusStallTimer <= 0) {
+      const ocBonus = player.inOverclockRing ? 2.1 : 1.0;
+      const moveBonus = input.isMoving ? 10.5 : 0;
       player.kineticCharge = Math.min(
         player.maxKineticCharge,
         player.kineticCharge + moveBonus * player.chargeRateMult * ocBonus * dtReal
@@ -1153,7 +1217,7 @@ export class StillpointGame {
   private triggerParryShockwave(radiusScale = 1.0, isBerserkSlash = false, chargeCost = 16): void {
     const p = this.player;
     const v = VESSELS[this.vesselId];
-    const skin = resolveSkinColors(SKINS[this.skinId], this.realTime);
+    const pfx = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
     const metaMult = 1 + (this.save.upgrades.parry_resonance ?? 0) * 0.08;
     const overcharged = p.overchargeReady;
     if (overcharged) p.overchargeReady = false;
@@ -1162,22 +1226,22 @@ export class StillpointGame {
     p.parryCooldown = p.parryCooldownMax;
 
     const maxR =
-      136 * p.areaMult * v.stats.parryRadiusMult * metaMult * radiusScale * (overcharged ? 1.85 : 1);
+      128 * p.areaMult * v.stats.parryRadiusMult * metaMult * radiusScale * (overcharged ? 1.8 : 1);
     this.parryWaves.push({
       x: p.x,
       y: p.y,
       radius: 22,
       maxRadius: maxR,
       age: 0,
-      duration: 0.25,
+      duration: 0.24,
       parryCount: 0,
       bonusParryCount: 0,
-      colorOuter: isBerserkSlash ? '#ff4858' : overcharged ? '#e5b34c' : skin.parryOuter,
-      colorInner: overcharged ? '#ffffff' : skin.parryInner,
+      colorOuter: isBerserkSlash ? '#d94842' : overcharged ? '#e2a93b' : pfx.outer,
+      colorInner: overcharged ? '#ffffff' : pfx.inner,
       isBerserkSlash,
       overcharged
     });
-    this.particles.ripple(p.x, p.y, maxR * 1.45, overcharged ? 22 : 16, isBerserkSlash ? '#ff4858' : skin.parryOuter, 0.45);
+    this.particles.ripple(p.x, p.y, maxR * 1.4, overcharged ? 22 : 16, isBerserkSlash ? '#d94842' : pfx.outer, 0.42);
     this.addShake(overcharged ? 8 : 4.5);
 
     if (this.vesselId === 'nova') {
@@ -1190,7 +1254,7 @@ export class StillpointGame {
         damagePerSec: 34 * p.damageMult,
         age: 0,
         maxAge: 2.2,
-        color: skin.accent,
+        color: pfx.outer,
         collapsed: false,
         evolved: false,
         pullStrength: 165
@@ -1349,6 +1413,11 @@ export class StillpointGame {
           if (grazeLv > 0 && wave.parryCount >= 3) {
             p.hp = Math.min(p.maxHp, p.hp + 2 + grazeLv * 1.5);
           }
+        } else if (!wave.isBerserkSlash && this.coreId !== 'overclock' && this.coreId !== 'blink') {
+          // Whiff Discipline: mashing Lift-to-Parry in empty air stalls Focus & extends cooldown!
+          p.parryCooldown = Math.max(p.parryCooldown, p.parryCooldownMax + 0.72);
+          p.focusStallTimer = Math.max(p.focusStallTimer, 0.65);
+          this.particles.callout(p.x, p.y - 32, 'WHIFF', '#8c8578', 0.85, 0.55);
         }
         this.parryWaves.splice(wi, 1);
       }
@@ -1874,8 +1943,8 @@ export class StillpointGame {
     const hurtR = p.inStillpoint ? 5 : 9.5;
     for (const e of this.enemies) {
       if (e.hp <= 0 || e.kind === 'hauler') continue;
-      if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= (hurtR + e.radius * 0.78) ** 2) {
-        this.damagePlayer(e.isBoss ? 22 : e.isElite ? 16 : 12);
+      if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= (hurtR + e.radius * 0.8) ** 2) {
+        this.damagePlayer(e.isBoss ? 26 : e.isElite ? 20 : 16);
         break;
       }
     }
@@ -2013,6 +2082,10 @@ export class StillpointGame {
 
   private handleEnemyKilled(enemy: Enemy): void {
     this.stats.kills++;
+    const eqCoating = getEquippedCoating(this.save);
+    if (eqCoating.striker) {
+      eqCoating.kills++;
+    }
     this.addMomentum(enemy.isElite ? 12 : 3.2);
     this.stats.score += enemy.scoreValue * this.player.surgeTier;
 
@@ -2069,8 +2142,13 @@ export class StillpointGame {
     }
 
     if (enemy.kind === 'hauler') {
-      // Treasure Hauler pinata: guaranteed Relic Cache Chest + Shards!
+      // Treasure Hauler pinata: guaranteed Relic Cache Chest + Shards + SALVAGE CRATE DROP!
       sound.playBossDefeat();
+      this.save.standardCrates++;
+      this.stats.cratesEarned++;
+      persistMetaSave(this.save);
+      this.particles.callout(enemy.x, enemy.y - 34, '+1 SALVAGE CRATE', '#e2a93b', 1.2, 1.3);
+      this.callbacks.onUnlockNotice('SALVAGE CRATE ACQUIRED');
       this.pickups.push(
         { id: this.nextEntityId++, kind: 'chest', x: enemy.x, y: enemy.y, vx: 0, vy: 0, value: 1, age: 0, magnetized: false },
         { id: this.nextEntityId++, kind: 'shard', x: enemy.x + 18, y: enemy.y, vx: 0, vy: 0, value: Math.round(28 * this.player.shardMult), age: 0, magnetized: false }
@@ -2156,7 +2234,17 @@ export class StillpointGame {
 
     const shardBonus = Math.round((45 + bossIndexCleared * 35) * this.player.shardMult);
     this.stats.shardsEarned += shardBonus;
-    this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.4);
+    // Boss kills always award a sealed Crate (Relic Crate on Heat 2+ or final boss!)
+    if (this.save.activeHeat.length >= 2 || bossIndexCleared >= 2) {
+      this.save.relicCrates++;
+      this.stats.relicCratesEarned++;
+      this.callbacks.onUnlockNotice('CLASSIFIED CRATE DROPPED');
+    } else {
+      this.save.standardCrates++;
+      this.stats.cratesEarned++;
+      this.callbacks.onUnlockNotice('SALVAGE CRATE DROPPED');
+    }
+    this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.35);
     this.player.kineticCharge = this.player.maxKineticCharge;
 
     const finalBossKind = this.sectorId === 'singularity' ? 'boss_leviathan' : 'boss_archon';
@@ -2185,8 +2273,8 @@ export class StillpointGame {
 
     if (this.enclosure.active) this.enclosure.playerHitDuringBoss = true;
 
-    let dmg = Math.max(4, rawDmg - p.armor);
-    p.invulnTimer = 0.62;
+    let dmg = Math.max(6, rawDmg - p.armor);
+    p.invulnTimer = 0.42;
     p.hitFlash = 1;
     p.grazeCombo = 0;
 
@@ -2220,7 +2308,7 @@ export class StillpointGame {
 
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
       const b = this.enemyBullets[i];
-      if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 95 * 95) {
+      if ((b.x - p.x) ** 2 + (b.y - p.y) ** 2 < 58 * 58) {
         this.enemyBullets.splice(i, 1);
       }
     }
@@ -2242,10 +2330,10 @@ export class StillpointGame {
   private finalizeMetaProgress(isVictory: boolean): RunStats {
     const hasVictory = isVictory || this.stats.victory;
     const runBonus = Math.round(
-      (this.stats.elapsed * 0.28 + this.stats.parries * 0.5 + (hasVictory ? 140 : 0)) *
+      (this.stats.elapsed * 0.24 + this.stats.parries * 0.55 + (hasVictory ? 150 : 0)) *
         this.player.shardMult
     );
-    const totalPayout = Math.max(12, this.stats.shardsEarned + runBonus);
+    const totalPayout = Math.max(0, this.stats.shardsEarned + runBonus);
     const deltaShards = Math.max(0, totalPayout - this.metaCommitted.shards);
     const deltaKills = Math.max(0, this.stats.kills - this.metaCommitted.kills);
     const deltaParries = Math.max(0, this.stats.parries - this.metaCommitted.parries);
@@ -2339,7 +2427,8 @@ export class StillpointGame {
   }
 
   private makeWeaponCtx(justEntered: boolean, justExited: boolean): WeaponWorldContext {
-    const skin = resolveSkinColors(SKINS[this.skinId], this.realTime);
+    const coating = getEquippedCoating(this.save);
+    const accent = FINISHES[coating.finishId]?.accent ?? '#4cb5ab';
     return {
       player: this.player,
       enemies: this.enemies,
@@ -2349,7 +2438,7 @@ export class StillpointGame {
       hazards: this.hazards,
       lasers: this.lasers,
       particles: this.particles,
-      accentColor: skin.accent,
+      accentColor: accent,
       nextId: () => this.nextEntityId++,
       damageEnemy: this.damageEnemy,
       spawnXp: this.spawnXp,
@@ -2406,12 +2495,19 @@ export class StillpointGame {
   private renderFrame(): void {
     const shakeX = (Math.random() - 0.5) * 2 * this.shakeMag;
     const shakeY = (Math.random() - 0.5) * 2 * this.shakeMag;
+    const coating = getEquippedCoating(this.save);
+    const trail = TRAILS[this.save.selectedTrail] ?? TRAILS.ion_ash;
+    const parryFx = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
 
     this.renderer.render({
       player: this.player,
       vesselId: this.vesselId,
       coreId: this.coreId,
       skinId: this.skinId,
+      coating,
+      trailColor: trail.color,
+      trailCoreColor: trail.coreColor,
+      accentColor: FINISHES[coating.finishId]?.accent ?? parryFx.outer,
       sectorId: this.sectorId,
       enemies: this.enemies,
       enemyBullets: this.enemyBullets,

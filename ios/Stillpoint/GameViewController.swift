@@ -68,6 +68,8 @@ private final class StillpointSchemeHandler: NSObject, WKURLSchemeHandler {
         case "svg": return "image/svg+xml"
         case "png": return "image/png"
         case "jpg", "jpeg": return "image/jpeg"
+        case "woff2": return "font/woff2"
+        case "woff": return "font/woff"
         case "wasm": return "application/wasm"
         default: return "application/octet-stream"
         }

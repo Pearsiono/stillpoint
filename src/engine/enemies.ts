@@ -44,9 +44,9 @@ export function spawnEnemy(
   difficultyScale = 1
 ): Enemy {
   const sector = SECTORS[ctx.sectorId];
-  const bloodlustSpeed = ctx.player.pacts.includes('bloodlust') ? 1.2 : 1.0;
+  const bloodlustSpeed = ctx.player.pacts.includes('bloodlust') ? 1.22 : 1.0;
   const ironcladMult = ctx.activeHeat.includes('ironclad') && (isElite || kind.startsWith('boss_')) ? 1.35 : 1.0;
-  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * (isElite ? 3.2 : 1);
+  const hpMult = difficultyScale * sector.difficultyMult * ironcladMult * 1.28 * (isElite ? 3.4 : 1);
 
   let radius = 13;
   let hp = 26;
@@ -258,7 +258,7 @@ export function fireEnemyBullet(
   angle: number,
   speed: number,
   kind: EnemyBulletKind = 'orb',
-  damage = 14,
+  damage = 17,
   radius = 5.5
 ): void {
   if (ctx.enemyBullets.length >= 480) {
@@ -266,8 +266,11 @@ export function fireEnemyBullet(
   }
   const pactFast = ctx.player.pacts.includes('bullet_magnet') ? 1.25 : 1.0;
   const heatFast = ctx.activeHeat.includes('hyper_fire') ? 1.25 : 1.0;
-  const spd = speed * pactFast * heatFast;
+  const curseStacks = ctx.player.curses.filter((c) => c === 'fast_hostiles').length;
+  const curseFast = Math.pow(1.18, curseStacks);
+  const spd = speed * 1.12 * pactFast * heatFast * curseFast;
   const isParryBonus = kind === 'parry_orb';
+  const isUnparryable = kind === 'void_unparryable';
   ctx.enemyBullets.push({
     id: ctx.nextId(),
     kind,
@@ -275,21 +278,23 @@ export function fireEnemyBullet(
     y,
     vx: Math.cos(angle) * spd,
     vy: Math.sin(angle) * spd,
-    radius: isParryBonus ? 8.5 : radius,
-    damage: isParryBonus ? damage + 4 : damage,
+    radius: isParryBonus ? 8.5 : isUnparryable ? 7.2 : radius,
+    damage: isUnparryable ? Math.round(damage * 1.35) : isParryBonus ? damage + 4 : Math.round(damage * 1.2),
     age: 0,
     maxAge: 7.5,
     grazed: false,
-    parryable: true,
+    parryable: !isUnparryable,
     isParryBonus,
     color:
-      kind === 'parry_orb'
-        ? '#ff4df0'
-        : kind === 'diamond'
-          ? '#ffb703'
-          : kind === 'needle'
-            ? '#ff2e63'
-            : '#ff4d6d'
+      isUnparryable
+        ? '#ff2442'
+        : kind === 'parry_orb'
+          ? '#ff4df0'
+          : kind === 'diamond'
+            ? '#ffb703'
+            : kind === 'needle'
+              ? '#ff2e63'
+              : '#ff4d6d'
   });
 }
 
@@ -305,9 +310,9 @@ export function updateWaveDirector(
   const t = ctx.elapsed;
   const swarmHeat = ctx.activeHeat.includes('swarm') ? 1.4 : 1.0;
   const greedEliteRate = ctx.player.pacts.includes('greed') ? 1.35 : 1.0;
-  const diffScale = 1 + t / 112 + (ctx.endlessMode ? Math.max(0.35, (t - 260) / 85) : 0);
-  const maxEnemies = Math.min(96, Math.round((18 + Math.floor(t * 0.19)) * swarmHeat));
-  const rate = Math.min(6.4, (1.95 + t * 0.013) * swarmHeat);
+  const diffScale = 1 + t / 82 + (ctx.endlessMode ? Math.max(0.45, (t - 240) / 70) : 0);
+  const maxEnemies = Math.min(104, Math.round((22 + Math.floor(t * 0.24)) * swarmHeat));
+  const rate = Math.min(7.2, (2.35 + t * 0.017) * swarmHeat);
 
   spawnAccum.value += dtWorld * rate;
   eliteTimer.value += dtWorld * greedEliteRate;
@@ -315,7 +320,7 @@ export function updateWaveDirector(
 
   while (spawnAccum.value >= 1 && ctx.enemies.length < maxEnemies) {
     spawnAccum.value -= 1;
-    const isElite = eliteTimer.value >= 23 && t > 20;
+    const isElite = eliteTimer.value >= 19 && t > 12;
     if (isElite) eliteTimer.value = 0;
 
     const kind = pickWaveEnemy(t, isElite, ctx.sectorId);
@@ -393,9 +398,12 @@ export function updateWaveDirector(
 }
 
 function pickWaveEnemy(t: number, isElite: boolean, sectorId: SectorId): EnemyKind {
-  if (t < 32) {
+  if (t < 24) {
     if (sectorId === 'singularity') return Math.random() < 0.5 ? 'reflector' : 'ring_caster';
-    return Math.random() < 0.68 ? 'swarmer' : 'turret';
+    const r = Math.random();
+    if (r < 0.52) return 'swarmer';
+    if (r < 0.8) return 'turret';
+    return 'dart';
   }
   if (t < 75) {
     const r = Math.random();
@@ -481,20 +489,17 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         const factor = dist > 175 ? 1 : dist < 110 ? -0.5 : 0.15;
         e.vx = (dx / dist) * e.speed * factor;
         e.vy = (dy / dist) * e.speed * factor;
-        if (e.fireTimer <= 0 && dist < 400) {
-          e.fireTimer = e.isElite ? 1.5 : 2.1;
+        if (e.fireTimer <= 0 && dist < 420) {
+          e.fireTimer = e.isElite ? 1.35 : 1.85;
           const fan = e.isElite ? [-0.34, -0.17, 0, 0.17, 0.34] : [-0.24, 0, 0.24];
           fan.forEach((off, idx) => {
-            fireEnemyBullet(
-              ctx,
-              e.x,
-              e.y,
-              toPlayer + off,
-              138,
-              e.isElite && idx === 2 ? 'parry_orb' : 'orb',
-              13,
-              5.2
-            );
+            const kind: EnemyBulletKind =
+              e.isElite && (idx === 0 || idx === 4)
+                ? 'void_unparryable'
+                : e.isElite && idx === 2
+                  ? 'parry_orb'
+                  : 'orb';
+            fireEnemyBullet(ctx, e.x, e.y, toPlayer + off, 148, kind, 15, 5.2);
           });
         }
         break;
@@ -509,21 +514,19 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         const factor = dist > 155 ? 1 : 0.2;
         e.vx = (dx / dist) * e.speed * factor;
         e.vy = (dy / dist) * e.speed * factor;
-        if (e.fireTimer <= 0 && dist < 420) {
-          e.fireTimer = e.isElite ? 2.15 : 2.8;
-          const pellets = e.isElite ? 12 : 8;
+        if (e.fireTimer <= 0 && dist < 430) {
+          e.fireTimer = e.isElite ? 1.9 : 2.45;
+          const pellets = e.isElite ? 12 : 9;
+          const hasVoid = ctx.elapsed > 45 || ctx.activeHeat.includes('cursed_void') || e.isElite;
           for (let i = 0; i < pellets; i++) {
             const ang = e.angle + (i * Math.PI * 2) / pellets;
-            fireEnemyBullet(
-              ctx,
-              e.x,
-              e.y,
-              ang,
-              118,
-              e.isElite && i % 4 === 0 ? 'parry_orb' : 'orb',
-              13,
-              5.2
-            );
+            const kind: EnemyBulletKind =
+              hasVoid && i % 4 === 2
+                ? 'void_unparryable'
+                : e.isElite && i % 4 === 0
+                  ? 'parry_orb'
+                  : 'orb';
+            fireEnemyBullet(ctx, e.x, e.y, ang, 126, kind, 15, 5.2);
           }
         }
         break;
@@ -591,9 +594,9 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
               isEnemy: true,
               damage: 18
             });
-            fireEnemyBullet(ctx, e.x, e.y, ang, 210, 'parry_orb', 14, 7.5);
+            fireEnemyBullet(ctx, e.x, e.y, ang, 215, 'void_unparryable', 17, 7.2);
             e.telegraphAngle = undefined;
-            e.fireTimer = 3.1;
+            e.fireTimer = 2.75;
           }
         } else {
           e.angle = toPlayer;
@@ -621,11 +624,20 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         const factor = dist > 165 ? 0.9 : 0.25;
         e.vx = (dx / dist) * e.speed * factor;
         e.vy = (dy / dist) * e.speed * factor;
-        if (e.fireTimer <= 0 && dist < 430) {
-          e.fireTimer = e.isElite ? 0.42 : 0.58;
+        if (e.fireTimer <= 0 && dist < 440) {
+          e.fireTimer = e.isElite ? 0.36 : 0.5;
           const arms = e.isElite ? 4 : 3;
           for (let i = 0; i < arms; i++) {
-            fireEnemyBullet(ctx, e.x, e.y, e.angle + (i * Math.PI * 2) / arms, 128, 'diamond', 12, 5);
+            fireEnemyBullet(
+              ctx,
+              e.x,
+              e.y,
+              e.angle + (i * Math.PI * 2) / arms,
+              134,
+              i === 0 && (e.isElite || ctx.elapsed > 70) ? 'void_unparryable' : 'diamond',
+              14,
+              5
+            );
           }
         }
         break;
@@ -664,10 +676,10 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         e.angle = toPlayer;
         e.vx = (dx / dist) * e.speed;
         e.vy = (dy / dist) * e.speed;
-        if (e.fireTimer <= 0 && dist < 350) {
-          e.fireTimer = 2.6;
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.18, 122, 'orb', 14, 5.5);
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.18, 122, 'orb', 14, 5.5);
+        if (e.fireTimer <= 0 && dist < 370) {
+          e.fireTimer = 2.25;
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.19, 134, 'void_unparryable', 16, 6.2);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.19, 134, 'void_unparryable', 16, 6.2);
         }
         break;
       }
@@ -789,9 +801,9 @@ function updateBossBehavior(
           boss.x,
           boss.y,
           boss.angle + (i * Math.PI * 2) / arms,
-          152,
-          i % 2 === 0 ? 'diamond' : 'orb',
-          15,
+          156,
+          i === 0 ? 'void_unparryable' : i % 2 === 0 ? 'diamond' : 'orb',
+          16,
           5.5
         );
       }
@@ -812,16 +824,35 @@ function updateBossBehavior(
 
   if (boss.kind === 'boss_weaver') {
     if (pat % 4 === 3) {
-      boss.fireTimer = boss.phase === 2 ? 0.95 : 1.2;
+      boss.fireTimer = boss.phase === 2 ? 0.85 : 1.05;
       const count = boss.phase === 2 ? 7 : 5;
       for (let i = 0; i < count; i++) {
-        fireEnemyBullet(ctx, boss.x, boss.y, toPlayer + (i - (count - 1) / 2) * 0.22, 132, 'parry_orb', 16, 8.5);
+        const isEdgeVoid = i === 0 || i === count - 1;
+        fireEnemyBullet(
+          ctx,
+          boss.x,
+          boss.y,
+          toPlayer + (i - (count - 1) / 2) * 0.22,
+          isEdgeVoid ? 148 : 134,
+          isEdgeVoid ? 'void_unparryable' : 'parry_orb',
+          17,
+          8.2
+        );
       }
     } else {
-      boss.fireTimer = boss.phase === 2 ? 0.24 : 0.32;
-      const arms = boss.phase === 2 ? 6 : 4;
+      boss.fireTimer = boss.phase === 2 ? 0.21 : 0.28;
+      const arms = boss.phase === 2 ? 6 : 5;
       for (let i = 0; i < arms; i++) {
-        fireEnemyBullet(ctx, boss.x, boss.y, t * 2.1 + (i * Math.PI * 2) / arms, 138, i === 0 ? 'diamond' : 'orb', 14, 5.5);
+        fireEnemyBullet(
+          ctx,
+          boss.x,
+          boss.y,
+          t * 2.1 + (i * Math.PI * 2) / arms,
+          144,
+          i === 0 ? 'void_unparryable' : i === 2 ? 'diamond' : 'orb',
+          15,
+          5.5
+        );
       }
     }
     return;
@@ -862,7 +893,17 @@ function updateBossBehavior(
       boss.fireTimer = boss.phase === 2 ? 0.42 : 0.56;
       const spread = boss.phase === 2 ? 7 : 5;
       for (let i = 0; i < spread; i++) {
-        fireEnemyBullet(ctx, boss.x, boss.y, toPlayer + (i - (spread - 1) / 2) * 0.26, 152, 'diamond', 14, 5.5);
+        const isEdge = i === 0 || i === spread - 1;
+        fireEnemyBullet(
+          ctx,
+          boss.x,
+          boss.y,
+          toPlayer + (i - (spread - 1) / 2) * 0.26,
+          158,
+          isEdge ? 'void_unparryable' : 'diamond',
+          16,
+          5.5
+        );
       }
     }
     return;
@@ -902,7 +943,16 @@ function updateBossBehavior(
     const arms = boss.phase >= 3 ? 8 : 6;
     const dir = pat % 2 === 0 ? 1 : -1;
     for (let i = 0; i < arms; i++) {
-      fireEnemyBullet(ctx, boss.x, boss.y, t * 2.4 * dir + (i * Math.PI * 2) / arms, 145 + boss.phase * 10, i % 3 === 0 ? 'diamond' : 'orb', 15, 5.4);
+      fireEnemyBullet(
+        ctx,
+        boss.x,
+        boss.y,
+        t * 2.4 * dir + (i * Math.PI * 2) / arms,
+        150 + boss.phase * 10,
+        i % 4 === 1 ? 'void_unparryable' : i % 3 === 0 ? 'diamond' : 'orb',
+        16,
+        5.4
+      );
     }
   }
 }

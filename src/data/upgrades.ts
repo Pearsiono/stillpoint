@@ -1,4 +1,4 @@
-import { RELIC_IDS, RELICS } from './builds';
+import { DRAFT_CURSE_IDS, DRAFT_CURSES, RELIC_IDS, RELICS } from './builds';
 import {
   PactId,
   PassiveDef,
@@ -9,8 +9,8 @@ import {
   WeaponId
 } from '../types';
 
-export const MAX_WEAPON_SLOTS = 5;
-export const MAX_PASSIVE_SLOTS = 5;
+export const MAX_WEAPON_SLOTS = 4;
+export const MAX_PASSIVE_SLOTS = 4;
 
 export const PACTS: Record<
   PactId,
@@ -469,11 +469,28 @@ export function generateUpgradeChoices(
     selected.push({
       kind: 'heal',
       id: `overdrive:${selected.length}`,
-      title: 'Overclock',
-      line: '+35% HP · +6% DMG · Full Focus',
-      accent: '#4effb4',
+      title: 'FIELD REPAIR',
+      line: '+30% HP · +6% DMG · FULL FOCUS',
+      accent: '#68c97a',
       iconKey: 'heal'
     });
+  }
+
+  // Starting at Lv.3+, ~38% chance one non-evolution card rolls OVERCLOCKED (+2 LV, real permanent curse!)
+  // Forces genuine risk/reward judgment instead of blind button-mashing!
+  if (!preferEvolution && player.level >= 3 && Math.random() < 0.42) {
+    const candidates = selected.filter(
+      (c) => (c.kind === 'weapon' || c.kind === 'passive') && (c.level ?? 1) < (c.maxLevel ?? 5)
+    );
+    if (candidates.length > 0) {
+      const target = candidates[Math.floor(Math.random() * candidates.length)];
+      const curseId = DRAFT_CURSE_IDS[Math.floor(Math.random() * DRAFT_CURSE_IDS.length)];
+      target.isOverclocked = true;
+      target.bonusLevels = 2;
+      target.curseId = curseId;
+      target.curseLine = DRAFT_CURSES[curseId].label;
+      target.level = Math.min(target.maxLevel ?? 5, (target.level ?? 1) + 1);
+    }
   }
 
   return selected;

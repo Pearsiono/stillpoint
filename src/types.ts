@@ -26,6 +26,53 @@ export type RelicId =
 
 export type HeatId = 'swarm' | 'hyper_fire' | 'ironclad' | 'fragile' | 'cursed_void';
 
+export type CoatingRarity = 'milspec' | 'restricted' | 'classified' | 'covert' | 'contraband';
+
+export type WearGrade = 'FN' | 'MW' | 'FT' | 'WW' | 'BS';
+
+export type FinishId =
+  | 'factory_issue'
+  | 'dune_splinter'
+  | 'oxide_hazard'
+  | 'ash_topo'
+  | 'slag_carbon'
+  | 'copper_patina'
+  | 'tiger_rust'
+  | 'damascus'
+  | 'case_hardened'
+  | 'crimson_web'
+  | 'kintsugi'
+  | 'fade'
+  | 'doppler'
+  | 'marble_fade'
+  | 'aurelia_gold';
+
+export type TrailId =
+  | 'ion_ash'
+  | 'slag_flame'
+  | 'verdigris_mist'
+  | 'crimson_burn'
+  | 'void_arc'
+  | 'monolith_gold';
+
+export type ParryFxId =
+  | 'steel_ring'
+  | 'shatter_gold'
+  | 'blood_slash'
+  | 'arc_pulse'
+  | 'obsidian_wave';
+
+export interface CoatingItem {
+  uid: string;
+  finishId: FinishId;
+  seed: number; // 0..999 deterministic pattern layout seed
+  floatVal: number; // 0.0000..0.9999 wear condition
+  striker: boolean; // StatTrak-style confirmed kill tracker
+  kills: number;
+  specialTag?: string;
+  acquiredAt: number;
+}
+
 export type SkinId =
   | 'cyanide'
   | 'ronin'
@@ -187,6 +234,8 @@ export interface MilestoneDef {
 
 export interface MetaSave {
   shards: number;
+  standardCrates: number;
+  relicCrates: number;
   bestTimeSec: number;
   bestScore: number;
   bestSingleParry: number;
@@ -204,6 +253,12 @@ export interface MetaSave {
   selectedCore: CoreId;
   unlockedSkins: SkinId[];
   selectedSkin: SkinId;
+  coatings: CoatingItem[];
+  equippedCoatingUid: string;
+  unlockedTrails: TrailId[];
+  selectedTrail: TrailId;
+  unlockedParryFx: ParryFxId[];
+  selectedParryFx: ParryFxId;
   unlockedSectors: SectorId[];
   selectedSector: SectorId;
   activeHeat: HeatId[];
@@ -230,6 +285,13 @@ export interface OwnedPassive {
   level: number;
 }
 
+export type DraftCurseId =
+  | 'fragile_hull'
+  | 'fast_hostiles'
+  | 'heavy_drain'
+  | 'slow_rig'
+  | 'blood_tax';
+
 export interface UpgradeChoice {
   kind: 'weapon' | 'passive' | 'evolution' | 'relic' | 'heal';
   id: string;
@@ -241,6 +303,10 @@ export interface UpgradeChoice {
   maxLevel?: number;
   isNew?: boolean;
   isSynergy?: boolean;
+  isOverclocked?: boolean;
+  curseId?: DraftCurseId;
+  curseLine?: string;
+  bonusLevels?: number;
   weaponId?: WeaponId;
   passiveId?: PassiveId;
   relicId?: RelicId;
@@ -283,6 +349,7 @@ export interface PlayerState {
   stillpointTimeHeld: number;
   parryCooldown: number;
   parryCooldownMax: number;
+  focusStallTimer: number;
   level: number;
   xp: number;
   xpToNext: number;
@@ -321,6 +388,7 @@ export interface PlayerState {
   passives: OwnedPassive[];
   relics: RelicId[];
   pacts: PactId[];
+  curses: DraftCurseId[];
   trail: Array<{ x: number; y: number; alpha: number }>;
   distanceMovedSinceDagger: number;
 }
@@ -375,7 +443,7 @@ export interface Enemy {
   segments?: Array<{ x: number; y: number }>;
 }
 
-export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'parry_orb';
+export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'parry_orb' | 'void_unparryable';
 
 export interface EnemyBullet {
   id: number;
@@ -535,6 +603,8 @@ export interface RunStats {
   grazes: number;
   bossesDefeated: number;
   shardsEarned: number;
+  cratesEarned: number;
+  relicCratesEarned: number;
   sectorId: SectorId;
   vesselId: VesselId;
   coreId: CoreId;

@@ -28,6 +28,7 @@ function bootstrap(): void {
     onSelectSector: (sector) => game.setSector(sector),
     onToggleHeat: (heat) => game.toggleHeat(heat),
     onRandomizeBuild: () => game.randomizeBuild(),
+    onVisualPrefsChanged: () => game.refreshVisualPrefs(),
     onSheetToggle: (open) => game.setMenuSheetOpen(open),
     onSelectUpgrade: (choiceId) => game.selectUpgrade(choiceId),
     onReroll: () => game.rerollChoices(),
