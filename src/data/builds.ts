@@ -3,36 +3,36 @@ import { CoreDef, CoreId, DraftCurseId, HeatId, RelicDef, RelicId } from '../typ
 export const CORES: Record<CoreId, CoreDef> = {
   deflector: {
     id: 'deflector',
-    name: 'KINETIC NOVA',
-    shortDesc: 'FOCUS ENTRY BLASTS & KNOCKS BACK FOES',
+    name: 'Kinetic Nova',
+    shortDesc: 'Blasts and pushes nearby enemies on slow-mo',
     accent: '#4cb5ab',
     unlockCost: 0
   },
   blink: {
     id: 'blink',
-    name: 'PHANTOM BLINK',
-    shortDesc: 'WARP FORWARD · EXPLODING DECOY',
+    name: 'Phantom Blink',
+    shortDesc: 'Warps forward and leaves an exploding decoy',
     accent: '#a974e8',
     unlockCost: 110
   },
   siphon: {
     id: 'siphon',
-    name: 'GRAVITY SIPHON',
-    shortDesc: 'VORTEX PULL · SHRAPNEL SHATTER EXIT',
+    name: 'Gravity Siphon',
+    shortDesc: 'Pulls enemies inward, shatters them on resume',
     accent: '#e08538',
     unlockCost: 170
   },
   overclock: {
     id: 'overclock',
-    name: 'OVERCLOCK',
-    shortDesc: '2.3× ROF · AUTO-CRIT FOCUS STANCE',
+    name: 'Overclock',
+    shortDesc: '2.3× fire rate and guaranteed crits in slow-mo',
     accent: '#e2a93b',
     unlockCost: 230
   },
   berserk: {
     id: 'berserk',
-    name: 'RAZOR REFLEX',
-    shortDesc: 'EXEC <32% HP · SHIELD & HASTE SLASH',
+    name: 'Razor Reflex',
+    shortDesc: 'Executes foes under 32% HP for shield and haste',
     accent: '#d94842',
     unlockCost: 290
   }
@@ -41,11 +41,11 @@ export const CORES: Record<CoreId, CoreDef> = {
 export const CORE_ORDER: CoreId[] = ['deflector', 'blink', 'siphon', 'overclock', 'berserk'];
 
 export const DRAFT_CURSES: Record<DraftCurseId, { id: DraftCurseId; label: string }> = {
-  fragile_hull: { id: 'fragile_hull', label: '-16 MAX HP' },
-  fast_hostiles: { id: 'fast_hostiles', label: '+18% ENEMY SHOT SPD' },
-  heavy_drain: { id: 'heavy_drain', label: '+25% FOCUS DRAIN' },
-  slow_rig: { id: 'slow_rig', label: '-12% MOVE SPD' },
-  blood_tax: { id: 'blood_tax', label: '-22% CURRENT HP' }
+  fragile_hull: { id: 'fragile_hull', label: '-16 max HP' },
+  fast_hostiles: { id: 'fast_hostiles', label: '+18% enemy shot speed' },
+  heavy_drain: { id: 'heavy_drain', label: '+25% focus drain' },
+  slow_rig: { id: 'slow_rig', label: '-12% move speed' },
+  blood_tax: { id: 'blood_tax', label: '-22% current HP' }
 };
 
 export const DRAFT_CURSE_IDS = Object.keys(DRAFT_CURSES) as DraftCurseId[];
@@ -54,85 +54,85 @@ export const DRAFT_CURSE_IDS = Object.keys(DRAFT_CURSES) as DraftCurseId[];
 export const RELICS: Record<RelicId, RelicDef> = {
   glass_prism: {
     id: 'glass_prism',
-    name: 'PRISM SPLIT',
-    line: 'CRITS SPLIT 2 HOMING SHARDS · -18% HP',
+    name: 'Prism Split',
+    line: 'Crits split 2 homing shards, -18% max HP',
     accent: '#52b8c9',
     iconKey: 'ricochet_shard'
   },
   volatile_shrapnel: {
     id: 'volatile_shrapnel',
-    name: 'SHRAPNEL CORE',
-    line: 'KILLS BURST 5 PIERCING SPLINTERS',
+    name: 'Shrapnel Core',
+    line: 'Slain enemies burst into 5 piercing splinters',
     accent: '#e0632b',
     iconKey: 'nova_pulse'
   },
   time_bank: {
     id: 'time_bank',
-    name: 'CHRONO OVERDRIVE',
-    line: '+40% DMG IN STILLPOINT · +22% DRAIN',
+    name: 'Chrono Overdrive',
+    line: '+40% damage in slow-mo, +22% drain',
     accent: '#e2a93b',
     iconKey: 'chrono_capacitor'
   },
   blood_engine: {
     id: 'blood_engine',
-    name: 'BLOOD ENGINE',
-    line: '20 KILLS → 4s FRENZY +3 HP · -15% SHIELD',
+    name: 'Blood Engine',
+    line: 'Every 20 kills grants frenzy and +3 HP, -15% shield',
     accent: '#d94842',
     iconKey: 'chrono_scythe'
   },
   chain_parry: {
     id: 'chain_parry',
-    name: 'GRAZE SURGE',
-    line: '8 GRAZES → +28% FOCUS & SHOCK BLAST',
+    name: 'Graze Surge',
+    line: '8 grazes restore 28% focus and emit a blast',
     accent: '#4cb5ab',
     iconKey: 'arc_tether'
   },
   ghost_step: {
     id: 'ghost_step',
-    name: 'GHOST STEP',
-    line: 'STILLPOINT ARCS LIGHTNING ALONG TRAIL',
+    name: 'Ghost Step',
+    line: 'Slow-mo arcs lightning back along your trail',
     accent: '#a974e8',
     iconKey: 'phase_daggers'
   },
   executioner: {
     id: 'executioner',
-    name: 'EXECUTIONER',
-    line: 'CRITS <35% HP DETONATE CHAIN ARCS',
+    name: 'Executioner',
+    line: 'Crits under 35% HP chain lightning to nearby foes',
     accent: '#e2b24a',
     iconKey: 'momentum_edge'
   },
   bullet_alchemy: {
     id: 'bullet_alchemy',
-    name: 'SCRAP HARVEST',
-    line: '10 GRAZES DROP BONUS SALVAGE SHARDS',
+    name: 'Scrap Harvest',
+    line: 'Every 10 grazes drops bonus shards',
     accent: '#d6689e',
     iconKey: 'shard'
   },
   orbital_overdrive: {
     id: 'orbital_overdrive',
-    name: 'ORBITAL DRIVE',
-    line: '+45% ORBITAL, DRONE, PYLON & SCYTHE',
+    name: 'Orbital Drive',
+    line: '+45% damage for orbitals, drones, pylons, and scythes',
     accent: '#68c97a',
     iconKey: 'halo_blades'
   },
   last_stand: {
     id: 'last_stand',
-    name: 'AEGIS PROTOCOL',
-    line: '1× CHEAT DEATH · CLEAR SHOTS +45% HP',
+    name: 'Aegis Protocol',
+    line: 'Survive lethal damage once with 45% HP',
     accent: '#82c4e8',
     iconKey: 'reactive_plating'
   },
   double_tap: {
     id: 'double_tap',
-    name: 'TWIN TRIGGER',
-    line: '+1 SHOT ALL WEAPONS · -14% ROF',
+    name: 'Twin Trigger',
+    line: '+1 shot on all weapons, -14% fire rate',
     accent: '#e08538',
     iconKey: 'swarm_missiles'
   },
   magnetic_storm: {
     id: 'magnetic_storm',
-    name: 'STATIC HARVEST',
-    line: 'XP PICKUPS ZAP NEARBY HOSTILES',
+    name: 'Static Harvest',
+    line: 'XP pickups zap nearby enemies',
     accent: '#6a9be8',
     iconKey: 'prism_drones'
   }
@@ -146,36 +146,36 @@ export const HEAT_MODS: Record<
 > = {
   swarm: {
     id: 'swarm',
-    name: 'SWARM +40%',
-    shortDesc: '+40% HOSTILE DENSITY',
+    name: 'Swarm',
+    shortDesc: '+40% enemy count',
     shardBonus: 0.25,
     accent: '#e0632b'
   },
   hyper_fire: {
     id: 'hyper_fire',
-    name: 'HYPER FIRE',
-    shortDesc: '+25% HOSTILE SHOT SPD',
+    name: 'Hyper Fire',
+    shortDesc: '+25% enemy shot speed',
     shardBonus: 0.25,
     accent: '#d94842'
   },
   ironclad: {
     id: 'ironclad',
-    name: 'IRONCLAD',
-    shortDesc: '+35% BOSS / ELITE HP',
+    name: 'Ironclad',
+    shortDesc: '+35% boss and elite HP',
     shardBonus: 0.25,
     accent: '#e2a93b'
   },
   fragile: {
     id: 'fragile',
-    name: 'GLASS EDGE',
-    shortDesc: '-25% HP · +25% DMG',
+    name: 'Glass Edge',
+    shortDesc: '-25% HP, +25% damage',
     shardBonus: 0.25,
     accent: '#a974e8'
   },
   cursed_void: {
     id: 'cursed_void',
-    name: 'CURSED VOID',
-    shortDesc: 'FREQUENT PACT ALTARS',
+    name: 'Pact Surge',
+    shortDesc: 'More pact altars spawn',
     shardBonus: 0.25,
     accent: '#4cb5ab'
   }

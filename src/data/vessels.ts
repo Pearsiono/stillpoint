@@ -3,7 +3,7 @@ import { VesselDef, VesselId } from '../types';
 export const VESSELS: Record<VesselId, VesselDef> = {
   vesper: {
     id: 'vesper',
-    name: 'VESPER',
+    name: 'Vesper',
     starterWeapon: 'pulse_lance',
     unlockCost: 0,
     stats: {
@@ -16,11 +16,11 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 0,
       shield: 0
     },
-    perkShort: '+18% SHOT SPD · +8% CRIT'
+    perkShort: '+18% shot speed and +8% crit chance'
   },
   aegis: {
     id: 'aegis',
-    name: 'AEGIS',
+    name: 'Aegis',
     starterWeapon: 'halo_blades',
     unlockCost: 160,
     unlockMilestone: 'boss_1',
@@ -34,11 +34,11 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 2,
       shield: 20
     },
-    perkShort: '+32% CORE AREA · HEAVY SHIELD'
+    perkShort: '+32% core blast area and recharging shield'
   },
   phantom: {
     id: 'phantom',
-    name: 'PHANTOM',
+    name: 'Phantom',
     starterWeapon: 'phase_daggers',
     unlockCost: 300,
     unlockMilestone: 'boss_2',
@@ -52,11 +52,11 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 0,
       shield: 0
     },
-    perkShort: '+40% GRAZE HALO · FAST FOCUS'
+    perkShort: 'Wider graze halo and faster focus charge'
   },
   volt: {
     id: 'volt',
-    name: 'VOLT',
+    name: 'Volt',
     starterWeapon: 'arc_tether',
     unlockCost: 420,
     unlockMilestone: 'graze_350',
@@ -70,11 +70,11 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 0,
       shield: 8
     },
-    perkShort: 'STILLPOINT ARCS LIGHTNING TO 3 FOES'
+    perkShort: 'Slow-mo arcs lightning to 3 nearby foes'
   },
   nova: {
     id: 'nova',
-    name: 'NOVA',
+    name: 'Nova',
     starterWeapon: 'void_mortars',
     unlockCost: 540,
     unlockMilestone: 'sector_drift',
@@ -88,11 +88,11 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 1,
       shield: 12
     },
-    perkShort: 'STILLPOINT ENTRY SPAWNS GRAVITY RIFT'
+    perkShort: 'Slow-mo opens a pulling gravity rift'
   },
   seraph: {
     id: 'seraph',
-    name: 'SERAPH',
+    name: 'Seraph',
     starterWeapon: 'prism_drones',
     unlockCost: 750,
     unlockMilestone: 'boss_3',
@@ -106,7 +106,7 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 1,
       shield: 26
     },
-    perkShort: '+1 BONUS SHOT · HIGH SHIELD'
+    perkShort: '+1 extra projectile and heavy shield'
   }
 };
 

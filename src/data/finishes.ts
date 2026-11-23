@@ -21,11 +21,11 @@ export const RARITY_META: Record<
   CoatingRarity,
   { label: string; color: string; scrapValue: number; order: number }
 > = {
-  milspec: { label: 'MIL-SPEC', color: '#5b82d6', scrapValue: 35, order: 0 },
-  restricted: { label: 'RESTRICTED', color: '#9c6ae6', scrapValue: 80, order: 1 },
-  classified: { label: 'CLASSIFIED', color: '#d64eb8', scrapValue: 165, order: 2 },
-  covert: { label: 'COVERT', color: '#d9483b', scrapValue: 340, order: 3 },
-  contraband: { label: 'RELIC ★', color: '#e2a93b', scrapValue: 700, order: 4 }
+  milspec: { label: 'Mil-Spec', color: '#5b82d6', scrapValue: 35, order: 0 },
+  restricted: { label: 'Restricted', color: '#9c6ae6', scrapValue: 80, order: 1 },
+  classified: { label: 'Classified', color: '#d64eb8', scrapValue: 165, order: 2 },
+  covert: { label: 'Covert', color: '#d9483b', scrapValue: 340, order: 3 },
+  contraband: { label: 'Relic ★', color: '#e2a93b', scrapValue: 700, order: 4 }
 };
 
 export const RARITY_NEXT: Partial<Record<CoatingRarity, CoatingRarity>> = {
@@ -38,7 +38,7 @@ export const RARITY_NEXT: Partial<Record<CoatingRarity, CoatingRarity>> = {
 export const FINISHES: Record<FinishId, FinishDef> = {
   factory_issue: {
     id: 'factory_issue',
-    name: 'STANDARD ISSUE',
+    name: 'Standard Issue',
     rarity: 'milspec',
     accent: '#8a949e',
     minFloat: 0.12,
@@ -46,7 +46,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   dune_splinter: {
     id: 'dune_splinter',
-    name: 'DUNE SPLINTER',
+    name: 'Dune Splinter',
     rarity: 'milspec',
     accent: '#c9a66b',
     minFloat: 0.0,
@@ -54,7 +54,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   oxide_hazard: {
     id: 'oxide_hazard',
-    name: 'OXIDE HAZARD',
+    name: 'Oxide Hazard',
     rarity: 'milspec',
     accent: '#d99e26',
     minFloat: 0.0,
@@ -62,7 +62,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   ash_topo: {
     id: 'ash_topo',
-    name: 'ASH TOPO',
+    name: 'Ash Topo',
     rarity: 'milspec',
     accent: '#9ca8a3',
     minFloat: 0.0,
@@ -70,7 +70,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   slag_carbon: {
     id: 'slag_carbon',
-    name: 'SLAG CARBON',
+    name: 'Slag Carbon',
     rarity: 'milspec',
     accent: '#d95f2b',
     minFloat: 0.0,
@@ -78,7 +78,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   copper_patina: {
     id: 'copper_patina',
-    name: 'VERDIGRIS',
+    name: 'Verdigris',
     rarity: 'restricted',
     accent: '#4cb59c',
     minFloat: 0.0,
@@ -86,7 +86,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   tiger_rust: {
     id: 'tiger_rust',
-    name: 'TIGER OXIDE',
+    name: 'Tiger Oxide',
     rarity: 'restricted',
     accent: '#e06d2b',
     minFloat: 0.0,
@@ -94,7 +94,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   damascus: {
     id: 'damascus',
-    name: 'DAMASCUS',
+    name: 'Damascus',
     rarity: 'restricted',
     accent: '#b8c4cc',
     minFloat: 0.0,
@@ -102,7 +102,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   case_hardened: {
     id: 'case_hardened',
-    name: 'CASE HARDENED',
+    name: 'Case Hardened',
     rarity: 'classified',
     accent: '#4a98e8',
     minFloat: 0.0,
@@ -110,7 +110,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   crimson_web: {
     id: 'crimson_web',
-    name: 'CRIMSON WEB',
+    name: 'Crimson Web',
     rarity: 'classified',
     accent: '#d6333a',
     minFloat: 0.06,
@@ -118,7 +118,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   kintsugi: {
     id: 'kintsugi',
-    name: 'KINTSUGI',
+    name: 'Kintsugi',
     rarity: 'classified',
     accent: '#e2b24a',
     minFloat: 0.0,
@@ -126,7 +126,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   fade: {
     id: 'fade',
-    name: 'SOLAR FADE',
+    name: 'Solar Fade',
     rarity: 'covert',
     accent: '#e05fa8',
     minFloat: 0.0,
@@ -134,7 +134,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   doppler: {
     id: 'doppler',
-    name: 'DOPPLER',
+    name: 'Doppler',
     rarity: 'covert',
     accent: '#6f5ce8',
     minFloat: 0.0,
@@ -142,7 +142,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   marble_fade: {
     id: 'marble_fade',
-    name: 'FIRE & ICE',
+    name: 'Fire & Ice',
     rarity: 'covert',
     accent: '#e0533c',
     minFloat: 0.0,
@@ -150,7 +150,7 @@ export const FINISHES: Record<FinishId, FinishDef> = {
   },
   aurelia_gold: {
     id: 'aurelia_gold',
-    name: 'MONOLITH GOLD',
+    name: 'Monolith Gold',
     rarity: 'contraband',
     accent: '#f0bc42',
     minFloat: 0.0,
@@ -181,11 +181,11 @@ export const CRATE_COSTS = {
 } as const;
 
 export function getWearGrade(floatVal: number): { code: WearGrade; label: string; color: string } {
-  if (floatVal < 0.07) return { code: 'FN', label: 'FACTORY NEW', color: '#5cd68d' };
-  if (floatVal < 0.15) return { code: 'MW', label: 'MINIMAL WEAR', color: '#8fd660' };
-  if (floatVal < 0.38) return { code: 'FT', label: 'FIELD-TESTED', color: '#e2b24a' };
-  if (floatVal < 0.45) return { code: 'WW', label: 'WELL-WORN', color: '#e07a38' };
-  return { code: 'BS', label: 'BATTLE-SCARRED', color: '#c94942' };
+  if (floatVal < 0.07) return { code: 'FN', label: 'Factory New', color: '#5cd68d' };
+  if (floatVal < 0.15) return { code: 'MW', label: 'Minimal Wear', color: '#8fd660' };
+  if (floatVal < 0.38) return { code: 'FT', label: 'Field-Tested', color: '#e2b24a' };
+  if (floatVal < 0.45) return { code: 'WW', label: 'Well-Worn', color: '#e07a38' };
+  return { code: 'BS', label: 'Battle-Scarred', color: '#c94942' };
 }
 
 export function getDopplerVariant(seed: number): {
@@ -195,52 +195,52 @@ export function getDopplerVariant(seed: number): {
   highlight: string;
 } {
   if (seed >= 975) {
-    return { tag: 'BLACK PEARL', primary: '#1e162e', secondary: '#59337d', highlight: '#a475d9' };
+    return { tag: 'Black Pearl', primary: '#1e162e', secondary: '#59337d', highlight: '#a475d9' };
   }
   if (seed >= 940) {
-    return { tag: 'SAPPHIRE', primary: '#13328a', secondary: '#2466e0', highlight: '#78baff' };
+    return { tag: 'Sapphire', primary: '#13328a', secondary: '#2466e0', highlight: '#78baff' };
   }
   if (seed >= 905) {
-    return { tag: 'RUBY', primary: '#6e0d1c', secondary: '#cf1f39', highlight: '#ff7082' };
+    return { tag: 'Ruby', primary: '#6e0d1c', secondary: '#cf1f39', highlight: '#ff7082' };
   }
   const phase = (seed % 4) + 1;
-  if (phase === 1) return { tag: 'PHASE 1', primary: '#1e162b', secondary: '#7d2252', highlight: '#cc4178' };
-  if (phase === 2) return { tag: 'PHASE 2', primary: '#3d1536', secondary: '#b82c78', highlight: '#f27ac0' };
-  if (phase === 3) return { tag: 'PHASE 3', primary: '#13242b', secondary: '#236675', highlight: '#52b89a' };
-  return { tag: 'PHASE 4', primary: '#122245', secondary: '#285db5', highlight: '#6ba8f2' };
+  if (phase === 1) return { tag: 'Phase 1', primary: '#1e162b', secondary: '#7d2252', highlight: '#cc4178' };
+  if (phase === 2) return { tag: 'Phase 2', primary: '#3d1536', secondary: '#b82c78', highlight: '#f27ac0' };
+  if (phase === 3) return { tag: 'Phase 3', primary: '#13242b', secondary: '#236675', highlight: '#52b89a' };
+  return { tag: 'Phase 4', primary: '#122245', secondary: '#285db5', highlight: '#6ba8f2' };
 }
 
 export function computeSpecialTag(finishId: FinishId, seed: number, floatVal: number): string | undefined {
-  if (floatVal >= 0.94) return 'BLACKSTEEL';
-  if (floatVal <= 0.0099) return '0.00× LOW FLOAT';
+  if (floatVal >= 0.94) return 'Blacksteel';
+  if (floatVal <= 0.0099) return '0.00× low float';
 
   if (finishId === 'case_hardened') {
     // Deterministic blue-coverage score aligned with patternBaker's blue-gem seed windows
     const bluePct = getCaseHardenedBluePct(seed);
-    if (bluePct >= 72) return `BLUE GEM ${bluePct}%`;
-    if (bluePct <= 18) return `GOLD GEM ${100 - bluePct}%`;
-    return `${bluePct}% BLUE`;
+    if (bluePct >= 72) return `Blue Gem ${bluePct}%`;
+    if (bluePct <= 18) return `Gold Gem ${100 - bluePct}%`;
+    return `${bluePct}% Blue`;
   }
   if (finishId === 'fade') {
     const fadePct = 80 + Math.round(((seed * 37) % 101) * 0.2);
-    return fadePct >= 97 ? `${fadePct}% FULL FADE` : `${fadePct}% FADE`;
+    return fadePct >= 97 ? `${fadePct}% Full Fade` : `${fadePct}% Fade`;
   }
   if (finishId === 'doppler') {
     return getDopplerVariant(seed).tag;
   }
   if (finishId === 'crimson_web') {
     const centerCheck = seed % 17;
-    if (centerCheck === 0) return 'TRIPLE WEB';
-    if (centerCheck <= 3) return 'CENTER WEB';
+    if (centerCheck === 0) return 'Triple Web';
+    if (centerCheck <= 3) return 'Center Web';
     return undefined;
   }
   if (finishId === 'marble_fade') {
-    if (seed % 23 === 0) return 'TRUE FIRE & ICE';
-    if (seed % 9 === 0) return 'MAX RED TIP';
+    if (seed % 23 === 0) return 'True Fire & Ice';
+    if (seed % 9 === 0) return 'Max Red Tip';
     return undefined;
   }
   if (finishId === 'aurelia_gold') {
-    return 'ANCIENT ALLOY';
+    return 'Ancient Alloy';
   }
   return undefined;
 }
@@ -361,12 +361,12 @@ export interface TrailDef {
 }
 
 export const TRAILS: Record<TrailId, TrailDef> = {
-  ion_ash: { id: 'ion_ash', name: 'ION ASH', color: '#4cb8b0', coreColor: '#e8fffb', cost: 0 },
-  slag_flame: { id: 'slag_flame', name: 'SLAG JET', color: '#e0632b', coreColor: '#ffe3a8', cost: 90 },
-  verdigris_mist: { id: 'verdigris_mist', name: 'ACID MIST', color: '#78c95b', coreColor: '#e6ffd6', cost: 130 },
-  crimson_burn: { id: 'crimson_burn', name: 'OXIDE BURN', color: '#d93d44', coreColor: '#ffd6d6', cost: 180 },
-  void_arc: { id: 'void_arc', name: 'PHASE ARC', color: '#a862e8', coreColor: '#f2deff', cost: 240 },
-  monolith_gold: { id: 'monolith_gold', name: 'SOLAR GOLD', color: '#e2a93b', coreColor: '#fff6d1', cost: 340 }
+  ion_ash: { id: 'ion_ash', name: 'Ion Ash', color: '#4cb8b0', coreColor: '#e8fffb', cost: 0 },
+  slag_flame: { id: 'slag_flame', name: 'Slag Jet', color: '#e0632b', coreColor: '#ffe3a8', cost: 90 },
+  verdigris_mist: { id: 'verdigris_mist', name: 'Acid Mist', color: '#78c95b', coreColor: '#e6ffd6', cost: 130 },
+  crimson_burn: { id: 'crimson_burn', name: 'Oxide Burn', color: '#d93d44', coreColor: '#ffd6d6', cost: 180 },
+  void_arc: { id: 'void_arc', name: 'Phase Arc', color: '#a862e8', coreColor: '#f2deff', cost: 240 },
+  monolith_gold: { id: 'monolith_gold', name: 'Solar Gold', color: '#e2a93b', coreColor: '#fff6d1', cost: 340 }
 };
 
 export const TRAIL_ORDER: TrailId[] = [
@@ -387,11 +387,11 @@ export interface ParryFxDef {
 }
 
 export const PARRY_FX: Record<ParryFxId, ParryFxDef> = {
-  steel_ring: { id: 'steel_ring', name: 'RELIC RING', outer: '#52bfb5', inner: '#e0b35c', cost: 0 },
-  shatter_gold: { id: 'shatter_gold', name: 'GILDED PULSE', outer: '#e2a93b', inner: '#fff2cc', cost: 120 },
-  blood_slash: { id: 'blood_slash', name: 'OXIDE FLARE', outer: '#d93d44', inner: '#f29f4b', cost: 160 },
-  arc_pulse: { id: 'arc_pulse', name: 'ARC LATTICE', outer: '#62a4f5', inner: '#d9f2ff', cost: 220 },
-  obsidian_wave: { id: 'obsidian_wave', name: 'VOID HALO', outer: '#b064eb', inner: '#52bfb5', cost: 300 }
+  steel_ring: { id: 'steel_ring', name: 'Relic Ring', outer: '#52bfb5', inner: '#e0b35c', cost: 0 },
+  shatter_gold: { id: 'shatter_gold', name: 'Gilded Pulse', outer: '#e2a93b', inner: '#fff2cc', cost: 120 },
+  blood_slash: { id: 'blood_slash', name: 'Oxide Flare', outer: '#d93d44', inner: '#f29f4b', cost: 160 },
+  arc_pulse: { id: 'arc_pulse', name: 'Arc Lattice', outer: '#62a4f5', inner: '#d9f2ff', cost: 220 },
+  obsidian_wave: { id: 'obsidian_wave', name: 'Void Halo', outer: '#b064eb', inner: '#52bfb5', cost: 300 }
 };
 
 export const PARRY_FX_ORDER: ParryFxId[] = [

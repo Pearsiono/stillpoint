@@ -33,7 +33,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 35,
     costStep: 35,
-    perLevelShort: '+14 HP'
+    perLevelShort: '+14 max HP'
   },
   {
     id: 'kinetic_core',
@@ -41,7 +41,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 40,
     costStep: 40,
-    perLevelShort: '+10% Charge'
+    perLevelShort: '+10% focus charge'
   },
   {
     id: 'parry_resonance',
@@ -49,7 +49,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 45,
     costStep: 45,
-    perLevelShort: '+8% Core Area · +12% DMG'
+    perLevelShort: '+8% core area, +12% damage'
   },
   {
     id: 'time_lattice',
@@ -57,7 +57,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 45,
     costStep: 45,
-    perLevelShort: '-7% Drain'
+    perLevelShort: '-7% slow-mo drain'
   },
   {
     id: 'crit_calibration',
@@ -65,7 +65,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 50,
     costStep: 45,
-    perLevelShort: '+5% Crit'
+    perLevelShort: '+5% crit chance'
   },
   {
     id: 'magnet_field',
@@ -73,7 +73,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 30,
     costStep: 30,
-    perLevelShort: '+20 Pull'
+    perLevelShort: '+20 pickup pull'
   },
   {
     id: 'shard_harvester',
@@ -81,7 +81,7 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 5,
     baseCost: 55,
     costStep: 50,
-    perLevelShort: '+12% Shards'
+    perLevelShort: '+12% shards earned'
   },
   {
     id: 'reroll_module',
@@ -89,60 +89,60 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
     maxLevel: 4,
     baseCost: 70,
     costStep: 70,
-    perLevelShort: '+1 Reroll'
+    perLevelShort: '+1 reroll per run'
   }
 ];
 
 export const MILESTONES: MilestoneDef[] = [
   {
     id: 'first_blood',
-    name: 'INITIATE',
-    goalText: '50 Kills',
+    name: 'Initiate',
+    goalText: '50 kills',
     rewardShards: 40,
     check: (s) => ({ current: s.totalKills, target: 50, done: s.totalKills >= 50 })
   },
   {
     id: 'slayer_500',
-    name: 'REAPER',
-    goalText: '500 Kills',
+    name: 'Reaper',
+    goalText: '500 kills',
     rewardShards: 120,
     check: (s) => ({ current: s.totalKills, target: 500, done: s.totalKills >= 500 })
   },
   {
     id: 'parry_25',
-    name: 'CLOSE CALL',
-    goalText: '60 Grazes',
+    name: 'Close Call',
+    goalText: '60 grazes',
     rewardShards: 50,
     check: (s) => ({ current: s.totalGrazes, target: 60, done: s.totalGrazes >= 60 })
   },
   {
     id: 'parry_150',
-    name: 'TEMPEST',
-    goalText: '350 Grazes',
+    name: 'Tempest',
+    goalText: '350 grazes',
     rewardShards: 140,
-    rewardLabel: 'VOLT',
+    rewardLabel: 'Volt',
     check: (s) => ({ current: s.totalGrazes, target: 350, done: s.totalGrazes >= 350 })
   },
   {
     id: 'parry_burst_8',
-    name: 'GRAZE STREAK',
-    goalText: '12× Graze Combo',
+    name: 'Graze Streak',
+    goalText: '12× graze combo',
     rewardShards: 110,
-    rewardLabel: '+1 CRATE',
+    rewardLabel: '+1 crate',
     check: (s) => ({ current: s.bestSingleParry, target: 12, done: s.bestSingleParry >= 12 })
   },
   {
     id: 'graze_200',
-    name: 'RAZOR EDGE',
-    goalText: '200 Grazes',
+    name: 'Razor Edge',
+    goalText: '200 grazes',
     rewardShards: 100,
-    rewardLabel: '+1 CRATE',
+    rewardLabel: '+1 crate',
     check: (s) => ({ current: s.totalGrazes, target: 200, done: s.totalGrazes >= 200 })
   },
   {
     id: 'evo_1',
-    name: 'CATALYST',
-    goalText: '1 Evolution',
+    name: 'Catalyst',
+    goalText: '1 evolution',
     rewardShards: 80,
     check: (s) => ({
       current: s.evolutionsCrafted,
@@ -152,8 +152,8 @@ export const MILESTONES: MilestoneDef[] = [
   },
   {
     id: 'evo_5',
-    name: 'ALCHEMIST',
-    goalText: '5 Evolutions',
+    name: 'Alchemist',
+    goalText: '5 evolutions',
     rewardShards: 180,
     check: (s) => ({
       current: s.evolutionsCrafted,
@@ -163,42 +163,42 @@ export const MILESTONES: MilestoneDef[] = [
   },
   {
     id: 'boss_1',
-    name: 'WEAVER FALL',
-    goalText: '1 Boss Cleared',
+    name: 'Weaver Fall',
+    goalText: '1 boss cleared',
     rewardShards: 90,
-    rewardLabel: 'AEGIS',
+    rewardLabel: 'Aegis',
     check: (s) => ({ current: s.bossesCleared, target: 1, done: s.bossesCleared >= 1 })
   },
   {
     id: 'boss_2',
-    name: 'SERAPH FALL',
-    goalText: '2 Bosses Cleared',
+    name: 'Seraph Fall',
+    goalText: '2 bosses cleared',
     rewardShards: 130,
-    rewardLabel: 'PHANTOM',
+    rewardLabel: 'Phantom',
     check: (s) => ({ current: s.bossesCleared, target: 2, done: s.bossesCleared >= 2 })
   },
   {
     id: 'boss_3',
-    name: 'ARCHON FALL',
-    goalText: '3 Bosses Cleared',
+    name: 'Archon Fall',
+    goalText: '3 bosses cleared',
     rewardShards: 220,
-    rewardLabel: 'SERAPH',
+    rewardLabel: 'Seraph',
     check: (s) => ({ current: s.bossesCleared, target: 3, done: s.bossesCleared >= 3 })
   },
   {
     id: 'no_hit_boss',
-    name: 'UNTOUCHED',
-    goalText: 'No-Hit Boss',
+    name: 'Untouched',
+    goalText: 'No-hit boss clear',
     rewardShards: 200,
-    rewardLabel: '+2 CLASSIFIED',
+    rewardLabel: '+2 classified',
     check: (s) => ({ current: s.noHitBossClears, target: 1, done: s.noHitBossClears >= 1 })
   },
   {
     id: 'sector_drift',
-    name: 'ASH CLEAR',
-    goalText: 'Clear 01 Ash Flats',
+    name: 'Ash Clear',
+    goalText: 'Clear Ash Flats',
     rewardShards: 150,
-    rewardLabel: 'NOVA',
+    rewardLabel: 'Nova',
     check: (s) => ({
       current: s.sectorsCleared.includes('drift') ? 1 : 0,
       target: 1,
@@ -207,10 +207,10 @@ export const MILESTONES: MilestoneDef[] = [
   },
   {
     id: 'sector_helix',
-    name: 'METRO CLEAR',
-    goalText: 'Clear 02 Sunken Metro',
+    name: 'Metro Clear',
+    goalText: 'Clear Sunken Metro',
     rewardShards: 200,
-    rewardLabel: '+1 CLASSIFIED',
+    rewardLabel: '+1 classified',
     check: (s) => ({
       current: s.sectorsCleared.includes('helix') ? 1 : 0,
       target: 1,
@@ -219,17 +219,17 @@ export const MILESTONES: MilestoneDef[] = [
   },
   {
     id: 'score_50k',
-    name: 'HIGH SIGNAL',
-    goalText: '50,000 Score',
+    name: 'High Signal',
+    goalText: '50,000 score',
     rewardShards: 160,
     check: (s) => ({ current: s.bestScore, target: 50000, done: s.bestScore >= 50000 })
   },
   {
     id: 'trophies_8',
-    name: 'ASCENDANT',
-    goalText: '8 Trophies',
+    name: 'Ascendant',
+    goalText: '8 trials complete',
     rewardShards: 300,
-    rewardLabel: '+3 CLASSIFIED',
+    rewardLabel: '+3 classified',
     check: (s) => ({
       current: s.claimedMilestones.length,
       target: 8,
@@ -469,7 +469,7 @@ export function evaluateMilestones(save: MetaSave): string[] {
       if (!m.check(save).done) continue;
       save.claimedMilestones.push(m.id);
       save.shards += m.rewardShards;
-      notices.push(`${m.name} · +${m.rewardShards}`);
+      notices.push(`${m.name} (+${m.rewardShards})`);
 
       // Grant milestone vessel/skin unlocks automatically!
       if (m.id === 'boss_1' && !save.unlockedVessels.includes('aegis')) {

@@ -18,26 +18,26 @@ export const PACTS: Record<
 > = {
   bloodlust: {
     id: 'bloodlust',
-    name: 'BLOODLUST',
-    trade: '+40% DMG · Foes faster',
+    name: 'Bloodlust',
+    trade: '+40% DMG, faster foes',
     accent: '#ff3b5c'
   },
   glass_cannon: {
     id: 'glass_cannon',
-    name: 'FRACTURE',
-    trade: '+55% FOCUS DMG · -20% HP',
+    name: 'Fracture',
+    trade: '+55% slow-mo DMG, -20% HP',
     accent: '#ff7a1a'
   },
   bullet_magnet: {
     id: 'bullet_magnet',
-    name: 'OVERDRIVE',
-    trade: '+75% Graze · Faster fire',
+    name: 'Overdrive',
+    trade: '+75% graze, faster fire',
     accent: '#d96bff'
   },
   greed: {
     id: 'greed',
-    name: 'AVARICE',
-    trade: '+60% Shards · More Elites',
+    name: 'Avarice',
+    trade: '+60% shards, more elites',
     accent: '#f6c453'
   }
 };
@@ -48,10 +48,10 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   pulse_lance: {
     id: 'pulse_lance',
     name: 'Pulse Lance',
-    evolvedName: 'SINGULARITY RAIL',
+    evolvedName: 'Singularity Rail',
     catalystPassive: 'chrono_capacitor',
     accent: '#22e6ff',
-    shortDesc: 'Auto-bolts · Slow-mo piercing railbeam',
+    shortDesc: 'Auto-bolts that become a piercing railbeam in slow-mo',
     stillpointShort: 'Piercing Chrono Railbeam',
     evolvedShort: 'Twin rails tear detonating gravity rifts',
     maxLevel: 5
@@ -59,10 +59,10 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   halo_blades: {
     id: 'halo_blades',
     name: 'Halo Sawblades',
-    evolvedName: 'ECLIPSE GYRO',
+    evolvedName: 'Eclipse Gyro',
     catalystPassive: 'kinetic_thrusters',
     accent: '#4effb4',
-    shortDesc: 'Orbiting saws · Slow-mo expands & speeds spin',
+    shortDesc: 'Orbiting saws that widen and accelerate in slow-mo',
     stillpointShort: 'Wide high-RPM shredder ring',
     evolvedShort: 'Dual solar rings launch homing razor flares',
     maxLevel: 5
@@ -70,54 +70,54 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   arc_tether: {
     id: 'arc_tether',
     name: 'Arc Tether',
-    evolvedName: 'TESLA LATTICE',
+    evolvedName: 'Tesla Lattice',
     catalystPassive: 'flux_coil',
     accent: '#6fa8ff',
-    shortDesc: 'Chain lightning · Slow-mo rapid overload',
+    shortDesc: 'Chain lightning that jumps to 3 extra foes in slow-mo',
     stillpointShort: 'Rapid +3 chain high-voltage arcs',
-    evolvedShort: 'Storm kills chain secondary lightning arcs',
+    evolvedShort: 'Kills discharge secondary chain lightning',
     maxLevel: 5
   },
   prism_drones: {
     id: 'prism_drones',
     name: 'Prism Drones',
-    evolvedName: 'SERAPHIM ARRAY',
+    evolvedName: 'Seraphim Array',
     catalystPassive: 'aether_lens',
     accent: '#7bf7ff',
-    shortDesc: 'Autonomous drones · Slow-mo tri-beams',
+    shortDesc: 'Orbiting drones that fire split beams in slow-mo',
     stillpointShort: 'Tri-split refraction beams',
-    evolvedShort: 'Six drones + periodic Shield regen',
+    evolvedShort: 'Six drones with periodic shield recharge',
     maxLevel: 5
   },
   void_mortars: {
     id: 'void_mortars',
     name: 'Void Mortars',
-    evolvedName: 'EVENT HORIZON',
+    evolvedName: 'Event Horizon',
     catalystPassive: 'singularity_core',
     accent: '#b97aff',
-    shortDesc: 'Plasma craters · Slow-mo gravity collapse',
+    shortDesc: 'Plasma craters that pull enemies inward in slow-mo',
     stillpointShort: 'Pulls foes, detonates on resume',
-    evolvedShort: 'Black holes turn bullets into XP',
+    evolvedShort: 'Black holes convert enemy shots into XP',
     maxLevel: 5
   },
   phase_daggers: {
     id: 'phase_daggers',
     name: 'Phase Daggers',
-    evolvedName: 'PHANTOM BARRAGE',
+    evolvedName: 'Phantom Barrage',
     catalystPassive: 'graze_conduit',
     accent: '#ff66e5',
-    shortDesc: 'Trail blades · Slow-mo homing recall',
+    shortDesc: 'Trail blades that recall toward elites in slow-mo',
     stillpointShort: 'Recalls all knives at elites',
-    evolvedShort: 'Grazes spawn daggers · Executes <20%',
+    evolvedShort: 'Grazes spawn daggers and execute under 20% HP',
     maxLevel: 5
   },
   chrono_scythe: {
     id: 'chrono_scythe',
     name: 'Chrono Scythe',
-    evolvedName: 'REAPER ECLIPSE',
+    evolvedName: 'Reaper Eclipse',
     catalystPassive: 'momentum_edge',
     accent: '#ff5c8a',
-    shortDesc: 'Boomerang arcs · Slow-mo locked buzzsaws',
+    shortDesc: 'Boomerang arcs that lock in place shredding waves in slow-mo',
     stillpointShort: 'Hovers mid-air shredding hostiles',
     evolvedShort: 'Twin crimson saws carve dense waves',
     maxLevel: 5
@@ -125,56 +125,56 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   ricochet_shard: {
     id: 'ricochet_shard',
     name: 'Ricochet Shard',
-    evolvedName: 'KALEIDOSCOPE',
+    evolvedName: 'Kaleidoscope',
     catalystPassive: 'echo_chamber',
     accent: '#5ce1e6',
-    shortDesc: 'Bouncing needles · Slow-mo split on hit',
+    shortDesc: 'Bouncing needles that split on hit in slow-mo',
     stillpointShort: 'Fractures into 2 shards per bounce',
-    evolvedShort: 'Multi-bounce prism storm fills arena',
+    evolvedShort: 'Multi-bounce shards flood the arena',
     maxLevel: 5
   },
   nova_pulse: {
     id: 'nova_pulse',
     name: 'Nova Pulse',
-    evolvedName: 'SUPERNOVA HEART',
+    evolvedName: 'Supernova Heart',
     catalystPassive: 'reactive_plating',
     accent: '#ff9f43',
-    shortDesc: 'Shockwave aura · Slow-mo implosion burst',
+    shortDesc: 'Shockwave aura that detonates outward on resume',
     stillpointShort: 'Mega knockback blast on touch-down',
-    evolvedShort: 'Massive thermal waves crush nearby swarms',
+    evolvedShort: 'Wide thermal waves crush nearby swarms',
     maxLevel: 5
   },
   rail_turret: {
     id: 'rail_turret',
     name: 'Rail Pylons',
-    evolvedName: 'OBELISK NETWORK',
+    evolvedName: 'Obelisk Network',
     catalystPassive: 'overclock_core',
     accent: '#f6c453',
-    shortDesc: 'Deploys pylons · Slow-mo laser tripwires',
+    shortDesc: 'Deploys pylons that link with laser tripwires in slow-mo',
     stillpointShort: 'Links pylons with lethal beams',
-    evolvedShort: 'Triangulates plasma fields between nodes',
+    evolvedShort: 'Triangulates plasma fields between pylons',
     maxLevel: 5
   },
   frost_nova: {
     id: 'frost_nova',
     name: 'Cryo Ring',
-    evolvedName: 'ABSOLUTE ZERO',
+    evolvedName: 'Absolute Zero',
     catalystPassive: 'cryo_core',
     accent: '#7ee8ff',
-    shortDesc: 'Chills foes · Slow-mo shatters frozen enemies',
+    shortDesc: 'Chills enemies and shatters frozen foes in slow-mo',
     stillpointShort: 'Shatters chilled foes into ice spikes',
-    evolvedShort: 'Deep-freeze shockwaves detonate waves on contact',
+    evolvedShort: 'Deep-freeze shockwaves shatter waves on contact',
     maxLevel: 5
   },
   swarm_missiles: {
     id: 'swarm_missiles',
     name: 'Swarm Missiles',
-    evolvedName: 'VALKYRIE SALVO',
+    evolvedName: 'Valkyrie Salvo',
     catalystPassive: 'targeting_array',
     accent: '#ff7b47',
-    shortDesc: 'Homing rockets · Slow-mo paints lock-on salvo',
+    shortDesc: 'Paints lock-ons in slow-mo and launches salvo on resume',
     stillpointShort: 'Launches painted missile swarm on resume',
-    evolvedShort: 'Continuous curved warhead barrage melts bosses',
+    evolvedShort: 'Continuous warhead barrage shreds bosses',
     maxLevel: 5
   }
 };
@@ -185,7 +185,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Chrono Capacitor',
     pairsWith: 'pulse_lance',
     accent: '#22e6ff',
-    shortStat: '+18 Focus · -10% drain',
+    shortStat: '+18 max focus, -10% drain',
     maxLevel: 5
   },
   kinetic_thrusters: {
@@ -193,7 +193,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Kinetic Thrusters',
     pairsWith: 'halo_blades',
     accent: '#4effb4',
-    shortStat: '+9% Speed · +16% Charge',
+    shortStat: '+9% speed, +16% charge rate',
     maxLevel: 5
   },
   flux_coil: {
@@ -201,7 +201,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Flux Coil',
     pairsWith: 'arc_tether',
     accent: '#6fa8ff',
-    shortStat: '+13% Fire rate · -12% Core CD',
+    shortStat: '+13% fire rate, -12% core cooldown',
     maxLevel: 5
   },
   aether_lens: {
@@ -209,7 +209,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Aether Lens',
     pairsWith: 'prism_drones',
     accent: '#7bf7ff',
-    shortStat: '+16% Weapon & Core area',
+    shortStat: '+16% weapon and core area',
     maxLevel: 5
   },
   singularity_core: {
@@ -217,7 +217,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Singularity Core',
     pairsWith: 'void_mortars',
     accent: '#b97aff',
-    shortStat: '+16% DMG · +22% Core DMG',
+    shortStat: '+16% damage, +22% core damage',
     maxLevel: 5
   },
   graze_conduit: {
@@ -225,7 +225,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Graze Conduit',
     pairsWith: 'phase_daggers',
     accent: '#ff66e5',
-    shortStat: '+14 Graze · 12 Grazes heal HP',
+    shortStat: '+14 graze radius, 12 grazes restore HP',
     maxLevel: 5
   },
   momentum_edge: {
@@ -233,7 +233,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Momentum Edge',
     pairsWith: 'chrono_scythe',
     accent: '#ff5c8a',
-    shortStat: '+10% Crit · +12% Shot speed',
+    shortStat: '+10% crit chance, +12% shot speed',
     maxLevel: 5
   },
   echo_chamber: {
@@ -241,7 +241,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Echo Chamber',
     pairsWith: 'ricochet_shard',
     accent: '#5ce1e6',
-    shortStat: '+1 Projectile every 2 lv',
+    shortStat: '+1 projectile every 2 levels',
     maxLevel: 5
   },
   reactive_plating: {
@@ -249,7 +249,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Reactive Plating',
     pairsWith: 'nova_pulse',
     accent: '#ff9f43',
-    shortStat: '+1 Armor · +12 Shield',
+    shortStat: '+1 armor, +12 max shield',
     maxLevel: 5
   },
   overclock_core: {
@@ -257,7 +257,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Overclock Core',
     pairsWith: 'rail_turret',
     accent: '#f6c453',
-    shortStat: '+18% XP & Shard gain',
+    shortStat: '+18% XP and shard gain',
     maxLevel: 5
   },
   cryo_core: {
@@ -265,7 +265,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Cryo Core',
     pairsWith: 'frost_nova',
     accent: '#7ee8ff',
-    shortStat: '+18% DMG vs chilled · Deeper freeze',
+    shortStat: '+18% damage to chilled foes',
     maxLevel: 5
   },
   targeting_array: {
@@ -273,7 +273,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Targeting Array',
     pairsWith: 'swarm_missiles',
     accent: '#ff7b47',
-    shortStat: '+16% Boss DMG · Stronger homing',
+    shortStat: '+16% boss damage and tighter homing',
     maxLevel: 5
   }
 };
@@ -357,6 +357,7 @@ export function generateUpgradeChoices(
           maxLevel: def.maxLevel,
           isNew: true,
           isSynergy: matchesPassive,
+          pairIconKey: matchesPassive ? def.catalystPassive : undefined,
           weaponId: wid
         }
       });
@@ -401,6 +402,7 @@ export function generateUpgradeChoices(
           maxLevel: def.maxLevel,
           isNew: true,
           isSynergy: matchesWeapon,
+          pairIconKey: matchesWeapon ? def.pairsWith : undefined,
           passiveId: pid
         }
       });
@@ -469,8 +471,8 @@ export function generateUpgradeChoices(
     selected.push({
       kind: 'heal',
       id: `overdrive:${selected.length}`,
-      title: 'FIELD REPAIR',
-      line: '+30% HP · +6% DMG · FULL FOCUS',
+      title: 'Field Repair',
+      line: 'Restores 30% HP, refills focus, +6% damage',
       accent: '#68c97a',
       iconKey: 'heal'
     });

@@ -34,6 +34,7 @@ import {
   CoatingItem,
   CoatingRarity,
   CoreId,
+  FinishId,
   GamePhase,
   HeatId,
   MetaSave,
@@ -73,6 +74,23 @@ const TALENT_ICON_KEYS: Record<MetaUpgradeId, string> = {
   shard_harvester: 'shard',
   reroll_module: 'echo_chamber'
 };
+
+// Visual sample finishes shown directly on each crate (show, don't tell)
+const STD_CRATE_SAMPLES: Array<{ id: FinishId; seed: number; floatVal: number }> = [
+  { id: 'dune_splinter', seed: 142, floatVal: 0.14 },
+  { id: 'copper_patina', seed: 318, floatVal: 0.12 },
+  { id: 'case_hardened', seed: 661, floatVal: 0.08 },
+  { id: 'fade', seed: 420, floatVal: 0.04 },
+  { id: 'aurelia_gold', seed: 777, floatVal: 0.03 }
+];
+
+const RELIC_CRATE_SAMPLES: Array<{ id: FinishId; seed: number; floatVal: number }> = [
+  { id: 'damascus', seed: 205, floatVal: 0.09 },
+  { id: 'crimson_web', seed: 510, floatVal: 0.08 },
+  { id: 'kintsugi', seed: 88, floatVal: 0.05 },
+  { id: 'doppler', seed: 952, floatVal: 0.02 },
+  { id: 'marble_fade', seed: 46, floatVal: 0.03 }
+];
 
 export interface OverlayActions {
   onStartRun: () => void;
@@ -122,10 +140,9 @@ export class OverlayController {
     this.inspectVesselIdx = Math.max(0, VESSEL_ORDER.indexOf(save.selectedVessel));
     parent.appendChild(this.container);
 
-    // Re-hydrate coated ship canvases once PNG ship art finishes decoding!
     sprites.onArtLoaded(() => {
       if (this.currentPhase === 'menu' || this.currentPhase === 'gameover' || this.currentPhase === 'victory') {
-        this.hydrateCoatedCanvases();
+        this.hydrateVisualCanvases();
       }
     });
   }
@@ -141,7 +158,7 @@ export class OverlayController {
     this.toastTimer = window.setTimeout(() => {
       el.remove();
       this.toastEl = null;
-    }, 3000);
+    }, 2800);
   }
 
   renderPhase(
@@ -235,18 +252,18 @@ export class OverlayController {
       <div class="hub-shell">
         <div class="hub-topbar">
           <div class="top-currencies">
-            <div class="currency-pill">
+            <div class="currency-readout">
               ${artIconImg('shard', 18)}
               <span>${this.save.shards.toLocaleString()}</span>
             </div>
             ${
               totalCrates > 0
-                ? `<button class="currency-pill crate-pill" id="btn-top-crates">CRATES ×${totalCrates}</button>`
+                ? `<button class="crate-trigger" id="btn-top-crates">Crates ×${totalCrates}</button>`
                 : ''
             }
           </div>
           <div class="topbar-actions">
-            <button class="icon-square ${this.save.settings.music ? '' : 'muted'}" id="btn-quick-mute" aria-label="Mute Music">
+            <button class="icon-square ${this.save.settings.music ? '' : 'muted'}" id="btn-quick-mute" aria-label="Toggle music">
               ${svgIcon('music', 15)}
             </button>
             <button class="icon-square" id="btn-settings" aria-label="Settings">
@@ -260,25 +277,25 @@ export class OverlayController {
         <nav class="bottom-nav">
           <button class="nav-item ${this.tab === 'armory' ? 'active' : ''}" data-tab="armory">
             ${svgIcon('skins', 18)}
-            <span>ARMORY</span>
+            <span>Armory</span>
             ${totalCrates > 0 ? '<span class="red-dot"></span>' : ''}
           </button>
           <button class="nav-item ${this.tab === 'hangar' ? 'active' : ''}" data-tab="hangar">
             ${svgIcon('ships', 18)}
-            <span>HANGAR</span>
+            <span>Hangar</span>
           </button>
           <button class="nav-item battle-center ${this.tab === 'battle' ? 'active' : ''}" data-tab="battle">
             ${svgIcon('play', 18)}
-            <span>BATTLE</span>
+            <span>Play</span>
           </button>
           <button class="nav-item ${this.tab === 'talents' ? 'active' : ''}" data-tab="talents">
             ${svgIcon('matrix', 17)}
-            <span>TALENTS</span>
+            <span>Upgrades</span>
             ${canBuyTalent ? '<span class="red-dot"></span>' : ''}
           </button>
           <button class="nav-item ${this.tab === 'trials' ? 'active' : ''}" data-tab="trials">
             ${svgIcon('trophy', 17)}
-            <span>TRIALS</span>
+            <span>Trials</span>
           </button>
         </nav>
 
@@ -287,7 +304,7 @@ export class OverlayController {
     `;
 
     this.bindHubEvents();
-    this.hydrateCoatedCanvases();
+    this.hydrateVisualCanvases();
     if (this.reelItems) {
       this.startCrateReelAnimation();
     }
@@ -315,12 +332,10 @@ export class OverlayController {
 
     return `
       <div class="battle-tab">
-        <div class="brand-header">
-          <div class="brand-wordmark">STILLPOINT</div>
-        </div>
+        <div class="brand-wordmark">STILLPOINT</div>
 
         <div class="chapter-carousel">
-          <button class="carousel-arrow" id="btn-sec-prev" aria-label="Previous Sector">
+          <button class="carousel-arrow" id="btn-sec-prev" aria-label="Previous sector">
             ${svgIcon('back', 15)}
           </button>
 
@@ -329,8 +344,8 @@ export class OverlayController {
               <img src="${sectorBannerUrl(secId)}" class="chapter-art ${secUnlocked ? '' : 'locked'}" alt="${sector.name}" draggable="false" />
               <div class="chapter-grad"></div>
               <div class="chapter-top-badges">
-                <span class="ch-pill" style="color:${sector.accent};border-color:${sector.accent}">${sector.code}</span>
-                <span class="ch-pill" style="color:var(--gold)">
+                <span class="ch-code" style="color:${sector.accent};border-color:${sector.accent}">${sector.code}</span>
+                <span class="ch-code" style="color:var(--gold)">
                   ${secCleared ? '★ ' : ''}${totalMult.toFixed(1)}×
                 </span>
               </div>
@@ -338,8 +353,8 @@ export class OverlayController {
             <div class="chapter-footer">
               <div class="chapter-title">${sector.name}</div>
               <div class="boss-mini">
-                <button class="heat-pill ${heatCount > 0 ? 'hot' : ''}" id="btn-heat">
-                  HEAT ${heatCount}
+                <button class="heat-btn ${heatCount > 0 ? 'hot' : ''}" id="btn-heat">
+                  ${heatCount > 0 ? `Modifiers ${heatCount}` : 'Modifiers'}
                 </button>
                 <div class="boss-thumb">
                   <img src="${bossArtForSector(secId)}" width="20" height="20" class="art-img" alt="" />
@@ -348,39 +363,40 @@ export class OverlayController {
             </div>
           </div>
 
-          <button class="carousel-arrow" id="btn-sec-next" aria-label="Next Sector">
+          <button class="carousel-arrow" id="btn-sec-next" aria-label="Next sector">
             ${svgIcon('chevron', 15)}
           </button>
         </div>
 
-        <div class="hero-stage" id="btn-go-hangar" style="border-left-color:${rarColor}">
-          <div class="hero-ship-wrap">
-            <canvas class="coated-canvas hero-ship-img" width="144" height="144" data-vid="${vessel.id}" data-cuid="${coating.uid}"></canvas>
-          </div>
-          <div class="hero-info">
-            <div class="hero-name-row">
-              <span class="hero-name">${vessel.name}</span>
-              <div style="display:flex;gap:4px">
-                <div class="r-frame ${rarityForVessel(vessel.id)}" style="width:30px;height:30px">
-                  ${artIconImg(vessel.starterWeapon, 20)}
-                </div>
-                <div class="r-frame ${rarityForCore(core.id)}" style="width:30px;height:30px">
-                  ${coreIconImg(core.id, 20)}
-                </div>
+        <button class="rig-strip" id="btn-go-hangar" aria-label="Open hangar">
+          <canvas class="coated-canvas hero-ship-img" width="152" height="152" data-vid="${vessel.id}" data-cuid="${coating.uid}"></canvas>
+          <div class="rig-info">
+            <div class="rig-head">
+              <span class="rig-name">${vessel.name}</span>
+              <div class="rig-icons">
+                <span class="r-frame ${rarityForVessel(vessel.id)}" style="width:28px;height:28px">
+                  ${artIconImg(vessel.starterWeapon, 19)}
+                </span>
+                <span class="r-frame ${rarityForCore(core.id)}" style="width:28px;height:28px">
+                  ${coreIconImg(core.id, 19)}
+                </span>
               </div>
             </div>
-            <div class="hero-stats">
-              <span class="stat-chip" style="color:${core.accent};border-color:${core.accent}66">${core.name}</span>
-              <span class="stat-chip" style="color:${rarColor};border-color:${rarColor}66">${finish.name} · ${wear.code}</span>
+            <div class="rig-sub">
+              <span style="color:${core.accent}">${core.name}</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;color:${rarColor}">
+                <span>${finish.name}</span>
+                <span class="wear-code" style="color:${wear.color}">${wear.code}</span>
+              </span>
             </div>
           </div>
-        </div>
+        </button>
 
         ${
           secUnlocked
-            ? `<button class="battle-btn" id="btn-play">${svgIcon('play', 17, '#161108')}<span>DEPLOY</span></button>`
+            ? `<button class="battle-btn" id="btn-play">${svgIcon('play', 16, '#161108')}<span>Play</span></button>`
             : `<button class="battle-btn unlock-btn" id="btn-unlock-sec" ${canUnlockSec ? '' : 'disabled'}>
-                 ${artIconImg('shard', 18)}<span>UNLOCK · ${sector.unlockCost}</span>
+                 ${artIconImg('shard', 18)}<span>Unlock ${sector.unlockCost}</span>
                </button>`
         }
       </div>
@@ -389,9 +405,11 @@ export class OverlayController {
 
   private buildHangarTab(): string {
     const vessel = VESSELS[this.save.selectedVessel];
-    const core = CORES[this.save.selectedCore];
     const coating = getEquippedCoating(this.save);
     const maxHp = vessel.stats.maxHp + (this.save.upgrades.hull_integrity ?? 0) * 14;
+    const hpPct = Math.min(100, Math.round((maxHp / 205) * 100));
+    const spdPct = Math.min(100, Math.round((vessel.stats.moveSpeed / 260) * 100));
+    const focusPct = Math.min(100, Math.round((vessel.stats.maxCharge / 140) * 100));
 
     const subContent =
       this.hangarSub === 'ships'
@@ -414,48 +432,61 @@ export class OverlayController {
               </button>
             `;
           }).join('')}</div>`
-        : `<div class="trial-list">${CORE_ORDER.map((cid) => {
+        : `<div class="ledger-list">${CORE_ORDER.map((cid) => {
             const c = CORES[cid];
             const unlocked = this.save.unlockedCores.includes(cid);
             const selected = this.save.selectedCore === cid;
             const canBuy = !unlocked && this.save.shards >= c.unlockCost;
             return `
-              <button class="talent-row ${selected ? 'unlocked' : ''}" data-core="${cid}" style="text-align:left;${selected ? `border-color:${c.accent}` : ''}">
-                <div class="r-frame talent-node ${rarityForCore(cid)}">
-                  ${coreIconImg(cid, 26)}
+              <button class="ledger-row ${selected ? 'active-mark' : ''}" data-core="${cid}" style="${selected ? `border-left-color:${c.accent}` : ''}">
+                <div class="r-frame ledger-node ${rarityForCore(cid)}">
+                  ${coreIconImg(cid, 25)}
                 </div>
-                <div class="talent-body">
-                  <div class="talent-name" style="color:${c.accent}">${c.name}</div>
-                  <div class="talent-stat">${c.shortDesc}</div>
+                <div class="ledger-body">
+                  <div class="ledger-title" style="color:${c.accent}">${c.name}</div>
+                  <div class="ledger-sub">${c.shortDesc}</div>
                 </div>
                 <span class="buy-pill ${canBuy ? 'ready' : ''}">
-                  ${unlocked ? (selected ? svgIcon('check', 13, '#dfa436') : 'USE') : `${artIconImg('shard', 11)}${c.unlockCost}`}
+                  ${unlocked ? (selected ? svgIcon('check', 13, '#dfa436') : 'Equip') : `${artIconImg('shard', 11)}${c.unlockCost}`}
                 </span>
               </button>
             `;
           }).join('')}</div>`;
 
     return `
-      <div class="bay-preview">
-        <canvas class="coated-canvas bay-ship-big" width="156" height="156" data-vid="${vessel.id}" data-cuid="${coating.uid}"></canvas>
-        <div class="hero-info">
-          <div class="hero-name-row">
-            <span class="hero-name">${vessel.name}</span>
-            <button class="icon-square" id="btn-randomize" style="width:30px;height:30px" aria-label="Randomize Build">
+      <div class="bay-stage">
+        <canvas class="coated-canvas bay-ship-big" width="164" height="164" data-vid="${vessel.id}" data-cuid="${coating.uid}"></canvas>
+        <div class="rig-info">
+          <div class="rig-head">
+            <span class="rig-name">${vessel.name}</span>
+            <button class="icon-square" id="btn-randomize" style="width:30px;height:30px" aria-label="Randomize loadout">
               ${svgIcon('reroll', 14)}
             </button>
           </div>
-          <div class="talent-stat">${this.hangarSub === 'ships' ? vessel.perkShort : core.shortDesc}</div>
-          <div class="hero-stats">
-            <span class="stat-chip">HP ${maxHp}</span>
-            <span class="stat-chip" style="color:${core.accent}">${core.name}</span>
+          <div class="ledger-sub">${vessel.perkShort}</div>
+          <div class="stat-bars">
+            <div class="stat-bar-row">
+              <span>Hull</span>
+              <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${hpPct}%;background:#df4b42"></div></div>
+              <span class="stat-bar-val">${maxHp}</span>
+            </div>
+            <div class="stat-bar-row">
+              <span>Speed</span>
+              <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${spdPct}%;background:var(--gold)"></div></div>
+              <span class="stat-bar-val">${vessel.stats.moveSpeed}</span>
+            </div>
+            <div class="stat-bar-row">
+              <span>Focus</span>
+              <div class="stat-bar-track"><div class="stat-bar-fill" style="width:${focusPct}%;background:#4cb5ab"></div></div>
+              <span class="stat-bar-val">${vessel.stats.maxCharge}</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="subtab-row">
-        <button class="subtab-btn ${this.hangarSub === 'ships' ? 'active' : ''}" data-hsub="ships">SHIPS</button>
-        <button class="subtab-btn ${this.hangarSub === 'cores' ? 'active' : ''}" data-hsub="cores">CORES</button>
+        <button class="subtab-btn ${this.hangarSub === 'ships' ? 'active' : ''}" data-hsub="ships">Ships</button>
+        <button class="subtab-btn ${this.hangarSub === 'cores' ? 'active' : ''}" data-hsub="cores">Cores</button>
       </div>
 
       ${subContent}
@@ -474,13 +505,13 @@ export class OverlayController {
     return `
       <div class="subtab-row">
         <button class="subtab-btn ${this.armorySub === 'crates' ? 'active' : ''}" data-asub="crates">
-          CRATES${totalCrates > 0 ? ` (${totalCrates})` : ''}
+          Crates${totalCrates > 0 ? ` (${totalCrates})` : ''}
         </button>
         <button class="subtab-btn ${this.armorySub === 'locker' ? 'active' : ''}" data-asub="locker">
-          LOCKER (${this.save.coatings.length})
+          Locker (${this.save.coatings.length})
         </button>
         <button class="subtab-btn ${this.armorySub === 'fx' ? 'active' : ''}" data-asub="fx">
-          FX
+          Effects
         </button>
       </div>
       ${subContent}
@@ -490,18 +521,24 @@ export class OverlayController {
   private buildCratesSubtab(): string {
     const canBuyStd = this.save.shards >= CRATE_COSTS.standard;
     const canBuyRelic = this.save.shards >= CRATE_COSTS.relic;
+    const renderStrip = (group: 'std' | 'relic', samples: typeof STD_CRATE_SAMPLES) =>
+      samples
+        .map((s, idx) => {
+          const rar = RARITY_META[FINISHES[s.id].rarity];
+          return `<div class="crate-mini-swatch" style="border-bottom-color:${rar.color}"><canvas width="64" height="32" data-crate-sample="${group}:${idx}"></canvas></div>`;
+        })
+        .join('');
+
     return `
       <div class="crate-stack">
-        <div class="crate-card">
+        <div class="crate-block">
           <div class="crate-top">
-            <div>
-              <div class="crate-title">SALVAGE CRATE</div>
-              <div class="talent-stat">SEEDED PATTERN · FLOAT WEAR · 12% STRIKER</div>
-            </div>
+            <div class="crate-title">Salvage crate</div>
             <span class="crate-count" style="color:${this.save.standardCrates > 0 ? 'var(--gold)' : 'var(--muted)'}">
               ×${this.save.standardCrates}
             </span>
           </div>
+          <div class="crate-preview-strip">${renderStrip('std', STD_CRATE_SAMPLES)}</div>
           <div class="odds-bar">
             <div style="flex:52;background:#5b82d6"></div>
             <div style="flex:28;background:#9c6ae6"></div>
@@ -517,25 +554,23 @@ export class OverlayController {
             <span style="color:#e2a93b">★ 1.4%</span>
           </div>
           <div class="crate-actions">
-            <button class="battle-btn" style="height:40px;font-size:13px" id="btn-open-std" ${this.save.standardCrates > 0 ? '' : 'disabled'}>
-              OPEN
+            <button class="battle-btn" style="height:40px;font-size:14px" id="btn-open-std" ${this.save.standardCrates > 0 ? '' : 'disabled'}>
+              Open
             </button>
             <button class="ghost-btn" style="height:40px" id="btn-buy-std" ${canBuyStd ? '' : 'disabled'}>
-              ${artIconImg('shard', 14)} ${CRATE_COSTS.standard}
+              ${artIconImg('shard', 14)} <span>${CRATE_COSTS.standard}</span>
             </button>
           </div>
         </div>
 
-        <div class="crate-card relic">
+        <div class="crate-block">
           <div class="crate-top">
-            <div>
-              <div class="crate-title" style="color:var(--gold)">CLASSIFIED CRATE</div>
-              <div class="talent-stat">HIGH COVERT / ★ ODDS · 22% STRIKER</div>
-            </div>
+            <div class="crate-title" style="color:var(--gold)">Classified crate</div>
             <span class="crate-count" style="color:${this.save.relicCrates > 0 ? 'var(--gold)' : 'var(--muted)'}">
               ×${this.save.relicCrates}
             </span>
           </div>
+          <div class="crate-preview-strip">${renderStrip('relic', RELIC_CRATE_SAMPLES)}</div>
           <div class="odds-bar">
             <div style="flex:20;background:#5b82d6"></div>
             <div style="flex:38;background:#9c6ae6"></div>
@@ -551,17 +586,13 @@ export class OverlayController {
             <span style="color:#e2a93b">★ 3.2%</span>
           </div>
           <div class="crate-actions">
-            <button class="battle-btn rust-btn" style="height:40px;font-size:13px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>
-              OPEN
+            <button class="battle-btn rust-btn" style="height:40px;font-size:14px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>
+              Open
             </button>
             <button class="ghost-btn" style="height:40px" id="btn-buy-relic" ${canBuyRelic ? '' : 'disabled'}>
-              ${artIconImg('shard', 14)} ${CRATE_COSTS.relic}
+              ${artIconImg('shard', 14)} <span>${CRATE_COSTS.relic}</span>
             </button>
           </div>
-        </div>
-
-        <div class="trial-card" style="border-left:3px solid var(--muted)">
-          <div class="talent-stat">DROP SOURCES · BOSS KILLS · RELIC HAULERS · HEAT 2+ BOSSES</div>
         </div>
       </div>
     `;
@@ -584,6 +615,13 @@ export class OverlayController {
         : null;
     const nextTier = selectedRarity ? RARITY_NEXT[selectedRarity] : null;
 
+    const slotsHtml = Array.from({ length: 5 }, (_, idx) => {
+      const uid = this.forgeSelection[idx];
+      const item = uid ? this.save.coatings.find((c) => c.uid === uid) : null;
+      const color = item ? RARITY_META[FINISHES[item.finishId].rarity].color : '';
+      return `<span class="forge-slot ${item ? 'filled' : ''}" style="${color ? `background:${color};border-color:${color}` : ''}"></span>`;
+    }).join('');
+
     const tiles = sorted
       .map((item) => {
         const def = FINISHES[item.finishId];
@@ -603,11 +641,11 @@ export class OverlayController {
             data-coating="${item.uid}" style="border-bottom-color:${rar.color}">
             <div class="tile-top-meta">
               <span style="color:${wear.color}">${wear.code}</span>
-              ${item.striker ? '<span class="st-badge">ST</span>' : equipped ? '<span style="color:var(--gold)">EQ</span>' : ''}
+              ${item.striker ? '<span class="st-badge">ST</span>' : equipped ? svgIcon('check', 11, '#dfa436') : ''}
             </div>
             <canvas class="coated-canvas" width="96" height="96" style="width:62px;height:62px" data-vid="${vesselId}" data-cuid="${item.uid}"></canvas>
             <div class="coating-name" style="color:${rar.color}">${def.name}</div>
-            <div class="coating-seed">#${String(item.seed).padStart(3, '0')} · ${item.floatVal.toFixed(2)}</div>
+            <div class="coating-seed">#${String(item.seed).padStart(3, '0')} ${item.floatVal.toFixed(2)}</div>
           </button>
         `;
       })
@@ -616,14 +654,16 @@ export class OverlayController {
     return `
       <div class="locker-toolbar">
         <button class="buy-pill ${this.forgeMode ? 'ready' : ''}" id="btn-toggle-forge">
-          ${this.forgeMode ? `FORGE ${this.forgeSelection.length}/5` : 'FORGE 5→1'}
+          ${this.forgeMode ? 'Cancel' : 'Trade up'}
         </button>
         ${
           this.forgeMode && this.forgeSelection.length === 5 && nextTier
-            ? `<button class="buy-pill ready" id="btn-exec-forge" style="background:linear-gradient(180deg,#e06a34,#b53f16);color:#1a0904">
-                 CRAFT ${RARITY_META[nextTier].label}
+            ? `<button class="buy-pill ready" id="btn-exec-forge" style="background:linear-gradient(180deg,#e06a34,#b53f16);color:#1a0904;border-color:#ffbd96">
+                 Craft ${RARITY_META[nextTier].label}
                </button>`
-            : `<span class="talent-stat">${this.forgeMode ? 'PICK 5 SAME TIER' : 'TAP TO INSPECT'}</span>`
+            : this.forgeMode
+              ? `<div class="forge-slots" aria-label="Trade up slots">${slotsHtml}</div>`
+              : `<span class="ledger-sub mono">${this.save.coatings.length} owned</span>`
         }
       </div>
       <div class="locker-grid">${tiles}</div>
@@ -641,14 +681,14 @@ export class OverlayController {
           <div style="flex:1;min-width:0">
             <div class="equip-name">${t.name}</div>
             <div class="equip-cost">
-              ${owned ? (selected ? 'ACTIVE' : 'OWNED') : `${artIconImg('shard', 11)}${t.cost}`}
+              ${owned ? (selected ? 'Active' : 'Owned') : `${artIconImg('shard', 11)}${t.cost}`}
             </div>
           </div>
         </button>
       `;
     }).join('');
 
-    const parryHtml = PARRY_FX_ORDER.map((pid) => {
+    const auraHtml = PARRY_FX_ORDER.map((pid) => {
       const pf = PARRY_FX[pid];
       const owned = this.save.unlockedParryFx.includes(pid);
       const selected = this.save.selectedParryFx === pid;
@@ -658,7 +698,7 @@ export class OverlayController {
           <div style="flex:1;min-width:0">
             <div class="equip-name">${pf.name}</div>
             <div class="equip-cost">
-              ${owned ? (selected ? 'ACTIVE' : 'OWNED') : `${artIconImg('shard', 11)}${pf.cost}`}
+              ${owned ? (selected ? 'Active' : 'Owned') : `${artIconImg('shard', 11)}${pf.cost}`}
             </div>
           </div>
         </button>
@@ -666,10 +706,13 @@ export class OverlayController {
     }).join('');
 
     return `
-      <div class="fx-section-title">THRUSTER EXHAUST</div>
+      <div class="fx-stage">
+        <canvas class="fx-preview-canvas" id="fx-live-canvas" width="288" height="288"></canvas>
+      </div>
+      <div class="fx-section-title">Thruster exhaust</div>
       <div class="fx-grid">${trailsHtml}</div>
-      <div class="fx-section-title">STILLPOINT AURA</div>
-      <div class="fx-grid">${parryHtml}</div>
+      <div class="fx-section-title">Stillpoint aura</div>
+      <div class="fx-grid">${auraHtml}</div>
     `;
   }
 
@@ -687,7 +730,7 @@ export class OverlayController {
                 ? `<div class="reel-swatch" style="display:flex;align-items:center;justify-content:center;background:#261d0e;color:var(--gold);font-size:26px;font-weight:700">★</div>`
                 : `<canvas class="reel-swatch" width="66" height="54" data-reel-idx="${idx}"></canvas>`
             }
-            <div class="reel-label" style="color:${rar.color}">${isGold ? 'RELIC ★' : def.name}</div>
+            <div class="reel-label" style="color:${rar.color}">${isGold ? 'Relic ★' : def.name}</div>
           </div>
         `;
       })
@@ -698,9 +741,9 @@ export class OverlayController {
         <div class="modal-box">
           <div class="modal-head">
             <div class="modal-title" style="color:var(--gold)">
-              ${this.reelCrateKind === 'relic' ? 'CLASSIFIED CRATE' : 'SALVAGE CRATE'}
+              ${this.reelCrateKind === 'relic' ? 'Classified crate' : 'Salvage crate'}
             </div>
-            <button class="buy-pill" id="btn-skip-reel">SKIP</button>
+            <button class="buy-pill" id="btn-skip-reel">Skip</button>
           </div>
           <div class="reel-viewport">
             <div class="reel-pointer"></div>
@@ -726,20 +769,17 @@ export class OverlayController {
       <div class="modal-backdrop" id="inspect-bg">
         <div class="modal-box" style="border-top-color:${rar.color}">
           <div class="modal-head">
-            <div>
-              <div class="talent-stat" style="color:${rar.color};font-weight:800">${rar.label}</div>
-              <div class="modal-title">${def.name}</div>
-            </div>
+            <div class="modal-title" style="color:${rar.color}">${def.name}</div>
             <button class="buy-pill" id="btn-cycle-ship">${VESSELS[previewVid].name}</button>
           </div>
 
-          <div class="inspect-stage" id="btn-inspect-ship">
+          <button class="inspect-stage" id="btn-inspect-ship" aria-label="Preview next ship">
             <canvas class="coated-canvas inspect-ship" width="240" height="240" data-vid="${previewVid}" data-cuid="${item.uid}"></canvas>
             ${item.specialTag ? `<span class="special-pill">${item.specialTag}</span>` : ''}
-          </div>
+          </button>
 
           <div class="float-gauge">
-            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;font-weight:800">
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;font-weight:700">
               <span style="color:${wear.color}">${wear.label} (${wear.code})</span>
               <span>${item.floatVal.toFixed(4)}</span>
             </div>
@@ -748,32 +788,32 @@ export class OverlayController {
             </div>
           </div>
 
-          <div class="inspect-meta-grid">
-            <div class="meta-cell">
-              <span class="meta-k">PATTERN</span>
+          <div class="inspect-strip">
+            <div class="inspect-stat">
+              <span class="meta-k">Pattern</span>
               <span class="meta-v">#${String(item.seed).padStart(3, '0')}</span>
             </div>
-            <div class="meta-cell">
-              <span class="meta-k">TRACKER</span>
-              <span class="meta-v" style="color:${item.striker ? '#e8842c' : 'var(--muted)'}">
-                ${item.striker ? `ST ${String(item.kills).padStart(5, '0')}` : 'NONE'}
-              </span>
+            <div class="inspect-stat">
+              <span class="meta-k">Rarity</span>
+              <span class="meta-v" style="color:${rar.color}">${rar.label}</span>
             </div>
-            <div class="meta-cell">
-              <span class="meta-k">SCRAP</span>
-              <span class="meta-v" style="color:var(--gold)">${isStarter ? '—' : `+${scrapVal}`}</span>
+            <div class="inspect-stat">
+              <span class="meta-k">Tracker</span>
+              <span class="meta-v" style="color:${item.striker ? '#f09543' : 'var(--muted)'}">
+                ${item.striker ? `ST ${String(item.kills).padStart(5, '0')}` : 'None'}
+              </span>
             </div>
           </div>
 
           <div class="crate-actions">
-            <button class="battle-btn" style="height:42px;font-size:13px" id="btn-equip-coat" ${equipped ? 'disabled' : ''}>
-              ${equipped ? 'EQUIPPED' : 'EQUIP'}
+            <button class="battle-btn" style="height:42px;font-size:14px" id="btn-equip-coat" ${equipped ? 'disabled' : ''}>
+              ${equipped ? 'Equipped' : 'Equip'}
             </button>
-            <button class="ghost-btn" style="height:42px;color:${isStarter ? 'var(--muted)' : '#f0655d'}" id="btn-scrap-coat" ${isStarter ? 'disabled' : ''}>
-              SCRAP · +${scrapVal}
+            <button class="ghost-btn" style="height:42px;color:${isStarter ? 'var(--muted)' : '#f47a72'}" id="btn-scrap-coat" ${isStarter ? 'disabled' : ''}>
+              ${isStarter ? 'Default' : `Scrap +${scrapVal}`}
             </button>
           </div>
-          <button class="ghost-btn" id="btn-close-inspect">CLOSE</button>
+          <button class="ghost-btn" id="btn-close-inspect">Close</button>
         </div>
       </div>
     `;
@@ -790,23 +830,23 @@ export class OverlayController {
         `<span class="pip ${i < lv ? 'on' : ''}"></span>`
       ).join('');
       return `
-        <div class="talent-row ${lv > 0 ? 'unlocked' : ''}">
-          <div class="r-frame talent-node ${tier}">
-            ${artIconImg(TALENT_ICON_KEYS[u.id], 26)}
+        <div class="ledger-row ${lv > 0 ? 'active-mark' : ''}">
+          <div class="r-frame ledger-node ${tier}">
+            ${artIconImg(TALENT_ICON_KEYS[u.id], 25)}
           </div>
-          <div class="talent-body">
-            <div class="talent-name">${u.name}</div>
-            <div class="talent-stat">${u.perLevelShort}</div>
+          <div class="ledger-body">
+            <div class="ledger-title">${u.name}</div>
+            <div class="ledger-sub">${u.perLevelShort}</div>
             <div class="pips">${pips}</div>
           </div>
           <button class="buy-pill ${canBuy ? 'ready' : ''}" data-buy-meta="${u.id}" ${canBuy ? '' : 'disabled'}>
-            ${maxed ? 'MAX' : `${artIconImg('shard', 12)}${cost}`}
+            ${maxed ? 'Max' : `${artIconImg('shard', 12)}${cost}`}
           </button>
         </div>
       `;
     }).join('');
 
-    return `<div class="talent-tree">${rows}</div>`;
+    return `<div class="ledger-list">${rows}</div>`;
   }
 
   private buildTrialsTab(): string {
@@ -814,25 +854,28 @@ export class OverlayController {
       const st = m.check(this.save);
       const done = this.save.claimedMilestones.includes(m.id) || st.done;
       const pct = Math.min(100, (st.current / Math.max(1, st.target)) * 100);
-      const reward = m.rewardLabel ? `${m.rewardLabel} · +${m.rewardShards}` : `+${m.rewardShards}`;
       return `
-        <div class="trial-card ${done ? 'done' : ''}">
-          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
-            <div class="r-frame ${done ? 'gold' : 'common'}" style="width:34px;height:34px">
-              ${svgIcon(done ? 'check' : 'trophy', 15, done ? '#dfa436' : '#8f8779')}
-            </div>
-            <div style="min-width:0">
-              <div class="talent-name">${m.name}</div>
-              <div class="talent-stat">${m.goalText} · ${Math.min(st.current, st.target).toLocaleString()}/${st.target.toLocaleString()}</div>
+        <div class="ledger-row ${done ? 'gold-mark' : ''}">
+          <div class="r-frame ${done ? 'gold' : 'common'}" style="width:34px;height:34px">
+            ${svgIcon(done ? 'check' : 'trophy', 15, done ? '#dfa436' : '#a39a8c')}
+          </div>
+          <div class="ledger-body">
+            <div class="ledger-title">${m.name}</div>
+            <div class="ledger-sub">${m.goalText}</div>
+            <div class="trial-progress-row">
               <div class="trial-bar"><div class="trial-bar-fill" style="width:${pct.toFixed(0)}%"></div></div>
+              <span class="trial-frac">${Math.min(st.current, st.target).toLocaleString()}/${st.target.toLocaleString()}</span>
             </div>
           </div>
-          <span class="talent-stat" style="color:${done ? 'var(--gold)' : 'var(--muted)'};font-weight:800;flex-shrink:0;text-align:right">${reward}</span>
+          <div class="trial-reward" style="color:${done ? 'var(--gold)' : 'var(--muted)'}">
+            ${m.rewardLabel ? `<span>${m.rewardLabel}</span>` : ''}
+            <span>+${m.rewardShards}</span>
+          </div>
         </div>
       `;
     }).join('');
 
-    return `<div class="trial-list">${rows}</div>`;
+    return `<div class="ledger-list">${rows}</div>`;
   }
 
   private buildHeatModal(): string {
@@ -841,10 +884,10 @@ export class OverlayController {
       const h = HEAT_MODS[hid];
       const on = this.save.activeHeat.includes(hid);
       return `
-        <button class="trial-card ${on ? 'done' : ''}" data-heat="${hid}" style="width:100%;text-align:left;${on ? `border-color:${h.accent};border-left-color:${h.accent}` : ''}">
-          <div>
-            <div class="talent-name" style="color:${on ? h.accent : 'var(--ink)'}">${h.name}</div>
-            <div class="talent-stat">${h.shortDesc}</div>
+        <button class="ledger-row ${on ? 'active-mark' : ''}" data-heat="${hid}" style="${on ? `border-left-color:${h.accent}` : ''}">
+          <div class="ledger-body">
+            <div class="ledger-title" style="color:${on ? h.accent : 'var(--ink)'}">${h.name}</div>
+            <div class="ledger-sub">${h.shortDesc}</div>
           </div>
           <span class="buy-pill ${on ? 'ready' : ''}">+25%</span>
         </button>
@@ -855,11 +898,11 @@ export class OverlayController {
       <div class="modal-backdrop" id="heat-bg">
         <div class="modal-box" style="border-top-color:var(--rust)">
           <div class="modal-head">
-            <div class="modal-title" style="color:var(--rust)">HEAT</div>
-            <span class="ch-pill" style="color:var(--gold)">+${bonusPct}% SHARDS</span>
+            <div class="modal-title" style="color:var(--ink)">Modifiers</div>
+            <span class="mono" style="color:var(--gold);font-size:12px;font-weight:800">+${bonusPct}% shards</span>
           </div>
-          <div class="trial-list">${rows}</div>
-          <button class="ghost-btn" id="btn-close-heat">DONE</button>
+          <div class="ledger-list">${rows}</div>
+          <button class="ghost-btn" id="btn-close-heat">Done</button>
         </div>
       </div>
     `;
@@ -870,14 +913,14 @@ export class OverlayController {
     return `
       <div class="modal-backdrop" id="settings-bg">
         <div class="modal-box">
-          <div class="modal-head"><div class="modal-title">SETTINGS</div></div>
+          <div class="modal-head"><div class="modal-title">Settings</div></div>
           <div class="toggle-grid">
-            <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">${svgIcon('music', 15)} <span>MUSIC</span></button>
-            <button class="toggle-tile ${s.sfx ? 'on' : ''}" data-toggle="sfx">${svgIcon('sfx', 15)} <span>SFX</span></button>
-            <button class="toggle-tile ${s.haptics ? 'on' : ''}" data-toggle="haptics">${svgIcon('haptics', 15)} <span>HAPTICS</span></button>
-            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">${svgIcon('flash', 15)} <span>LOW FLASH</span></button>
+            <button class="toggle-tile ${s.music ? 'on' : ''}" data-toggle="music">${svgIcon('music', 15)} <span>Music</span></button>
+            <button class="toggle-tile ${s.sfx ? 'on' : ''}" data-toggle="sfx">${svgIcon('sfx', 15)} <span>Sound</span></button>
+            <button class="toggle-tile ${s.haptics ? 'on' : ''}" data-toggle="haptics">${svgIcon('haptics', 15)} <span>Haptics</span></button>
+            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" data-toggle="reduceFlash">${svgIcon('flash', 15)} <span>Low flash</span></button>
           </div>
-          <button class="ghost-btn" id="btn-close-settings">DONE</button>
+          <button class="ghost-btn" id="btn-close-settings">Done</button>
         </div>
       </div>
     `;
@@ -912,7 +955,6 @@ export class OverlayController {
     const items = this.reelItems;
     if (!track || !winner || !items) return;
 
-    // Paint procedural pattern swatches into reel tiles
     this.container.querySelectorAll<HTMLCanvasElement>('[data-reel-idx]').forEach((cv) => {
       const idx = Number(cv.dataset.reelIdx);
       const item = items[idx];
@@ -922,9 +964,9 @@ export class OverlayController {
       ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
     });
 
-    const itemStride = 98; // 92px width + 6px gap
+    const itemStride = 98;
     const winIdx = 27;
-    const jitter = (Math.random() - 0.5) * 62; // authentic CS:GO near-miss landing offset!
+    const jitter = (Math.random() - 0.5) * 62;
     const targetOffset = winIdx * itemStride + 46 + jitter;
     const duration = 3500;
     const startTs = performance.now();
@@ -960,7 +1002,6 @@ export class OverlayController {
     const step = (now: number) => {
       if (finished) return;
       const t = Math.min(1, (now - startTs) / duration);
-      // Quintic ease-out for suspenseful slowing across the last 5 tiles!
       const ease = 1 - Math.pow(1 - t, 4.2);
       const curX = targetOffset * ease;
       track.style.transform = `translate3d(${-curX.toFixed(1)}px, 0, 0)`;
@@ -982,7 +1023,8 @@ export class OverlayController {
     this.activeReelRaf = requestAnimationFrame(step);
   }
 
-  private hydrateCoatedCanvases(): void {
+  private hydrateVisualCanvases(): void {
+    // 1. Coated ships across Play, Hangar, Locker, Inspect, Run End
     this.container.querySelectorAll<HTMLCanvasElement>('.coated-canvas[data-vid]').forEach((cv) => {
       const vid = cv.dataset.vid as VesselId;
       const cuid = cv.dataset.cuid;
@@ -1012,6 +1054,116 @@ export class OverlayController {
         ctx.restore();
       }
     });
+
+    // 2. Crate sample pattern swatches
+    this.container.querySelectorAll<HTMLCanvasElement>('[data-crate-sample]').forEach((cv) => {
+      const [group, idxStr] = (cv.dataset.crateSample ?? '').split(':');
+      const sample = (group === 'relic' ? RELIC_CRATE_SAMPLES : STD_CRATE_SAMPLES)[Number(idxStr)];
+      if (!sample) return;
+      const swatch = renderPatternCanvas(sample.id, sample.seed, sample.floatVal, 64);
+      const ctx = cv.getContext('2d');
+      ctx?.drawImage(swatch, 0, 0, cv.width, cv.height);
+    });
+
+    // 3. Live FX preview canvas (shows equipped ship + Thruster Exhaust + Stillpoint Aura directly)
+    const fxCanvas = this.container.querySelector('#fx-live-canvas') as HTMLCanvasElement | null;
+    if (fxCanvas) {
+      this.drawFxPreview(fxCanvas);
+    }
+  }
+
+  private drawFxPreview(cv: HTMLCanvasElement): void {
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const W = cv.width;
+    const H = cv.height;
+    const cx = W * 0.5;
+    const cy = H * 0.46;
+    const vid = this.save.selectedVessel;
+    const coating = getEquippedCoating(this.save);
+    const trail = TRAILS[this.save.selectedTrail] ?? TRAILS.ion_ash;
+    const aura = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Subtle radial backdrop glow
+    const bg = ctx.createRadialGradient(cx, cy, 8, cx, cy, W * 0.48);
+    bg.addColorStop(0, `${aura.outer}26`);
+    bg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Stillpoint Astrolabe outer + inner rings & reticle ticks
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = aura.outer;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([22, 14, 4, 14]);
+    ctx.beginPath();
+    ctx.arc(0, 0, 102, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = aura.inner;
+    ctx.globalAlpha = 0.65;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 82, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = aura.outer;
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 86, Math.sin(a) * 86);
+      ctx.lineTo(Math.cos(a) * 116, Math.sin(a) * 116);
+      ctx.stroke();
+    }
+
+    // Thruster exhaust wake + glowing jet plume behind the ship
+    const drawPlume = (x: number, y: number, w: number, len: number) => {
+      const g = ctx.createLinearGradient(x, y, x, y + len);
+      g.addColorStop(0, trail.coreColor);
+      g.addColorStop(0.35, trail.color);
+      g.addColorStop(1, `${trail.color}00`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(x - w, y);
+      ctx.lineTo(x, y + len);
+      ctx.lineTo(x + w, y);
+      ctx.closePath();
+      ctx.fill();
+    };
+    if (vid === 'aegis' || vid === 'nova' || vid === 'volt') {
+      drawPlume(-18, 40, 11, 66);
+      drawPlume(18, 40, 11, 66);
+    } else {
+      drawPlume(0, 40, 13, 72);
+    }
+
+    // Ship sprite with baked pattern coating
+    const art = sprites.getCoatedShipArt(vid, coating, 160);
+    if (art) {
+      ctx.drawImage(art, -64, -64, 128, 128);
+    }
+
+    // Pinpoint Stillpoint core diamond
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(0, -10);
+    ctx.lineTo(10, 0);
+    ctx.lineTo(0, 10);
+    ctx.lineTo(-10, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = aura.outer;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private bindHubEvents(): void {
@@ -1141,7 +1293,7 @@ export class OverlayController {
       }
     });
 
-    // Locker + Trade-Up Forge
+    // Locker + Trade-Up
     this.container.querySelector('#btn-toggle-forge')?.addEventListener('click', () => {
       this.forgeMode = !this.forgeMode;
       this.forgeSelection = [];
@@ -1229,7 +1381,7 @@ export class OverlayController {
         this.actions.onVisualPrefsChanged();
         bridge.haptic('medium');
         sound.playXp();
-        this.showToast(`SCRAPPED · +${got} SHARDS`);
+        this.showToast(`Scrapped for +${got} shards`);
         this.renderHub(true);
       }
     });
@@ -1254,7 +1406,7 @@ export class OverlayController {
           this.renderHub(true);
         } else {
           bridge.haptic('warning');
-          this.showToast(`NEED ${t.cost} SHARDS`);
+          this.showToast(`Need ${t.cost} shards`);
         }
       });
     });
@@ -1278,12 +1430,12 @@ export class OverlayController {
           this.renderHub(true);
         } else {
           bridge.haptic('warning');
-          this.showToast(`NEED ${pf.cost} SHARDS`);
+          this.showToast(`Need ${pf.cost} shards`);
         }
       });
     });
 
-    // Sector Carousel & Battle
+    // Sector Carousel & Play
     this.container.querySelector('#btn-sec-prev')?.addEventListener('click', () => {
       this.browsingSectorIdx = (this.browsingSectorIdx - 1 + SECTOR_ORDER.length) % SECTOR_ORDER.length;
       const id = SECTOR_ORDER[this.browsingSectorIdx];
@@ -1347,7 +1499,7 @@ export class OverlayController {
           this.renderHub(true);
         } else {
           bridge.haptic('warning');
-          this.showToast(`NEED ${v.unlockCost} SHARDS`);
+          this.showToast(`Need ${v.unlockCost} shards`);
         }
       });
     });
@@ -1370,7 +1522,7 @@ export class OverlayController {
           this.renderHub(true);
         } else {
           bridge.haptic('warning');
-          this.showToast(`NEED ${c.unlockCost} SHARDS`);
+          this.showToast(`Need ${c.unlockCost} shards`);
         }
       });
     });
@@ -1404,15 +1556,15 @@ export class OverlayController {
     this.container.innerHTML = `
       <div class="modal-backdrop">
         <div class="modal-box">
-          <div class="modal-head"><div class="modal-title">PAUSED</div></div>
+          <div class="modal-head"><div class="modal-title">Paused</div></div>
           <div class="toggle-grid">
-            <button class="toggle-tile ${s.music ? 'on' : ''}" id="p-music">${svgIcon('music', 15)} <span>MUSIC</span></button>
-            <button class="toggle-tile ${s.sfx ? 'on' : ''}" id="p-sfx">${svgIcon('sfx', 15)} <span>SFX</span></button>
-            <button class="toggle-tile ${s.haptics ? 'on' : ''}" id="p-haptics">${svgIcon('haptics', 15)} <span>HAPTICS</span></button>
-            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" id="p-flash">${svgIcon('flash', 15)} <span>LOW FLASH</span></button>
+            <button class="toggle-tile ${s.music ? 'on' : ''}" id="p-music">${svgIcon('music', 15)} <span>Music</span></button>
+            <button class="toggle-tile ${s.sfx ? 'on' : ''}" id="p-sfx">${svgIcon('sfx', 15)} <span>Sound</span></button>
+            <button class="toggle-tile ${s.haptics ? 'on' : ''}" id="p-haptics">${svgIcon('haptics', 15)} <span>Haptics</span></button>
+            <button class="toggle-tile ${s.reduceFlash ? 'on' : ''}" id="p-flash">${svgIcon('flash', 15)} <span>Low flash</span></button>
           </div>
-          <button class="battle-btn" id="btn-resume">RESUME</button>
-          <button class="ghost-btn" id="btn-quit">ABORT</button>
+          <button class="battle-btn" id="btn-resume">Resume</button>
+          <button class="ghost-btn" id="btn-quit">Quit run</button>
         </div>
       </div>
     `;
@@ -1479,13 +1631,13 @@ export class OverlayController {
         <div class="modal-box" style="border-top-color:${isVictory ? 'var(--gold)' : 'var(--danger)'}">
           <div class="modal-head">
             <div class="modal-title" style="color:${isVictory ? 'var(--gold)' : 'var(--ink)'}">
-              ${isVictory ? 'SECTOR CLEAR' : 'SIGNAL LOST'}
+              ${isVictory ? 'Sector clear' : 'Hull destroyed'}
             </div>
-            <div style="display:flex;gap:5px">
-              ${totalRunCrates > 0 ? `<div class="currency-pill crate-pill">+${totalRunCrates} CRATE</div>` : ''}
-              <div class="currency-pill" style="color:var(--gold)">
+            <div style="display:flex;align-items:center;gap:8px">
+              ${totalRunCrates > 0 ? `<span class="crate-trigger">+${totalRunCrates} crate</span>` : ''}
+              <span class="currency-readout" style="color:var(--gold)">
                 ${artIconImg('shard', 14)} +${st.shardsEarned}
-              </div>
+              </span>
             </div>
           </div>
 
@@ -1504,15 +1656,15 @@ export class OverlayController {
 
           ${
             isVictory
-              ? `<button class="battle-btn" id="btn-endless">ENDLESS</button>`
-              : `<button class="battle-btn" id="btn-retry">REDEPLOY</button>`
+              ? `<button class="battle-btn" id="btn-endless">Continue endless</button>`
+              : `<button class="battle-btn" id="btn-retry">Play again</button>`
           }
-          <button class="ghost-btn" id="btn-home">${totalRunCrates > 0 ? 'OPEN CRATES' : 'HANGAR'}</button>
+          <button class="ghost-btn" id="btn-home">${totalRunCrates > 0 ? 'Open crates' : 'Hangar'}</button>
         </div>
       </div>
     `;
 
-    this.hydrateCoatedCanvases();
+    this.hydrateVisualCanvases();
     this.container.querySelector('#btn-endless')?.addEventListener('click', () => this.actions.onContinueEndless());
     this.container.querySelector('#btn-retry')?.addEventListener('click', () => this.actions.onStartRun());
     this.container.querySelector('#btn-home')!.addEventListener('click', () => {

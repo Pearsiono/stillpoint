@@ -293,9 +293,9 @@ export class WastelandRenderer {
         ctx.setLineDash([]);
 
         ctx.fillStyle = 'rgba(216, 255, 200, 0.85)';
-        ctx.font = '700 9px "JetBrains Mono", monospace';
+        ctx.font = '700 9.5px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('2× OVERCLOCK', 0, 4);
+        ctx.fillText('2× Focus', 0, 4);
       } else if (n.kind === 'shrine') {
         const art = sprites.getNodeArt('shrine');
         ctx.fillStyle = 'rgba(0,0,0,0.45)';
@@ -1279,9 +1279,9 @@ export class WastelandRenderer {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.globalAlpha = pulse;
-    ctx.font = '700 10.5px "JetBrains Mono", monospace';
-    ctx.fillStyle = '#ebe2d2';
-    const txt = state.input.hasInteracted ? 'LIFT FOR SLOW-MO' : 'DRAG TO MOVE';
+    ctx.font = '600 12px "Chakra Petch", -apple-system, sans-serif';
+    ctx.fillStyle = '#ece3d3';
+    const txt = state.input.hasInteracted ? 'Lift to slow time' : 'Drag to move';
     ctx.fillText(txt, state.player.x, state.player.y + 52);
     ctx.restore();
   }

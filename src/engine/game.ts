@@ -354,7 +354,7 @@ export class StillpointGame {
         this.player.relics.push(picked.relicId);
         const r = RELICS[picked.relicId];
         this.particles.ripple(this.player.x, this.player.y, 210, 15, r.accent, 0.5);
-        this.particles.callout(this.player.x, this.player.y - 42, r.name.toUpperCase(), r.accent, 1.15, 1.1);
+        this.particles.callout(this.player.x, this.player.y - 42, r.name, r.accent, 1.15, 1.1);
       }
     } else if (picked.kind === 'weapon' && picked.weaponId) {
       const addLv = picked.bonusLevels ?? 1;
@@ -391,7 +391,7 @@ export class StillpointGame {
       if (picked.curseId === 'blood_tax') {
         this.player.hp = Math.max(12, Math.round(this.player.hp * 0.78));
       }
-      this.particles.callout(this.player.x, this.player.y - 36, `CURSE: ${picked.curseLine ?? ''}`, '#d94842', 0.95, 1.0);
+      this.particles.callout(this.player.x, this.player.y - 36, picked.curseLine ?? '', '#d94842', 0.95, 1.0);
     }
 
     this.recomputePlayerStats();
@@ -1246,14 +1246,14 @@ export class StillpointGame {
     const ctx = this.makeEnemyCtx();
     if (kind === 0) {
       // TREASURE HAULER!
-      this.eventBanner = 'RELIC HAULER';
+      this.eventBanner = 'Relic Hauler';
       this.eventBannerTimer = 3.2;
       sound.playLevelUp();
       const side = Math.random() < 0.5 ? -1 : 1;
       spawnEnemy(ctx, 'hauler', p.x + side * 290, p.y - 90 + Math.random() * 180, false, 1 + this.stats.elapsed / 120);
     } else if (kind === 1) {
       // SWARM RING!
-      this.eventBanner = 'SWARM RING';
+      this.eventBanner = 'Swarm Ring';
       this.eventBannerTimer = 2.8;
       sound.playBossWarn();
       const count = 16;
@@ -1263,7 +1263,7 @@ export class StillpointGame {
       }
     } else {
       // METEOR BARRAGE!
-      this.eventBanner = 'SLAG BARRAGE';
+      this.eventBanner = 'Slag Barrage';
       this.eventBannerTimer = 3.0;
       sound.playBossWarn();
       this.meteorWavesLeft = 6;
@@ -2167,8 +2167,8 @@ export class StillpointGame {
       this.save.standardCrates++;
       this.stats.cratesEarned++;
       persistMetaSave(this.save);
-      this.particles.callout(enemy.x, enemy.y - 34, '+1 SALVAGE CRATE', '#e2a93b', 1.2, 1.3);
-      this.callbacks.onUnlockNotice('SALVAGE CRATE ACQUIRED');
+      this.particles.callout(enemy.x, enemy.y - 34, '+1 Salvage crate', '#e2a93b', 1.2, 1.3);
+      this.callbacks.onUnlockNotice('Salvage crate dropped');
       this.pickups.push(
         { id: this.nextEntityId++, kind: 'chest', x: enemy.x, y: enemy.y, vx: 0, vy: 0, value: 1, age: 0, magnetized: false },
         { id: this.nextEntityId++, kind: 'shard', x: enemy.x + 18, y: enemy.y, vx: 0, vy: 0, value: Math.round(28 * this.player.shardMult), age: 0, magnetized: false }
@@ -2231,13 +2231,13 @@ export class StillpointGame {
 
     if (bossIndexCleared === 0 && !this.save.unlockedSectors.includes('helix')) {
       this.save.unlockedSectors.push('helix');
-      this.callbacks.onUnlockNotice('02 SUNKEN METRO UNLOCKED');
+      this.callbacks.onUnlockNotice('Sunken Metro unlocked');
     } else if (bossIndexCleared === 1 && !this.save.unlockedSectors.includes('furnace')) {
       this.save.unlockedSectors.push('furnace');
-      this.callbacks.onUnlockNotice('03 SLAG FOUNDRY UNLOCKED');
+      this.callbacks.onUnlockNotice('Slag Foundry unlocked');
     } else if (bossIndexCleared === 2 && !this.save.unlockedSectors.includes('singularity')) {
       this.save.unlockedSectors.push('singularity');
-      this.callbacks.onUnlockNotice('04 THE MONOLITH UNLOCKED');
+      this.callbacks.onUnlockNotice('The Monolith unlocked');
     }
 
     this.enclosure.active = false;
@@ -2258,11 +2258,11 @@ export class StillpointGame {
     if (this.save.activeHeat.length >= 2 || bossIndexCleared >= 2) {
       this.save.relicCrates++;
       this.stats.relicCratesEarned++;
-      this.callbacks.onUnlockNotice('CLASSIFIED CRATE DROPPED');
+      this.callbacks.onUnlockNotice('Classified crate dropped');
     } else {
       this.save.standardCrates++;
       this.stats.cratesEarned++;
-      this.callbacks.onUnlockNotice('SALVAGE CRATE DROPPED');
+      this.callbacks.onUnlockNotice('Salvage crate dropped');
     }
     this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * 0.35);
     this.player.kineticCharge = this.player.maxKineticCharge;

@@ -112,15 +112,15 @@ export class HudView {
     if (h.surgeActive) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = '#f6c453';
-      this.comboEl.textContent = 'SURGE ×4';
+      this.comboEl.textContent = 'Surge ×4';
     } else if (h.surgeTier >= 2) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = 'var(--accent)';
-      this.comboEl.textContent = h.grazeCombo >= 3 ? `×${h.surgeTier} · GRAZE ${h.grazeCombo}` : `×${h.surgeTier}`;
+      this.comboEl.textContent = h.grazeCombo >= 3 ? `×${h.surgeTier}  Graze ${h.grazeCombo}` : `×${h.surgeTier}`;
     } else if (h.grazeCombo >= 3) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = 'var(--accent)';
-      this.comboEl.textContent = `×${h.grazeCombo}`;
+      this.comboEl.textContent = `Graze ${h.grazeCombo}`;
     } else {
       this.comboEl.style.display = 'none';
     }
@@ -202,16 +202,17 @@ export function renderUpgradeDraftHtml(
           : '';
       const tag =
         c.kind === 'evolution'
-          ? 'EVO'
+          ? 'Evolve'
           : c.kind === 'relic'
-            ? 'RELIC'
+            ? 'Relic'
             : c.isOverclocked
-              ? '+2 LV · CURSED'
-              : c.isSynergy
-                ? 'EVO PAIR'
-                : c.isNew
-                  ? 'NEW'
-                  : '';
+              ? '+2 LV'
+              : c.isNew && !c.pairIconKey
+                ? 'New'
+                : '';
+      const pairHtml = c.pairIconKey
+        ? `<span class="pair-badge" title="Evolution pair">+${artIconImg(c.pairIconKey, 13)}</span>`
+        : '';
       const cardClass =
         c.kind === 'evolution'
           ? 'evo'
@@ -236,10 +237,13 @@ export function renderUpgradeDraftHtml(
           <div class="draft-body">
             <div class="draft-top">
               <span class="draft-name" style="color:${titleColor}">${c.title}</span>
-              ${tag ? `<span class="draft-tag" style="${c.isOverclocked ? 'color:#f0655d' : ''}">${tag}</span>` : ''}
+              <span class="draft-tag-wrap">
+                ${pairHtml}
+                ${tag ? `<span class="draft-tag" style="${c.isOverclocked ? 'color:#f47a72' : ''}">${tag}</span>` : ''}
+              </span>
             </div>
             <div class="draft-line">${c.line}</div>
-            ${c.curseLine ? `<div class="draft-curse-line">DRAWBACK: ${c.curseLine}</div>` : ''}
+            ${c.curseLine ? `<div class="draft-curse-line">${c.curseLine}</div>` : ''}
             ${pips}
           </div>
         </button>
@@ -251,14 +255,14 @@ export function renderUpgradeDraftHtml(
     <div class="modal-backdrop">
       <div class="modal-box">
         <div class="modal-head">
-          <div class="modal-title" style="color:${isBossChest ? 'var(--gold)' : '#efece3'}">
-            ${isBossChest ? 'RELIC CACHE' : `LV ${level}`}
+          <div class="modal-title" style="color:${isBossChest ? 'var(--gold)' : 'var(--ink)'}">
+            ${isBossChest ? 'Relic cache' : `Level ${level}`}
           </div>
         </div>
         ${cards}
         ${
           rerolls > 0
-            ? `<button class="ghost-btn" id="btn-reroll">${svgIcon('reroll', 14)} ${rerolls}</button>`
+            ? `<button class="ghost-btn" id="btn-reroll">${svgIcon('reroll', 14)} <span>Reroll (${rerolls})</span></button>`
             : ''
         }
       </div>

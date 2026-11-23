@@ -4,7 +4,7 @@ export const SECTORS: Record<SectorId, SectorDef> = {
   drift: {
     id: 'drift',
     code: '01',
-    name: 'ASH FLATS',
+    name: 'Ash Flats',
     accent: '#45e8d8',
     bgBase: '#19191d',
     bgGlow: 'rgba(138, 122, 102, 0.14)',
@@ -18,7 +18,7 @@ export const SECTORS: Record<SectorId, SectorDef> = {
   helix: {
     id: 'helix',
     code: '02',
-    name: 'SUNKEN METRO',
+    name: 'Sunken Metro',
     accent: '#8ee06c',
     bgBase: '#131b19',
     bgGlow: 'rgba(72, 134, 108, 0.16)',
@@ -33,7 +33,7 @@ export const SECTORS: Record<SectorId, SectorDef> = {
   furnace: {
     id: 'furnace',
     code: '03',
-    name: 'SLAG FOUNDRY',
+    name: 'Slag Foundry',
     accent: '#ff6a26',
     bgBase: '#1d1412',
     bgGlow: 'rgba(180, 74, 34, 0.18)',
@@ -48,7 +48,7 @@ export const SECTORS: Record<SectorId, SectorDef> = {
   singularity: {
     id: 'singularity',
     code: '04',
-    name: 'THE MONOLITH',
+    name: 'The Monolith',
     accent: '#e5b34c',
     bgBase: '#151418',
     bgGlow: 'rgba(182, 148, 76, 0.16)',

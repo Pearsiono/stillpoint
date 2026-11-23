@@ -303,6 +303,7 @@ export interface UpgradeChoice {
   maxLevel?: number;
   isNew?: boolean;
   isSynergy?: boolean;
+  pairIconKey?: string;
   isOverclocked?: boolean;
   curseId?: DraftCurseId;
   curseLine?: string;
