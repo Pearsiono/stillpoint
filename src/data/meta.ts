@@ -45,11 +45,11 @@ export const META_UPGRADES: MetaUpgradeDef[] = [
   },
   {
     id: 'parry_resonance',
-    name: 'Parry Resonance',
+    name: 'Core Amplifier',
     maxLevel: 5,
     baseCost: 45,
     costStep: 45,
-    perLevelShort: '+8% Wave · +12% DMG'
+    perLevelShort: '+8% Core Area · +12% DMG'
   },
   {
     id: 'time_lattice',
@@ -110,26 +110,26 @@ export const MILESTONES: MilestoneDef[] = [
   },
   {
     id: 'parry_25',
-    name: 'REFLECTOR',
-    goalText: '25 Parries',
+    name: 'CLOSE CALL',
+    goalText: '60 Grazes',
     rewardShards: 50,
-    check: (s) => ({ current: s.totalParries, target: 25, done: s.totalParries >= 25 })
+    check: (s) => ({ current: s.totalGrazes, target: 60, done: s.totalGrazes >= 60 })
   },
   {
     id: 'parry_150',
     name: 'TEMPEST',
-    goalText: '150 Parries',
+    goalText: '350 Grazes',
     rewardShards: 140,
     rewardLabel: 'VOLT',
-    check: (s) => ({ current: s.totalParries, target: 150, done: s.totalParries >= 150 })
+    check: (s) => ({ current: s.totalGrazes, target: 350, done: s.totalGrazes >= 350 })
   },
   {
     id: 'parry_burst_8',
-    name: 'SHATTER',
-    goalText: '8× Single Parry',
+    name: 'GRAZE STREAK',
+    goalText: '12× Graze Combo',
     rewardShards: 110,
     rewardLabel: '+1 CRATE',
-    check: (s) => ({ current: s.bestSingleParry, target: 8, done: s.bestSingleParry >= 8 })
+    check: (s) => ({ current: s.bestSingleParry, target: 12, done: s.bestSingleParry >= 12 })
   },
   {
     id: 'graze_200',

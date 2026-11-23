@@ -3,36 +3,36 @@ import { CoreDef, CoreId, DraftCurseId, HeatId, RelicDef, RelicId } from '../typ
 export const CORES: Record<CoreId, CoreDef> = {
   deflector: {
     id: 'deflector',
-    name: 'DEFLECTOR',
-    shortDesc: 'PARRY WAVE · HOMING SHARDS',
+    name: 'KINETIC NOVA',
+    shortDesc: 'FOCUS ENTRY BLASTS & KNOCKS BACK FOES',
     accent: '#4cb5ab',
     unlockCost: 0
   },
   blink: {
     id: 'blink',
     name: 'PHANTOM BLINK',
-    shortDesc: 'WARP FORWARD · DECOY BLAST',
+    shortDesc: 'WARP FORWARD · EXPLODING DECOY',
     accent: '#a974e8',
     unlockCost: 110
   },
   siphon: {
     id: 'siphon',
     name: 'GRAVITY SIPHON',
-    shortDesc: 'VORTEX PULL · SHRAPNEL EXIT',
+    shortDesc: 'VORTEX PULL · SHRAPNEL SHATTER EXIT',
     accent: '#e08538',
     unlockCost: 170
   },
   overclock: {
     id: 'overclock',
     name: 'OVERCLOCK',
-    shortDesc: '2.3× ROF · AUTO-CRIT STANCE',
+    shortDesc: '2.3× ROF · AUTO-CRIT FOCUS STANCE',
     accent: '#e2a93b',
     unlockCost: 230
   },
   berserk: {
     id: 'berserk',
     name: 'RAZOR REFLEX',
-    shortDesc: 'EXEC <30% HP · SHIELD SLASH',
+    shortDesc: 'EXEC <32% HP · SHIELD & HASTE SLASH',
     accent: '#d94842',
     unlockCost: 290
   }
@@ -50,12 +50,12 @@ export const DRAFT_CURSES: Record<DraftCurseId, { id: DraftCurseId; label: strin
 
 export const DRAFT_CURSE_IDS = Object.keys(DRAFT_CURSES) as DraftCurseId[];
 
-// Wildcard Relics — high-impact build warpers, top-tier ones carry real tradeoffs!
+// Wildcard Relics — build warpers with clean skill loops & real tradeoffs!
 export const RELICS: Record<RelicId, RelicDef> = {
   glass_prism: {
     id: 'glass_prism',
-    name: 'GLASS PRISM',
-    line: 'PARRY SPLITS ×3 · -18% MAX HP',
+    name: 'PRISM SPLIT',
+    line: 'CRITS SPLIT 2 HOMING SHARDS · -18% HP',
     accent: '#52b8c9',
     iconKey: 'ricochet_shard'
   },
@@ -68,8 +68,8 @@ export const RELICS: Record<RelicId, RelicDef> = {
   },
   time_bank: {
     id: 'time_bank',
-    name: 'TIME BANK',
-    line: 'FULL FOCUS GRAZE → 2× WAVE · +22% DRAIN',
+    name: 'CHRONO OVERDRIVE',
+    line: '+40% DMG IN STILLPOINT · +22% DRAIN',
     accent: '#e2a93b',
     iconKey: 'chrono_capacitor'
   },
@@ -82,8 +82,8 @@ export const RELICS: Record<RelicId, RelicDef> = {
   },
   chain_parry: {
     id: 'chain_parry',
-    name: 'CHAIN PARRY',
-    line: '5× PARRY RESETS CD +30% FOCUS',
+    name: 'GRAZE SURGE',
+    line: '8 GRAZES → +28% FOCUS & SHOCK BLAST',
     accent: '#4cb5ab',
     iconKey: 'arc_tether'
   },
@@ -103,8 +103,8 @@ export const RELICS: Record<RelicId, RelicDef> = {
   },
   bullet_alchemy: {
     id: 'bullet_alchemy',
-    name: 'SCRAP ALCHEMY',
-    line: '8 PARRIES DROP BONUS SHARDS',
+    name: 'SCRAP HARVEST',
+    line: '10 GRAZES DROP BONUS SALVAGE SHARDS',
     accent: '#d6689e',
     iconKey: 'shard'
   },
@@ -175,7 +175,7 @@ export const HEAT_MODS: Record<
   cursed_void: {
     id: 'cursed_void',
     name: 'CURSED VOID',
-    shortDesc: 'MORE PACTS & VOID SHOTS',
+    shortDesc: 'FREQUENT PACT ALTARS',
     shardBonus: 0.25,
     accent: '#4cb5ab'
   }

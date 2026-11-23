@@ -356,24 +356,36 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 }
 
 function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
-  const { player, enemies, enemyBullets, particles } = ctx;
+  const { player, enemies, playerBullets } = ctx;
   const blades = getHaloBladesPositions(player, ctx.time);
-  const tickInterval = player.inStillpoint ? 0.1 : 0.16;
+  const tickInterval = player.inStillpoint ? 0.095 : 0.16;
 
-  if (player.stillpointBlend > 0.35 || w.evolved) {
-    for (let bi = enemyBullets.length - 1; bi >= 0; bi--) {
-      const eb = enemyBullets[bi];
-      if (!eb.parryable) continue;
-      for (const blade of blades) {
-        const dx = eb.x - blade.x;
-        const dy = eb.y - blade.y;
-        const r = blade.radius + eb.radius + 4;
-        if (dx * dx + dy * dy <= r * r) {
-          particles.burst(eb.x, eb.y, '#4effb4', 4, 40, 130, 2.2, 0.25);
-          enemyBullets.splice(bi, 1);
-          break;
-        }
-      }
+  // Evolved ECLIPSE GYRO periodically launches homing solar razor flares!
+  if (w.evolved && w.cooldown <= 0) {
+    w.cooldown = player.inStillpoint ? 0.55 : 0.9;
+    const target = findNearestEnemy(player.x, player.y, enemies, 540, true);
+    const baseAng = target
+      ? Math.atan2(target.y - player.y, target.x - player.x)
+      : player.facingAngle;
+    for (let i = -1; i <= 1; i++) {
+      const ang = baseAng + i * 0.24;
+      playerBullets.push({
+        id: ctx.nextId(),
+        kind: 'parry_shard',
+        x: player.x + Math.cos(ang) * 24,
+        y: player.y + Math.sin(ang) * 24,
+        vx: Math.cos(ang) * 480,
+        vy: Math.sin(ang) * 480,
+        radius: 6,
+        damage: 32 * player.damageMult,
+        pierce: 2,
+        age: 0,
+        maxAge: 1.4,
+        color: '#8ee06c',
+        homing: 7,
+        hitSet: new Set(),
+        evolved: true
+      });
     }
   }
 
@@ -382,7 +394,7 @@ function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 
   const orbDmg = player.relics.includes('orbital_overdrive') ? 1.45 : 1.0;
   const dmg =
-    (w.evolved ? 34 : 14 + w.level * 5) * (player.inStillpoint ? 1.35 : 1) * player.damageMult * orbDmg;
+    (w.evolved ? 36 : 15 + w.level * 5.2) * (player.inStillpoint ? 1.45 : 1) * player.damageMult * orbDmg;
   const snap = [...enemies];
   for (const blade of blades) {
     for (const e of snap) {
@@ -397,17 +409,17 @@ function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 }
 
 function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
-  const { player, enemies, enemyBullets, particles } = ctx;
+  const { player, enemies, particles } = ctx;
   if (w.cooldown > 0) return;
 
   const inFocus = player.inStillpoint;
   w.cooldown = inFocus
-    ? w.evolved ? 0.18 : 0.26
-    : w.evolved ? 0.44 : Math.max(0.5, 0.9 - w.level * 0.08);
+    ? w.evolved ? 0.16 : 0.24
+    : w.evolved ? 0.42 : Math.max(0.48, 0.88 - w.level * 0.08);
 
-  const range = (245 + w.level * 20) * player.areaMult;
-  const maxChains = (w.evolved ? 8 : 3 + w.level) + player.bonusProjectiles;
-  const dmg = (w.evolved ? 36 : 16 + w.level * 6) * (inFocus ? 0.85 : 1.15) * player.damageMult;
+  const range = (255 + w.level * 20) * player.areaMult;
+  const maxChains = (w.evolved ? 8 : 3 + w.level) + (inFocus ? 3 : 0) + player.bonusProjectiles;
+  const dmg = (w.evolved ? 38 : 17 + w.level * 6) * (inFocus ? 1.1 : 1.15) * player.damageMult;
 
   const first = findNearestEnemy(player.x, player.y, enemies, range, false);
   if (first) {
@@ -427,7 +439,7 @@ function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 
     for (let c = 1; c < maxChains; c++) {
       let next: Enemy | null = null;
-      let bestD2 = (170 * player.areaMult) ** 2;
+      let bestD2 = (180 * player.areaMult) ** 2;
       for (const e of enemies) {
         if (e.hp <= 0 || visited.has(e.id)) continue;
         const d2 = (e.x - curr.x) ** 2 + (e.y - curr.y) ** 2;
@@ -449,22 +461,6 @@ function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       );
       ctx.damageEnemy(next, dmg * Math.pow(0.92, c), '#6fa8ff');
       curr = next;
-    }
-  }
-
-  if (inFocus) {
-    let zapped = 0;
-    const maxZap = w.evolved ? 5 : 2 + Math.floor(w.level / 2);
-    const zapRange2 = (165 * player.areaMult) ** 2;
-    for (let i = enemyBullets.length - 1; i >= 0 && zapped < maxZap; i--) {
-      const b = enemyBullets[i];
-      if (!b.parryable) continue;
-      if ((b.x - player.x) ** 2 + (b.y - player.y) ** 2 <= zapRange2) {
-        particles.arc(player.x, player.y, b.x, b.y, '#9ef7ff', 2, 0.14);
-        particles.burst(b.x, b.y, '#7bf7ff', 3, 30, 100, 2, 0.2);
-        enemyBullets.splice(i, 1);
-        zapped++;
-      }
     }
   }
 }
@@ -670,8 +666,8 @@ function fireNovaWave(
   evolved: boolean,
   isStillpointBurst: boolean
 ): void {
-  const { player, enemies, enemyBullets, hazards, particles } = ctx;
-  const color = isStillpointBurst || evolved ? '#f6c453' : '#ff9f43';
+  const { player, enemies, hazards, particles } = ctx;
+  const color = isStillpointBurst || evolved ? '#e2a93b' : '#e08538';
   sound.playShoot('mortar');
   particles.ripple(player.x, player.y, radius * 1.15, isStillpointBurst ? 16 : 9, color, 0.42);
   hazards.push({
@@ -696,24 +692,11 @@ function fireNovaWave(
     const dy = e.y - player.y;
     const d = Math.hypot(dx, dy) || 1;
     if (d <= radius + e.radius) {
-      ctx.damageEnemy(e, dmg, color, isStillpointBurst);
+      ctx.damageEnemy(e, dmg * (evolved ? 1.25 : 1), color, isStillpointBurst);
       if (!e.isBoss) {
-        const push = isStillpointBurst ? 46 : 26;
+        const push = isStillpointBurst ? 56 : 32;
         e.x += (dx / d) * push;
         e.y += (dy / d) * push;
-      }
-    }
-  }
-
-  // Evolved SUPERNOVA HEART or Stillpoint Mega-Blast vaporizes nearby regular enemy bullets!
-  if (evolved || isStillpointBurst) {
-    const clearR2 = (radius * 0.82) ** 2;
-    for (let i = enemyBullets.length - 1; i >= 0; i--) {
-      const b = enemyBullets[i];
-      if (!b.parryable || b.isParryBonus) continue;
-      if ((b.x - player.x) ** 2 + (b.y - player.y) ** 2 <= clearR2) {
-        particles.burst(b.x, b.y, color, 2, 20, 90, 2, 0.2);
-        enemyBullets.splice(i, 1);
       }
     }
   }
@@ -835,7 +818,7 @@ export function spawnPlantedDagger(
 }
 
 // NEW WEAPON 11: Cryo Ring — Chills & slows enemies; Stillpoint shatters chilled enemies!
-function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
+export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets, hazards, particles } = ctx;
   if (ctx.justEnteredStillpoint) {
     // Shatter every chilled enemy within range!
@@ -866,7 +849,7 @@ function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       }
     }
     if (shattered > 0) {
-      sound.playParry(shattered + 2, false);
+      sound.playCoreBurst(shattered + 2, false);
       particles.callout(player.x, player.y - 42, `SHATTER ×${shattered}`, '#9be8ff', 1.15, 0.85);
     }
   }

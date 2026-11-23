@@ -4,7 +4,6 @@ import { CORES, HEAT_MODS, RELICS } from '../data/builds';
 import { FINISHES, PARRY_FX, TRAILS } from '../data/finishes';
 import { evaluateMilestones, getEquippedCoating, persistMetaSave } from '../data/meta';
 import { SECTORS } from '../data/sectors';
-import { resolveSkinColors, SKINS } from '../data/skins';
 import { generateUpgradeChoices, PACTS, PASSIVES, WEAPONS } from '../data/upgrades';
 import { VESSELS } from '../data/vessels';
 import {
@@ -20,7 +19,6 @@ import {
   MetaSave,
   MeteorStrike,
   PactId,
-  ParryWave,
   PassiveId,
   Pickup,
   PlayerBullet,
@@ -62,7 +60,6 @@ export interface HudSnapshot {
   maxShield: number;
   charge: number;
   maxCharge: number;
-  overchargeReady: boolean;
   inStillpoint: boolean;
   level: number;
   xp: number;
@@ -112,7 +109,6 @@ export class StillpointGame {
   decoys: BlinkDecoy[] = [];
   meteors: MeteorStrike[] = [];
   lasers: LaserBeam[] = [];
-  parryWaves: ParryWave[] = [];
   pickups: Pickup[] = [];
   enclosure!: BossEnclosure;
   stats!: RunStats;
@@ -141,9 +137,9 @@ export class StillpointGame {
   private tutorialTimer = 0;
   private hudThrottle = 0;
   private lastFrameTs = 0;
-  private alchemyCounter = 0;
+  private scrapHarvestCounter = 0;
   private bonusHealDmg = 0;
-  private metaCommitted = { shards: 0, kills: 0, parries: 0, grazes: 0, runCounted: false };
+  private metaCommitted = { shards: 0, kills: 0, grazes: 0, runCounted: false };
 
   get isBossDraft(): boolean {
     return this.pendingBossDraft;
@@ -443,7 +439,6 @@ export class StillpointGame {
     this.decoys = [];
     this.meteors = [];
     this.lasers = [];
-    this.parryWaves = [];
     this.pickups = [];
     this.particles.clear();
 
@@ -463,19 +458,19 @@ export class StillpointGame {
       hitFlash: 0,
       kineticCharge: vessel.stats.maxCharge,
       maxKineticCharge: vessel.stats.maxCharge,
-      overchargeReady: false,
       inStillpoint: false,
       stillpointBlend: 0,
       stillpointTimeHeld: 0,
-      parryCooldown: 0,
-      parryCooldownMax: vesselId === 'phantom' ? 0.38 : 0.5,
-      focusStallTimer: 0,
+      coreCooldown: 0,
+      coreCooldownMax: vesselId === 'phantom' ? 0.55 : 0.75,
       level: 1,
       xp: 0,
       xpToNext: 26,
       rerolls: 1 + (u.reroll_module ?? 0),
       grazeCombo: 0,
       grazeComboTimer: 0,
+      grazeHealCounter: 0,
+      grazeBurstCounter: 0,
       momentum: 0,
       surgeTier: 1,
       surgeTimer: 0,
@@ -491,7 +486,7 @@ export class StillpointGame {
       critChance: 0.05,
       fireRateMult: 1,
       areaMult: 1,
-      parryMult: 1,
+      corePowerMult: 1,
       chargeRateMult: vessel.stats.chargeRateMult,
       stillpointDrainMult: 1,
       grazeRadius: vessel.stats.grazeRadius,
@@ -532,9 +527,8 @@ export class StillpointGame {
       elapsed: 0,
       score: 0,
       kills: 0,
-      parries: 0,
-      bestSingleParry: 0,
       grazes: 0,
+      bestGrazeCombo: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -565,9 +559,9 @@ export class StillpointGame {
     this.eventBannerTimer = 0;
     this.meteorWavesLeft = 0;
     this.meteorSpawnTimer = 0;
-    this.alchemyCounter = 0;
+    this.scrapHarvestCounter = 0;
     this.bonusHealDmg = 0;
-    this.metaCommitted = { shards: 0, kills: 0, parries: 0, grazes: 0, runCounted: false };
+    this.metaCommitted = { shards: 0, kills: 0, grazes: 0, runCounted: false };
     this.hasUsedStillpoint = false;
     this.tutorialTimer = 9;
   }
@@ -610,7 +604,6 @@ export class StillpointGame {
     const dmgBonus =
       (this.player.pacts.includes('bloodlust') ? 1.4 : 1.0) *
       (this.save.activeHeat.includes('fragile') ? 1.25 : 1.0);
-    const glassParryMult = this.player.pacts.includes('glass_cannon') ? 1.65 : 1.0;
     const greedShardMult = this.player.pacts.includes('greed') ? 1.6 : 1.0;
     const heatShardBonus =
       1 + this.save.activeHeat.reduce((acc, h) => acc + (HEAT_MODS[h]?.shardBonus ?? 0), 0);
@@ -641,19 +634,26 @@ export class StillpointGame {
       v.stats.chargeRateMult * (1 + thrLv * 0.16) * (1 + (u.kinetic_core ?? 0) * 0.1);
     const doubleTapRofMult = this.player.relics.includes('double_tap') ? 0.86 : 1.0;
     this.player.fireRateMult = (1 + coilLv * 0.13) * doubleTapRofMult;
-    this.player.parryCooldownMax =
-      (this.vesselId === 'phantom' ? 0.38 : 0.5) * Math.pow(0.88, coilLv);
-    this.player.areaMult = 1 + lensLv * 0.15;
+    this.player.coreCooldownMax =
+      (this.vesselId === 'phantom' ? 0.55 : 0.75) * Math.pow(0.88, coilLv);
+    this.player.areaMult = 1 + lensLv * 0.16;
     this.player.damageMult = Math.max(1, (1 + coreLv * 0.16 + this.bonusHealDmg) * dmgBonus);
     this.player.bossDmgMult = 1 + tgtLv * 0.16;
-    this.player.parryMult =
-      (1 + coreLv * 0.24) * (1 + (u.parry_resonance ?? 0) * 0.12) * glassParryMult;
+    this.player.corePowerMult =
+      (1 + coreLv * 0.22) * (1 + (u.parry_resonance ?? 0) * 0.12);
     this.player.grazeRadius = v.stats.grazeRadius + grazeLv * 14;
     this.player.magnetRadius = 74 + (u.magnet_field ?? 0) * 20 + grazeLv * 18;
-    this.player.critChance = 0.05 + (u.crit_calibration ?? 0) * 0.05 + edgeLv * 0.1;
-    this.player.projectileSpeedMult = 1 + edgeLv * 0.12;
+    this.player.critChance =
+      0.05 +
+      (this.vesselId === 'vesper' ? 0.08 : 0) +
+      (u.crit_calibration ?? 0) * 0.05 +
+      edgeLv * 0.1;
+    this.player.projectileSpeedMult =
+      (this.vesselId === 'vesper' ? 1.18 : 1.0) * (1 + edgeLv * 0.12);
     this.player.bonusProjectiles =
-      Math.floor((echoLv + 1) / 2) + (this.player.relics.includes('double_tap') ? 1 : 0);
+      Math.floor((echoLv + 1) / 2) +
+      (this.player.relics.includes('double_tap') ? 1 : 0) +
+      (this.vesselId === 'seraph' ? 1 : 0);
     this.player.xpMult = 1 + overLv * 0.18;
     this.player.slowPower = 0.42 + cryoLv * 0.06;
     this.player.slowDmgMult = 1 + cryoLv * 0.18;
@@ -730,8 +730,8 @@ export class StillpointGame {
     const justEntered = !wasStillpoint && player.inStillpoint;
     let justExited = wasStillpoint && !player.inStillpoint;
 
-    if (player.parryCooldown > 0) {
-      player.parryCooldown = Math.max(0, player.parryCooldown - dtReal);
+    if (player.coreCooldown > 0) {
+      player.coreCooldown = Math.max(0, player.coreCooldown - dtReal);
     }
 
     if (justEntered) {
@@ -746,12 +746,12 @@ export class StillpointGame {
         this.particles.arc(origin.x, origin.y, player.x, player.y, '#cf7dff', 3, 0.28);
         for (const e of [...this.enemies]) {
           if (e.hp > 0 && pointToSegmentDist(e.x, e.y, origin.x, origin.y, player.x, player.y) <= e.radius + 16) {
-            this.damageEnemy(e, 42 * player.damageMult, '#cf7dff', true);
+            this.damageEnemy(e, 44 * player.damageMult, '#cf7dff', true);
           }
         }
       }
 
-      if (player.parryCooldown <= 0 && player.kineticCharge >= 18) {
+      if (player.coreCooldown <= 0 && player.kineticCharge >= 16) {
         this.activateStillpointCoreEntry();
       }
 
@@ -769,20 +769,17 @@ export class StillpointGame {
       }
     }
 
-    // 3. Kinetic Charge — Earned Focus Economy (zero free idle regen; whiff stalls regen!)
-    if (player.focusStallTimer > 0) {
-      player.focusStallTimer = Math.max(0, player.focusStallTimer - dtReal);
-    }
+    // 3. Kinetic Charge — Earned Focus Economy (move & graze to recharge; zero idle AFK regen)
     if (player.inStillpoint) {
       player.stillpointTimeHeld += dtReal;
-      player.kineticCharge = Math.max(0, player.kineticCharge - 28 * player.stillpointDrainMult * dtReal);
+      player.kineticCharge = Math.max(0, player.kineticCharge - 27 * player.stillpointDrainMult * dtReal);
       if (player.kineticCharge <= 0.1) {
         player.inStillpoint = false;
         justExited = true;
       }
-    } else if (player.focusStallTimer <= 0) {
+    } else {
       const ocBonus = player.inOverclockRing ? 2.1 : 1.0;
-      const moveBonus = input.isMoving ? 10.5 : 0;
+      const moveBonus = input.isMoving ? 11.5 : 0;
       player.kineticCharge = Math.min(
         player.maxKineticCharge,
         player.kineticCharge + moveBonus * player.chargeRateMult * ocBonus * dtReal
@@ -807,26 +804,17 @@ export class StillpointGame {
     this.stats.elapsed += dtWorld;
     if (this.tutorialTimer > 0) this.tutorialTimer -= dtReal;
 
-    // 2. Gravity Siphon continuous pull while in Stillpoint!
+    // 2. Gravity Siphon continuous enemy pull while in Stillpoint!
     if (player.inStillpoint && this.coreId === 'siphon') {
-      const pullR = 235 * player.areaMult;
+      const pullR = 240 * player.areaMult;
       for (const e of this.enemies) {
         if (e.hp <= 0 || e.isBoss) continue;
         const dx = player.x - e.x;
         const dy = player.y - e.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d < pullR && d > 36) {
-          e.x += (dx / d) * 145 * dtReal;
-          e.y += (dy / d) * 145 * dtReal;
-        }
-      }
-      for (const eb of this.enemyBullets) {
-        const dx = player.x - eb.x;
-        const dy = player.y - eb.y;
-        const d = Math.hypot(dx, dy) || 1;
         if (d < pullR && d > 44) {
-          eb.x += (dx / d) * 110 * dtReal;
-          eb.y += (dy / d) * 110 * dtReal;
+          e.x += (dx / d) * 155 * dtReal;
+          e.y += (dy / d) * 155 * dtReal;
         }
       }
     }
@@ -898,7 +886,6 @@ export class StillpointGame {
     const weaponDtReal =
       player.inStillpoint && this.coreId === 'overclock' ? dtReal * 2.3 : dtReal;
     updateWeapons(this.makeWeaponCtx(justEntered, justExited), dtWorld, weaponDtReal);
-    this.updateParryWaves(dtReal);
     this.updateHazards(dtWorld, dtReal);
     this.updateLasers(dtWorld, dtReal);
     this.updatePlayerBullets(dtWorld, dtReal);
@@ -916,55 +903,138 @@ export class StillpointGame {
 
   private activateStillpointCoreEntry(): void {
     const p = this.player;
-    const skin = resolveSkinColors(SKINS[this.skinId], this.realTime);
+    const v = VESSELS[this.vesselId];
+    const aura = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
+    const metaAreaMult = 1 + (this.save.upgrades.parry_resonance ?? 0) * 0.08;
+    const coreRadiusMult = p.areaMult * v.stats.coreAreaMult * metaAreaMult;
+
+    // Nova vessel passive: drop a pulling gravity rift whenever a Core triggers!
+    if (this.vesselId === 'nova') {
+      this.hazards.push({
+        id: this.nextEntityId++,
+        kind: 'rift',
+        x: p.x,
+        y: p.y,
+        radius: 66 * p.areaMult,
+        damagePerSec: 36 * p.damageMult,
+        age: 0,
+        maxAge: 2.3,
+        color: aura.outer,
+        collapsed: false,
+        evolved: false,
+        pullStrength: 170
+      });
+    }
+
+    // Evolved Halo Sawblades (Eclipse Gyro): release 6 homing solar flares on Stillpoint entry!
+    const halo = p.weapons.find((w) => w.id === 'halo_blades' && w.evolved);
+    if (halo) {
+      for (let i = 0; i < 6; i++) {
+        const ang = (i * Math.PI * 2) / 6;
+        this.playerBullets.push({
+          id: this.nextEntityId++,
+          kind: 'parry_shard',
+          x: p.x + Math.cos(ang) * 28,
+          y: p.y + Math.sin(ang) * 28,
+          vx: Math.cos(ang) * 460,
+          vy: Math.sin(ang) * 460,
+          radius: 6,
+          damage: 34 * p.damageMult,
+          pierce: 2,
+          age: 0,
+          maxAge: 1.5,
+          color: '#8ee06c',
+          homing: 7,
+          hitSet: new Set(),
+          evolved: true
+        });
+      }
+    }
 
     if (this.coreId === 'blink') {
       // PHANTOM BLINK: Leave an exploding decoy hologram & teleport forward!
+      p.kineticCharge = Math.max(0, p.kineticCharge - 14);
+      p.coreCooldown = p.coreCooldownMax;
       const oldX = p.x;
       const oldY = p.y;
       this.decoys.push({ x: oldX, y: oldY, age: 0, maxAge: 2.2, radius: 52 * p.areaMult });
-      let nx = p.x + Math.cos(p.facingAngle) * 102;
-      let ny = p.y + Math.sin(p.facingAngle) * 102;
+      let nx = p.x + Math.cos(p.facingAngle) * 108;
+      let ny = p.y + Math.sin(p.facingAngle) * 108;
       if (this.enclosure.active) {
         nx = Math.max(this.enclosure.cx - this.enclosure.halfW + 18, Math.min(this.enclosure.cx + this.enclosure.halfW - 18, nx));
         ny = Math.max(this.enclosure.cy - this.enclosure.halfH + 18, Math.min(this.enclosure.cy + this.enclosure.halfH - 18, ny));
       }
-      this.particles.arc(oldX, oldY, nx, ny, '#cf7dff', 3.5, 0.22);
+      this.particles.arc(oldX, oldY, nx, ny, '#cf7dff', 3.5, 0.24);
+      this.particles.ripple(nx, ny, 120 * coreRadiusMult, 12, aura.outer, 0.34);
       p.x = nx;
       p.y = ny;
-      p.invulnTimer = Math.max(p.invulnTimer, 0.22);
-      this.triggerParryShockwave(0.75, false, 16);
+      p.invulnTimer = Math.max(p.invulnTimer, 0.25);
+      sound.playCoreBurst(3, false);
+      bridge.haptic('medium');
       return;
     }
 
     if (this.coreId === 'siphon') {
-      // GRAVITY SIPHON: Small defensive pulse on entry; main shatter fires on touch-down!
+      // GRAVITY SIPHON: Pull foes inward during Stillpoint; main blast fires on touch-down!
       p.kineticCharge = Math.max(0, p.kineticCharge - 10);
-      p.parryCooldown = p.parryCooldownMax;
-      this.particles.ripple(p.x, p.y, 210 * p.areaMult, 12, '#ff9f43', 0.45);
+      p.coreCooldown = p.coreCooldownMax;
+      this.particles.ripple(p.x, p.y, 215 * coreRadiusMult, 12, '#ff9f43', 0.45);
+      sound.playCoreBurst(2, false);
       return;
     }
 
     if (this.coreId === 'overclock') {
-      // OVERCLOCK: Small defensive clear + hyper-DPS turret mode!
-      this.triggerParryShockwave(0.68, false, 8);
+      // OVERCLOCK: Hyper-DPS turret mode + auto-crit during Stillpoint!
+      p.kineticCharge = Math.max(0, p.kineticCharge - 8);
+      p.coreCooldown = p.coreCooldownMax;
+      this.particles.ripple(p.x, p.y, 130 * coreRadiusMult, 12, '#e5b34c', 0.36);
       this.particles.callout(p.x, p.y - 36, 'OVERCLOCK', '#e5b34c', 1.05, 0.7);
+      sound.playCoreBurst(2, false);
       return;
     }
 
     if (this.coreId === 'berserk') {
-      // RAZOR REFLEX: Wide crimson counter-slash executing <30% HP & granting Shield!
-      this.triggerParryShockwave(1.18, true, 16);
-      const slashR = 152 * p.areaMult;
-      const dmg = 46 * p.damageMult * p.parryMult;
+      // RAZOR REFLEX: Wide crimson slash executing <32% HP & granting Shield + Haste!
+      p.kineticCharge = Math.max(0, p.kineticCharge - 14);
+      p.coreCooldown = p.coreCooldownMax;
+      const slashR = 162 * coreRadiusMult;
+      const dmg = 52 * p.damageMult * p.corePowerMult;
+      this.hazards.push({
+        id: this.nextEntityId++,
+        kind: 'nova_wave',
+        x: p.x,
+        y: p.y,
+        radius: 22,
+        maxRadius: slashR,
+        damagePerSec: 0,
+        age: 0,
+        maxAge: 0.26,
+        color: '#ff4858',
+        collapsed: false,
+        evolved: true,
+        pullStrength: 0
+      });
+      this.particles.ripple(p.x, p.y, slashR * 1.25, 16, '#ff4858', 0.38);
+      this.addShake(6);
+      sound.playCoreBurst(4, true);
+      bridge.haptic('medium');
+
       let execs = 0;
+      let hitCount = 0;
       for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= slashR + e.radius) {
+          hitCount++;
           const isExec = !e.isBoss && e.hp / e.maxHp <= 0.32;
           if (isExec) execs++;
           this.damageEnemy(e, isExec ? e.hp + 20 : dmg, '#ff4858', true);
         }
+      }
+      if (hitCount > 0) {
+        p.shield = Math.min(p.maxShield, p.shield + hitCount * 4);
+        p.berserkStacks = Math.min(8, p.berserkStacks + Math.min(4, hitCount));
+        p.berserkTimer = 5.0;
+        this.addMomentum(hitCount * 4);
       }
       if (execs > 0) {
         this.particles.callout(p.x, p.y - 42, `EXECUTE ×${execs}`, '#ff4858', 1.25, 0.85);
@@ -972,13 +1042,59 @@ export class StillpointGame {
       return;
     }
 
-    // Default DEFLECTOR Core
-    this.triggerParryShockwave(1.0, false, 16);
-    void skin;
+    // Default KINETIC NOVA Core: high-impact shockwave blasting & knocking back nearby foes!
+    p.kineticCharge = Math.max(0, p.kineticCharge - 14);
+    p.coreCooldown = p.coreCooldownMax;
+    const blastR = 158 * coreRadiusMult;
+    const dmg = 54 * p.damageMult * p.corePowerMult;
+    this.hazards.push({
+      id: this.nextEntityId++,
+      kind: 'nova_wave',
+      x: p.x,
+      y: p.y,
+      radius: 22,
+      maxRadius: blastR,
+      damagePerSec: 0,
+      age: 0,
+      maxAge: 0.28,
+      color: aura.outer,
+      collapsed: false,
+      evolved: true,
+      pullStrength: 0
+    });
+    this.particles.ripple(p.x, p.y, blastR * 1.3, 18, aura.outer, 0.42);
+    this.addShake(6);
+    sound.playCoreBurst(4, false);
+    bridge.haptic('medium');
+
+    let hitCount = 0;
+    for (const e of [...this.enemies]) {
+      if (e.hp <= 0) continue;
+      const dx = e.x - p.x;
+      const dy = e.y - p.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      if (dist <= blastR + e.radius) {
+        hitCount++;
+        this.damageEnemy(e, dmg, aura.outer, true);
+        if (!e.isBoss && e.hp > 0) {
+          e.x += (dx / dist) * 54;
+          e.y += (dy / dist) * 54;
+        }
+      }
+    }
+    if (hitCount > 0) {
+      this.addMomentum(Math.min(18, hitCount * 4));
+      if (this.vesselId === 'aegis' && hitCount >= 3) {
+        p.shield = Math.min(p.maxShield, p.shield + 10);
+      }
+    }
   }
 
   private activateStillpointCoreExit(): void {
     const p = this.player;
+    const v = VESSELS[this.vesselId];
+    const metaAreaMult = 1 + (this.save.upgrades.parry_resonance ?? 0) * 0.08;
+
     // Detonate Blink Decoys on touch-down!
     if (this.coreId === 'blink' && this.decoys.length > 0) {
       for (const d of this.decoys) {
@@ -987,28 +1103,36 @@ export class StillpointGame {
       this.decoys.length = 0;
     }
 
-    // Gravity Siphon: shatter all sucked-in enemies & bullets outward on touch-down!
-    if (this.coreId === 'siphon' && p.stillpointTimeHeld > 0.16) {
-      const blastR = 175 * p.areaMult;
+    // Gravity Siphon: shatter all sucked-in enemies outward + fire shrapnel ring on touch-down!
+    if (this.coreId === 'siphon' && p.stillpointTimeHeld > 0.14) {
+      const blastR = 180 * p.areaMult * v.stats.coreAreaMult * metaAreaMult;
+      this.hazards.push({
+        id: this.nextEntityId++,
+        kind: 'nova_wave',
+        x: p.x,
+        y: p.y,
+        radius: 24,
+        maxRadius: blastR,
+        damagePerSec: 0,
+        age: 0,
+        maxAge: 0.3,
+        color: '#ff9f43',
+        collapsed: false,
+        evolved: true,
+        pullStrength: 0
+      });
       this.particles.ripple(p.x, p.y, blastR * 1.35, 18, '#ff9f43', 0.45);
-      sound.playParry(5, true);
+      sound.playCoreBurst(5, true);
       bridge.haptic('heavy');
       this.addShake(8);
 
-      // Convert pulled enemy bullets into shrapnel!
-      let cleared = 0;
-      for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-        const eb = this.enemyBullets[i];
-        if (!eb.parryable) continue;
-        if (Math.hypot(eb.x - p.x, eb.y - p.y) <= blastR) {
-          this.enemyBullets.splice(i, 1);
-          cleared++;
-          this.stats.parries++;
-          this.addMomentum(6);
-        }
+      let hitCount = 0;
+      for (const e of [...this.enemies]) {
+        if (e.hp <= 0) continue;
+        if (Math.hypot(e.x - p.x, e.y - p.y) <= blastR + e.radius) hitCount++;
       }
 
-      const dmg = (48 + cleared * 9) * p.damageMult * p.parryMult;
+      const dmg = (56 + hitCount * 10) * p.damageMult * p.corePowerMult;
       for (const e of [...this.enemies]) {
         if (e.hp <= 0) continue;
         const dx = e.x - p.x;
@@ -1016,14 +1140,35 @@ export class StillpointGame {
         const dist = Math.hypot(dx, dy) || 1;
         if (dist <= blastR + e.radius) {
           this.damageEnemy(e, dmg, '#ff9f43', true);
-          if (!e.isBoss) {
-            e.x += (dx / dist) * 58;
-            e.y += (dy / dist) * 58;
+          if (!e.isBoss && e.hp > 0) {
+            e.x += (dx / dist) * 64;
+            e.y += (dy / dist) * 64;
           }
         }
       }
-      if (cleared > 0) {
-        this.particles.callout(p.x, p.y - 38, `SIPHON ×${cleared}`, '#ff9f43', 1.25, 0.9);
+
+      for (let i = 0; i < 8; i++) {
+        const ang = (i * Math.PI * 2) / 8;
+        this.playerBullets.push({
+          id: this.nextEntityId++,
+          kind: 'shrapnel',
+          x: p.x,
+          y: p.y,
+          vx: Math.cos(ang) * 480,
+          vy: Math.sin(ang) * 480,
+          radius: 5.5,
+          damage: 26 * p.damageMult * p.corePowerMult,
+          pierce: 2,
+          age: 0,
+          maxAge: 0.85,
+          color: '#ff9f43',
+          homing: 0,
+          hitSet: new Set()
+        });
+      }
+      if (hitCount > 0) {
+        this.addMomentum(Math.min(22, hitCount * 5));
+        this.particles.callout(p.x, p.y - 38, `SIPHON ×${hitCount}`, '#ff9f43', 1.2, 0.85);
       }
     }
   }
@@ -1031,7 +1176,7 @@ export class StillpointGame {
   private detonateDecoy(d: BlinkDecoy): void {
     const p = this.player;
     const blastR = 135 * p.areaMult;
-    const dmg = 52 * p.damageMult * p.parryMult;
+    const dmg = 54 * p.damageMult * p.corePowerMult;
     sound.playShoot('mortar');
     this.particles.shatter(d.x, d.y, '#cf7dff', 10, 1.3);
     this.particles.ripple(d.x, d.y, blastR * 1.2, 14, '#cf7dff', 0.4);
@@ -1214,216 +1359,6 @@ export class StillpointGame {
     this.particles.callout(x, y - 24, `PACT: ${def.name}`, def.accent, 1.2, 1.2);
   }
 
-  private triggerParryShockwave(radiusScale = 1.0, isBerserkSlash = false, chargeCost = 16): void {
-    const p = this.player;
-    const v = VESSELS[this.vesselId];
-    const pfx = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
-    const metaMult = 1 + (this.save.upgrades.parry_resonance ?? 0) * 0.08;
-    const overcharged = p.overchargeReady;
-    if (overcharged) p.overchargeReady = false;
-
-    p.kineticCharge = Math.max(0, p.kineticCharge - chargeCost);
-    p.parryCooldown = p.parryCooldownMax;
-
-    const maxR =
-      128 * p.areaMult * v.stats.parryRadiusMult * metaMult * radiusScale * (overcharged ? 1.8 : 1);
-    this.parryWaves.push({
-      x: p.x,
-      y: p.y,
-      radius: 22,
-      maxRadius: maxR,
-      age: 0,
-      duration: 0.24,
-      parryCount: 0,
-      bonusParryCount: 0,
-      colorOuter: isBerserkSlash ? '#d94842' : overcharged ? '#e2a93b' : pfx.outer,
-      colorInner: overcharged ? '#ffffff' : pfx.inner,
-      isBerserkSlash,
-      overcharged
-    });
-    this.particles.ripple(p.x, p.y, maxR * 1.4, overcharged ? 22 : 16, isBerserkSlash ? '#d94842' : pfx.outer, 0.42);
-    this.addShake(overcharged ? 8 : 4.5);
-
-    if (this.vesselId === 'nova') {
-      this.hazards.push({
-        id: this.nextEntityId++,
-        kind: 'rift',
-        x: p.x,
-        y: p.y,
-        radius: 62 * p.areaMult,
-        damagePerSec: 34 * p.damageMult,
-        age: 0,
-        maxAge: 2.2,
-        color: pfx.outer,
-        collapsed: false,
-        evolved: false,
-        pullStrength: 165
-      });
-    }
-
-    const halo = p.weapons.find((w) => w.id === 'halo_blades' && w.evolved);
-    if (halo) {
-      for (let i = 0; i < 6; i++) {
-        const ang = (i * Math.PI * 2) / 6;
-        this.playerBullets.push({
-          id: this.nextEntityId++,
-          kind: 'parry_shard',
-          x: p.x + Math.cos(ang) * 28,
-          y: p.y + Math.sin(ang) * 28,
-          vx: Math.cos(ang) * 450,
-          vy: Math.sin(ang) * 450,
-          radius: 6,
-          damage: 34 * p.damageMult,
-          pierce: 2,
-          age: 0,
-          maxAge: 1.5,
-          color: '#8ee06c',
-          homing: 7,
-          hitSet: new Set(),
-          evolved: true
-        });
-      }
-    }
-  }
-
-  private updateParryWaves(dtReal: number): void {
-    const p = this.player;
-    const hasPrism = p.weapons.some((w) => w.id === 'prism_drones');
-    const hasGlassPrism = p.relics.includes('glass_prism');
-    const hasAlchemy = p.relics.includes('bullet_alchemy');
-    const grazeLv = p.passives.find((x) => x.id === 'graze_conduit')?.level ?? 0;
-
-    for (let wi = this.parryWaves.length - 1; wi >= 0; wi--) {
-      const wave = this.parryWaves[wi];
-      wave.age += dtReal;
-      const t = Math.min(1, wave.age / wave.duration);
-      wave.radius = 22 + (wave.maxRadius - 22) * (1 - Math.pow(1 - t, 2.5));
-
-      for (let bi = this.enemyBullets.length - 1; bi >= 0; bi--) {
-        const eb = this.enemyBullets[bi];
-        if (!eb || !eb.parryable) continue;
-        const dx = eb.x - wave.x;
-        const dy = eb.y - wave.y;
-        if (dx * dx + dy * dy <= (wave.radius + eb.radius + 6) ** 2) {
-          this.enemyBullets.splice(bi, 1);
-          wave.parryCount++;
-          this.stats.parries++;
-          this.addMomentum(8);
-          this.stats.score += (eb.isParryBonus ? 120 : 35) * p.surgeTier;
-
-          if (hasAlchemy) {
-            this.alchemyCounter++;
-            if (this.alchemyCounter >= 8) {
-              this.alchemyCounter = 0;
-              this.pickups.push({
-                id: this.nextEntityId++,
-                kind: 'shard',
-                x: eb.x,
-                y: eb.y,
-                vx: 0,
-                vy: 0,
-                value: Math.round(4 * p.shardMult),
-                age: 0,
-                magnetized: true
-              });
-            }
-          }
-
-          // Berserk Reflex Core: erased bullets convert straight into Shield & Attack Speed stacks!
-          if (wave.isBerserkSlash) {
-            p.shield = Math.min(p.maxShield, p.shield + 2);
-            p.berserkStacks = Math.min(8, p.berserkStacks + 1);
-            p.berserkTimer = 5.0;
-          }
-
-          const shardCount =
-            (hasPrism ? 2 : 1) +
-            (this.vesselId === 'seraph' ? 1 : 0) +
-            (hasGlassPrism ? 2 : 0);
-          const baseDmg =
-            (eb.isParryBonus ? 80 : 32) *
-            p.damageMult *
-            p.parryMult *
-            (wave.overcharged ? 2.0 : 1.0);
-
-          if (eb.isParryBonus) {
-            wave.bonusParryCount++;
-            p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + 15);
-            this.particles.burst(eb.x, eb.y, '#ff66f5', 10, 80, 220, 3.2, 0.4);
-          } else {
-            p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + 2.6);
-            this.particles.burst(eb.x, eb.y, wave.colorOuter, 5, 60, 170, 2.5, 0.3);
-          }
-
-          for (let s = 0; s < shardCount; s++) {
-            const target = findNearestEnemy(eb.x, eb.y, this.enemies, 680, true);
-            const ang = target
-              ? Math.atan2(target.y - eb.y, target.x - eb.x) + (s - (shardCount - 1) / 2) * 0.2
-              : Math.atan2(dy, dx);
-            const spd = this.vesselId === 'vesper' ? 580 : 500;
-            this.playerBullets.push({
-              id: this.nextEntityId++,
-              kind: 'parry_shard',
-              x: eb.x,
-              y: eb.y,
-              vx: Math.cos(ang) * spd,
-              vy: Math.sin(ang) * spd,
-              radius: eb.isParryBonus ? 7.5 : 5.5,
-              damage: baseDmg / (shardCount > 1 ? 1.25 + shardCount * 0.12 : 1),
-              pierce: eb.isParryBonus ? 3 : 1,
-              age: 0,
-              maxAge: 2.0,
-              color: eb.isParryBonus ? '#e5b34c' : wave.colorOuter,
-              homing: 9.5,
-              targetId: target?.id,
-              hitSet: new Set()
-            });
-          }
-        }
-      }
-
-      if (wave.age >= wave.duration) {
-        if (wave.parryCount > 0) {
-          if (wave.parryCount > this.stats.bestSingleParry) {
-            this.stats.bestSingleParry = wave.parryCount;
-          }
-          sound.playParry(wave.parryCount, wave.bonusParryCount > 0);
-          bridge.haptic(wave.parryCount >= 4 || wave.bonusParryCount > 0 ? 'heavy' : 'medium');
-          if (wave.parryCount >= 4 || wave.bonusParryCount > 0) {
-            this.hitStopTimer = 0.032;
-            this.addShake(8);
-          }
-          this.particles.callout(
-            p.x,
-            p.y - 36,
-            wave.overcharged ? `MEGA PARRY ×${wave.parryCount}` : `PARRY ×${wave.parryCount}`,
-            wave.overcharged || wave.bonusParryCount > 0 ? '#e5b34c' : wave.colorOuter,
-            wave.parryCount >= 5 ? 1.3 : 1.05,
-            0.9
-          );
-
-          // Chain Parry relic: 5+ parry instantly resets CD & refunds +30% Focus!
-          if (p.relics.includes('chain_parry') && wave.parryCount >= 5) {
-            p.parryCooldown = 0;
-            p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + p.maxKineticCharge * 0.3);
-          }
-          if (this.vesselId === 'aegis' && wave.parryCount >= 4) {
-            p.shield = Math.min(p.maxShield, p.shield + 14);
-          }
-          if (grazeLv > 0 && wave.parryCount >= 3) {
-            p.hp = Math.min(p.maxHp, p.hp + 2 + grazeLv * 1.5);
-          }
-        } else if (!wave.isBerserkSlash && this.coreId !== 'overclock' && this.coreId !== 'blink') {
-          // Whiff Discipline: mashing Lift-to-Parry in empty air stalls Focus & extends cooldown!
-          p.parryCooldown = Math.max(p.parryCooldown, p.parryCooldownMax + 0.72);
-          p.focusStallTimer = Math.max(p.focusStallTimer, 0.65);
-          this.particles.callout(p.x, p.y - 32, 'WHIFF', '#8c8578', 0.85, 0.55);
-        }
-        this.parryWaves.splice(wi, 1);
-      }
-    }
-  }
-
   private updateBossDirector(dtWorld: number, dtReal: number): void {
     const enc = this.enclosure;
     const sector = SECTORS[this.sectorId];
@@ -1579,7 +1514,6 @@ export class StillpointGame {
   }
 
   private updatePlayerBullets(dtWorld: number, dtReal: number): void {
-    const teslaEvolved = this.player.weapons.some((w) => w.id === 'arc_tether' && w.evolved);
     const phantomEvolved = this.player.weapons.some((w) => w.id === 'phase_daggers' && w.evolved);
     const orbitalBonus = this.player.relics.includes('orbital_overdrive') ? 1.45 : 1.0;
 
@@ -1611,16 +1545,6 @@ export class StillpointGame {
           }
           b.x += b.vx * dtWorld;
           b.y += b.vy * dtWorld;
-        }
-        if (this.player.inStillpoint || b.evolved) {
-          for (let bi = this.enemyBullets.length - 1; bi >= 0; bi--) {
-            const eb = this.enemyBullets[bi];
-            if (!eb || !eb.parryable) continue;
-            if ((eb.x - b.x) ** 2 + (eb.y - b.y) ** 2 <= (b.radius + eb.radius + 4) ** 2) {
-              this.particles.burst(eb.x, eb.y, b.color, 3, 30, 110, 2, 0.2);
-              this.enemyBullets.splice(bi, 1);
-            }
-          }
         }
         if (Math.floor(b.age * 7) !== Math.floor((b.age - dtS) * 7)) b.hitSet.clear();
       } else {
@@ -1736,7 +1660,7 @@ export class StillpointGame {
           b.hitSet.add(e.id);
           let finalDmg = b.damage * (b.kind === 'scythe' || b.kind === 'prism_bolt' ? orbitalBonus : 1);
 
-          // Phalanx directional frontal shield check! (Parry Shards & Stillpoint attacks pierce cleanly!)
+          // Phalanx directional frontal shield check! (Stillpoint & Prism Shards pierce cleanly!)
           if (e.kind === 'aegis_bot' && b.kind !== 'parry_shard' && !this.player.inStillpoint) {
             const hitAngle = Math.atan2(b.y - e.y, b.x - e.x);
             let diff = hitAngle - e.angle;
@@ -1779,20 +1703,44 @@ export class StillpointGame {
           this.damageEnemy(e, finalDmg, isCrit ? '#e5b34c' : b.color, isCrit || b.kind === 'parry_shard');
           this.particles.burst(b.x, b.y, b.color, 3, 40, 120, 2, 0.2);
 
+          // Prism Split relic: crits split 2 homing prism shards!
+          if (
+            isCrit &&
+            b.kind !== 'parry_shard' &&
+            this.player.relics.includes('glass_prism') &&
+            this.playerBullets.length < 180
+          ) {
+            for (let s = 0; s < 2; s++) {
+              const target = findNearestEnemy(b.x, b.y, this.enemies, 480, true, e.id);
+              const ang = target
+                ? Math.atan2(target.y - b.y, target.x - b.x) + (s === 0 ? -0.25 : 0.25)
+                : Math.random() * Math.PI * 2;
+              this.playerBullets.push({
+                id: this.nextEntityId++,
+                kind: 'parry_shard',
+                x: b.x,
+                y: b.y,
+                vx: Math.cos(ang) * 520,
+                vy: Math.sin(ang) * 520,
+                radius: 5,
+                damage: finalDmg * 0.42,
+                pierce: 1,
+                age: 0,
+                maxAge: 1.4,
+                color: '#72d2ff',
+                homing: 8.5,
+                targetId: target?.id,
+                hitSet: new Set([e.id])
+              });
+            }
+          }
+
           // Executioner relic: crits below 35% HP arc lightning!
           if (isCrit && this.player.relics.includes('executioner') && e.hp > 0 && e.hp / e.maxHp < 0.35) {
             const chain = findNearestEnemy(e.x, e.y, this.enemies, 160, false, e.id);
             if (chain) {
               this.particles.arc(e.x, e.y, chain.x, chain.y, '#e5b34c', 2.4, 0.16);
               this.damageEnemy(chain, finalDmg * 0.7, '#e5b34c');
-            }
-          }
-
-          if (teslaEvolved && b.kind === 'parry_shard') {
-            const chain = findNearestEnemy(e.x, e.y, this.enemies, 155, false, e.id);
-            if (chain) {
-              this.particles.arc(e.x, e.y, chain.x, chain.y, '#9cf6ff', 2.4, 0.16);
-              this.damageEnemy(chain, b.damage * 0.65, '#9cf6ff');
             }
           }
 
@@ -1907,28 +1855,87 @@ export class StillpointGame {
 
   private registerGraze(bx: number, by: number): void {
     const p = this.player;
-    const skin = resolveSkinColors(SKINS[this.skinId], this.realTime);
+    const aura = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
     const pactGrazeMult = p.pacts.includes('bullet_magnet') ? 1.75 : 1.0;
 
     this.stats.grazes++;
-    this.addMomentum(5);
+    this.addMomentum(6);
     p.grazeCombo++;
-    p.grazeComboTimer = 2.2;
-    this.stats.score += (12 + Math.min(40, p.grazeCombo * 3)) * p.surgeTier;
-
-    // Time Bank relic: grazing while Focus is already full arms a 2x Mega Parry!
-    if (p.relics.includes('time_bank') && p.kineticCharge >= p.maxKineticCharge - 2 && !p.overchargeReady) {
-      p.overchargeReady = true;
-      this.particles.callout(p.x, p.y - 34, 'OVERCHARGED', '#e5b34c', 1.0, 0.8);
+    p.grazeComboTimer = 2.4;
+    if (p.grazeCombo > this.stats.bestGrazeCombo) {
+      this.stats.bestGrazeCombo = p.grazeCombo;
     }
+    this.stats.score += (14 + Math.min(44, p.grazeCombo * 3)) * p.surgeTier;
 
     p.kineticCharge = Math.min(
       p.maxKineticCharge,
-      p.kineticCharge + 9.5 * p.chargeRateMult * pactGrazeMult
+      p.kineticCharge + 11 * p.chargeRateMult * pactGrazeMult
     );
 
-    this.particles.arc(p.x, p.y, bx, by, skin.accent, 1.4, 0.12);
-    this.particles.burst((p.x + bx) * 0.5, (p.y + by) * 0.5, skin.accent, 3, 30, 100, 1.8, 0.22);
+    // Aegis vessel: every 8 consecutive grazes restores Shield!
+    if (this.vesselId === 'aegis' && p.grazeCombo % 8 === 0) {
+      p.shield = Math.min(p.maxShield, p.shield + 6);
+    }
+
+    // Graze Conduit passive: every 12 grazes restores HP!
+    const grazeLv = p.passives.find((x) => x.id === 'graze_conduit')?.level ?? 0;
+    if (grazeLv > 0) {
+      p.grazeHealCounter++;
+      if (p.grazeHealCounter >= 12) {
+        p.grazeHealCounter = 0;
+        const healAmt = Math.round(4 + grazeLv * 1.5);
+        p.hp = Math.min(p.maxHp, p.hp + healAmt);
+        this.particles.callout(p.x, p.y - 30, `+${healAmt} HP`, '#8ee06c', 0.9, 0.6);
+      }
+    }
+
+    // Graze Surge relic: every 8 grazes refunds +28% Focus & emits shock blast!
+    if (p.relics.includes('chain_parry')) {
+      p.grazeBurstCounter++;
+      if (p.grazeBurstCounter >= 8) {
+        p.grazeBurstCounter = 0;
+        p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + p.maxKineticCharge * 0.28);
+        const blastR = 148 * p.areaMult;
+        this.particles.ripple(p.x, p.y, blastR * 1.25, 14, aura.outer, 0.36);
+        this.particles.callout(p.x, p.y - 38, 'GRAZE SURGE', aura.outer, 1.05, 0.75);
+        sound.playCoreBurst(3, false);
+        for (const e of [...this.enemies]) {
+          if (e.hp <= 0) continue;
+          const dx = e.x - p.x;
+          const dy = e.y - p.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          if (dist <= blastR + e.radius) {
+            this.damageEnemy(e, 44 * p.damageMult * p.corePowerMult, aura.outer, true);
+            if (!e.isBoss && e.hp > 0) {
+              e.x += (dx / dist) * 44;
+              e.y += (dy / dist) * 44;
+            }
+          }
+        }
+      }
+    }
+
+    // Scrap Harvest relic: every 10 grazes drops magnetized bonus Shards!
+    if (p.relics.includes('bullet_alchemy')) {
+      this.scrapHarvestCounter++;
+      if (this.scrapHarvestCounter >= 10) {
+        this.scrapHarvestCounter = 0;
+        this.pickups.push({
+          id: this.nextEntityId++,
+          kind: 'shard',
+          x: bx,
+          y: by,
+          vx: 0,
+          vy: 0,
+          value: Math.round(5 * p.shardMult),
+          age: 0,
+          magnetized: true
+        });
+      }
+    }
+
+    this.particles.arc(p.x, p.y, bx, by, aura.outer, 1.4, 0.12);
+    this.particles.burst((p.x + bx) * 0.5, (p.y + by) * 0.5, aura.outer, 3, 30, 100, 1.8, 0.22);
     sound.playGraze(p.grazeCombo);
     bridge.haptic('light');
 
@@ -2054,7 +2061,11 @@ export class StillpointGame {
   private damageEnemy = (enemy: Enemy, rawDmg: number, color: string, isCrit = false): void => {
     if (enemy.hp <= 0) return;
     const bossScale = enemy.isBoss ? this.player.bossDmgMult : 1;
-    const dmg = rawDmg * bossScale;
+    const stillpointScale = this.player.inStillpoint
+      ? (this.player.relics.includes('time_bank') ? 1.4 : 1) *
+        (this.player.pacts.includes('glass_cannon') ? 1.55 : 1)
+      : 1;
+    const dmg = rawDmg * bossScale * stillpointScale;
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
 
@@ -2088,6 +2099,15 @@ export class StillpointGame {
     }
     this.addMomentum(enemy.isElite ? 12 : 3.2);
     this.stats.score += enemy.scoreValue * this.player.surgeTier;
+
+    // Evolved Arc Tether (Tesla Lattice): slain enemies discharge chain arcs to nearby foes!
+    if (this.player.weapons.some((w) => w.id === 'arc_tether' && w.evolved)) {
+      const chain = findNearestEnemy(enemy.x, enemy.y, this.enemies, 165, false, enemy.id);
+      if (chain) {
+        this.particles.arc(enemy.x, enemy.y, chain.x, chain.y, '#9cf6ff', 2.4, 0.16);
+        this.damageEnemy(chain, 32 * this.player.damageMult, '#9cf6ff');
+      }
+    }
 
     // Blood Engine relic: every 20 kills triggers 4s Frenzy & +3 HP!
     if (this.player.relics.includes('blood_engine') && this.stats.kills % 20 === 0) {
@@ -2330,18 +2350,16 @@ export class StillpointGame {
   private finalizeMetaProgress(isVictory: boolean): RunStats {
     const hasVictory = isVictory || this.stats.victory;
     const runBonus = Math.round(
-      (this.stats.elapsed * 0.24 + this.stats.parries * 0.55 + (hasVictory ? 150 : 0)) *
+      (this.stats.elapsed * 0.24 + this.stats.grazes * 0.35 + (hasVictory ? 150 : 0)) *
         this.player.shardMult
     );
     const totalPayout = Math.max(0, this.stats.shardsEarned + runBonus);
     const deltaShards = Math.max(0, totalPayout - this.metaCommitted.shards);
     const deltaKills = Math.max(0, this.stats.kills - this.metaCommitted.kills);
-    const deltaParries = Math.max(0, this.stats.parries - this.metaCommitted.parries);
     const deltaGrazes = Math.max(0, this.stats.grazes - this.metaCommitted.grazes);
 
     this.metaCommitted.shards += deltaShards;
     this.metaCommitted.kills += deltaKills;
-    this.metaCommitted.parries += deltaParries;
     this.metaCommitted.grazes += deltaGrazes;
 
     this.stats.weapons = this.player.weapons.map((w) => ({
@@ -2361,10 +2379,9 @@ export class StillpointGame {
       this.metaCommitted.runCounted = true;
     }
     this.save.totalKills += deltaKills;
-    this.save.totalParries += deltaParries;
     this.save.totalGrazes += deltaGrazes;
-    if (this.stats.bestSingleParry > this.save.bestSingleParry) {
-      this.save.bestSingleParry = this.stats.bestSingleParry;
+    if (this.stats.bestGrazeCombo > this.save.bestSingleParry) {
+      this.save.bestSingleParry = this.stats.bestGrazeCombo;
     }
     if (this.stats.elapsed > this.save.bestTimeSec) {
       this.save.bestTimeSec = Math.floor(this.stats.elapsed);
@@ -2466,7 +2483,6 @@ export class StillpointGame {
       maxShield: Math.ceil(this.player.maxShield),
       charge: this.player.kineticCharge,
       maxCharge: this.player.maxKineticCharge,
-      overchargeReady: this.player.overchargeReady,
       inStillpoint: this.player.inStillpoint,
       level: this.player.level,
       xp: this.player.xp,
@@ -2497,7 +2513,7 @@ export class StillpointGame {
     const shakeY = (Math.random() - 0.5) * 2 * this.shakeMag;
     const coating = getEquippedCoating(this.save);
     const trail = TRAILS[this.save.selectedTrail] ?? TRAILS.ion_ash;
-    const parryFx = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
+    const aura = PARRY_FX[this.save.selectedParryFx] ?? PARRY_FX.steel_ring;
 
     this.renderer.render({
       player: this.player,
@@ -2507,7 +2523,9 @@ export class StillpointGame {
       coating,
       trailColor: trail.color,
       trailCoreColor: trail.coreColor,
-      accentColor: FINISHES[coating.finishId]?.accent ?? parryFx.outer,
+      accentColor: FINISHES[coating.finishId]?.accent ?? aura.outer,
+      auraOuter: aura.outer,
+      auraInner: aura.inner,
       sectorId: this.sectorId,
       enemies: this.enemies,
       enemyBullets: this.enemyBullets,
@@ -2518,7 +2536,6 @@ export class StillpointGame {
       decoys: this.decoys,
       meteors: this.meteors,
       lasers: this.lasers,
-      parryWaves: this.parryWaves,
       pickups: this.pickups,
       enclosure: this.enclosure,
       particles: this.particles,

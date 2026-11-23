@@ -104,7 +104,6 @@ export class HudView {
     const focusPct = Math.max(0, Math.min(100, (h.charge / Math.max(1, h.maxCharge)) * 100));
     this.focusFill.style.width = `${focusPct.toFixed(1)}%`;
     this.focusFill.classList.toggle('active', h.inStillpoint);
-    this.focusFill.classList.toggle('overcharged', h.overchargeReady);
 
     this.lvTag.textContent = `LV ${h.level}`;
     this.timerEl.textContent = h.endlessMode ? `∞ ${formatTime(h.elapsed)}` : formatTime(h.elapsed);

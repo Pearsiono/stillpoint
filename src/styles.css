@@ -245,10 +245,6 @@ button {
   background: #f5efe2;
 }
 
-.focus-fill.overcharged {
-  background: linear-gradient(90deg, var(--gold), #fff0b8);
-}
-
 .hud-meta-line {
   display: flex;
   align-items: center;
@@ -878,6 +874,16 @@ button {
   height: 5px;
   gap: 2px;
   overflow: hidden;
+}
+
+.odds-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .crate-actions {

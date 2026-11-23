@@ -6,8 +6,7 @@ export type SpriteKey =
   | 'bullet_coral'
   | 'bullet_amber'
   | 'bullet_crimson'
-  | 'bullet_parry'
-  | 'bullet_void'
+  | 'bullet_heavy'
   | 'bullet_cyan'
   | 'bullet_shard'
   | 'bullet_prism'
@@ -122,8 +121,7 @@ class SpriteBank {
     this.bank.set('bullet_coral', this.makeEnemyShot(44, '#ff4d4d', '#b81d24', '#fff5e6'));
     this.bank.set('bullet_amber', this.makeEnemyShot(44, '#ff9f1c', '#b34700', '#fff8db'));
     this.bank.set('bullet_crimson', this.makeEnemyShot(48, '#ff2a55', '#8a0826', '#ffffff'));
-    this.bank.set('bullet_parry', this.makeParryOrb(60));
-    this.bank.set('bullet_void', this.makeVoidUnparryableShot(58));
+    this.bank.set('bullet_heavy', this.makeHeavyOrb(60));
 
     this.bank.set('bullet_cyan', this.makeOrb(38, '#45e8d8', '#0f766e', '#eafffd'));
     this.bank.set('bullet_shard', this.makeDiamond(42, '#5ef2e6', '#0d9488', '#ffffff'));
@@ -630,75 +628,37 @@ class SpriteBank {
     return c;
   }
 
-  private makeParryOrb(size: number): HTMLCanvasElement {
+  private makeHeavyOrb(size: number): HTMLCanvasElement {
+    // High-contrast molten crimson-gold heavy ordnance orb
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
-    ctx.fillStyle = 'rgba(18, 6, 24, 0.58)';
+    ctx.fillStyle = 'rgba(20, 6, 8, 0.58)';
     ctx.beginPath();
-    ctx.arc(half, half, half * 0.72, 0, Math.PI * 2);
+    ctx.arc(half, half, half * 0.7, 0, Math.PI * 2);
     ctx.fill();
+
     const g = ctx.createRadialGradient(half, half, 2, half, half, half);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(0.28, '#ffd6ff');
-    g.addColorStop(0.52, '#ff45eb');
-    g.addColorStop(0.78, 'rgba(180, 30, 240, 0.35)');
-    g.addColorStop(1, 'rgba(180, 30, 240, 0)');
+    g.addColorStop(0, '#fff7dc');
+    g.addColorStop(0.28, '#ffbe4f');
+    g.addColorStop(0.52, '#ff3b30');
+    g.addColorStop(0.78, 'rgba(180, 22, 24, 0.38)');
+    g.addColorStop(1, 'rgba(140, 12, 16, 0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(half, half, half, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#ff9ef8';
-    ctx.lineWidth = 2.4;
+
+    ctx.strokeStyle = '#ffcf70';
+    ctx.lineWidth = 2.1;
     ctx.beginPath();
-    ctx.arc(half, half, half * 0.68, 0, Math.PI * 2);
+    ctx.arc(half, half, half * 0.62, 0, Math.PI * 2);
     ctx.stroke();
+
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.arc(half, half, half * 0.44, 0, Math.PI * 2);
+    ctx.arc(half, half, half * 0.38, 0, Math.PI * 2);
     ctx.stroke();
-    return c;
-  }
-
-  private makeVoidUnparryableShot(size: number): HTMLCanvasElement {
-    // Unmistakable jagged obsidian-crimson threat shot: CANNOT BE PARRIED, MUST BE DODGED!
-    const [c, ctx] = this.createCanvas(size);
-    const half = size / 2;
-    const g = ctx.createRadialGradient(half, half, 2, half, half, half);
-    g.addColorStop(0, 'rgba(255, 36, 66, 0.95)');
-    g.addColorStop(0.55, 'rgba(210, 22, 42, 0.52)');
-    g.addColorStop(1, 'rgba(120, 0, 18, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(half, half, half, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Sharp 4-pointed jagged crimson hazard star
-    ctx.save();
-    ctx.translate(half, half);
-    ctx.fillStyle = '#ff2942';
-    ctx.strokeStyle = '#ffd1c2';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4;
-      const r = i % 2 === 0 ? half * 0.78 : half * 0.38;
-      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Pitch-black void core inside crimson ring (instant visual signal: UNPARRYABLE!)
-    ctx.fillStyle = '#0a0608';
-    ctx.beginPath();
-    ctx.arc(0, 0, half * 0.28, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#ff5468';
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-    ctx.restore();
     return c;
   }
 

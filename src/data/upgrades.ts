@@ -25,7 +25,7 @@ export const PACTS: Record<
   glass_cannon: {
     id: 'glass_cannon',
     name: 'FRACTURE',
-    trade: '+65% Parry DMG · -20% HP',
+    trade: '+55% FOCUS DMG · -20% HP',
     accent: '#ff7a1a'
   },
   bullet_magnet: {
@@ -62,9 +62,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'ECLIPSE GYRO',
     catalystPassive: 'kinetic_thrusters',
     accent: '#4effb4',
-    shortDesc: 'Orbiting blades · Slow-mo bullet shredder',
-    stillpointShort: 'Shreds incoming enemy bullets',
-    evolvedShort: 'Dual solar rings flare shards on parry',
+    shortDesc: 'Orbiting saws · Slow-mo expands & speeds spin',
+    stillpointShort: 'Wide high-RPM shredder ring',
+    evolvedShort: 'Dual solar rings launch homing razor flares',
     maxLevel: 5
   },
   arc_tether: {
@@ -73,9 +73,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'TESLA LATTICE',
     catalystPassive: 'flux_coil',
     accent: '#6fa8ff',
-    shortDesc: 'Chain lightning · Slow-mo zaps bullets',
-    stillpointShort: 'Zaps nearby enemy projectiles',
-    evolvedShort: 'Parried shards chain storm lightning',
+    shortDesc: 'Chain lightning · Slow-mo rapid overload',
+    stillpointShort: 'Rapid +3 chain high-voltage arcs',
+    evolvedShort: 'Storm kills chain secondary lightning arcs',
     maxLevel: 5
   },
   prism_drones: {
@@ -117,9 +117,9 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     evolvedName: 'REAPER ECLIPSE',
     catalystPassive: 'momentum_edge',
     accent: '#ff5c8a',
-    shortDesc: 'Boomerang arcs · Slow-mo frozen buzzsaws',
-    stillpointShort: 'Locks mid-air shredding bullets',
-    evolvedShort: 'Twin crimson saws slice bullets nonstop',
+    shortDesc: 'Boomerang arcs · Slow-mo locked buzzsaws',
+    stillpointShort: 'Hovers mid-air shredding hostiles',
+    evolvedShort: 'Twin crimson saws carve dense waves',
     maxLevel: 5
   },
   ricochet_shard: {
@@ -140,8 +140,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     catalystPassive: 'reactive_plating',
     accent: '#ff9f43',
     shortDesc: 'Shockwave aura · Slow-mo implosion burst',
-    stillpointShort: 'Mega blast triggers on touch-down',
-    evolvedShort: 'Continuous dual shockwaves erase bullets',
+    stillpointShort: 'Mega knockback blast on touch-down',
+    evolvedShort: 'Massive thermal waves crush nearby swarms',
     maxLevel: 5
   },
   rail_turret: {
@@ -201,7 +201,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Flux Coil',
     pairsWith: 'arc_tether',
     accent: '#6fa8ff',
-    shortStat: '+13% Fire rate · -12% Parry CD',
+    shortStat: '+13% Fire rate · -12% Core CD',
     maxLevel: 5
   },
   aether_lens: {
@@ -209,7 +209,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Aether Lens',
     pairsWith: 'prism_drones',
     accent: '#7bf7ff',
-    shortStat: '+15% Area & Parry radius',
+    shortStat: '+16% Weapon & Core area',
     maxLevel: 5
   },
   singularity_core: {
@@ -217,7 +217,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Singularity Core',
     pairsWith: 'void_mortars',
     accent: '#b97aff',
-    shortStat: '+16% DMG · +24% Parry DMG',
+    shortStat: '+16% DMG · +22% Core DMG',
     maxLevel: 5
   },
   graze_conduit: {
@@ -225,7 +225,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Graze Conduit',
     pairsWith: 'phase_daggers',
     accent: '#ff66e5',
-    shortStat: '+14 Graze · Parry heals HP',
+    shortStat: '+14 Graze · 12 Grazes heal HP',
     maxLevel: 5
   },
   momentum_edge: {

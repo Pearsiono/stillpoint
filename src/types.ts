@@ -185,7 +185,7 @@ export interface VesselDef {
     moveSpeed: number;
     maxCharge: number;
     chargeRateMult: number;
-    parryRadiusMult: number;
+    coreAreaMult: number;
     grazeRadius: number;
     armor: number;
     shield: number;
@@ -343,19 +343,19 @@ export interface PlayerState {
   hitFlash: number;
   kineticCharge: number;
   maxKineticCharge: number;
-  overchargeReady: boolean; // Time Bank relic!
   inStillpoint: boolean;
   stillpointBlend: number;
   stillpointTimeHeld: number;
-  parryCooldown: number;
-  parryCooldownMax: number;
-  focusStallTimer: number;
+  coreCooldown: number;
+  coreCooldownMax: number;
   level: number;
   xp: number;
   xpToNext: number;
   rerolls: number;
   grazeCombo: number;
   grazeComboTimer: number;
+  grazeHealCounter: number;
+  grazeBurstCounter: number;
   // Momentum / Surge Overdrive!
   momentum: number; // 0..100
   surgeTier: number; // 1..4
@@ -372,7 +372,7 @@ export interface PlayerState {
   critChance: number;
   fireRateMult: number;
   areaMult: number;
-  parryMult: number;
+  corePowerMult: number;
   chargeRateMult: number;
   stillpointDrainMult: number;
   grazeRadius: number;
@@ -443,7 +443,7 @@ export interface Enemy {
   segments?: Array<{ x: number; y: number }>;
 }
 
-export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'parry_orb' | 'void_unparryable';
+export type EnemyBulletKind = 'orb' | 'needle' | 'diamond' | 'heavy_orb';
 
 export interface EnemyBullet {
   id: number;
@@ -457,8 +457,6 @@ export interface EnemyBullet {
   age: number;
   maxAge: number;
   grazed: boolean;
-  parryable: boolean;
-  isParryBonus: boolean;
   color: string;
 }
 
@@ -555,21 +553,6 @@ export interface LaserBeam {
   damage?: number;
 }
 
-export interface ParryWave {
-  x: number;
-  y: number;
-  radius: number;
-  maxRadius: number;
-  age: number;
-  duration: number;
-  parryCount: number;
-  bonusParryCount: number;
-  colorOuter: string;
-  colorInner: string;
-  isBerserkSlash?: boolean;
-  overcharged?: boolean;
-}
-
 export interface Pickup {
   id: number;
   kind: 'xp_small' | 'xp_mid' | 'xp_large' | 'heal' | 'shard' | 'magnet' | 'chest';
@@ -598,9 +581,8 @@ export interface RunStats {
   elapsed: number;
   score: number;
   kills: number;
-  parries: number;
-  bestSingleParry: number;
   grazes: number;
+  bestGrazeCombo: number;
   bossesDefeated: number;
   shardsEarned: number;
   cratesEarned: number;

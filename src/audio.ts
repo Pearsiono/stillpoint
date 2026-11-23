@@ -423,11 +423,11 @@ export class SoundEngine {
     osc.stop(now + 0.14);
   }
 
-  playParry(count: number, hasBonus: boolean): void {
+  playCoreBurst(intensity: number, isHeavy: boolean): void {
     if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
     const now = this.ctx.currentTime;
-    const baseIdx = Math.min(PENTATONIC_HZ.length - 3, 2 + Math.min(5, Math.floor(count / 2)));
-    const chord = hasBonus
+    const baseIdx = Math.min(PENTATONIC_HZ.length - 3, 2 + Math.min(5, Math.floor(intensity / 2)));
+    const chord = isHeavy
       ? [PENTATONIC_HZ[baseIdx], PENTATONIC_HZ[baseIdx + 1], PENTATONIC_HZ[baseIdx + 2] * 1.5]
       : [PENTATONIC_HZ[baseIdx], PENTATONIC_HZ[baseIdx + 2]];
 
@@ -445,7 +445,7 @@ export class SoundEngine {
       osc.start(now + idx * 0.02);
       osc.stop(now + idx * 0.02 + 0.3);
     });
-    this.playNoiseTick(0.09, hasBonus ? 0.22 : 0.12, now, false);
+    this.playNoiseTick(0.09, isHeavy ? 0.22 : 0.12, now, false);
   }
 
   playGraze(combo: number): void {

@@ -387,11 +387,11 @@ export interface ParryFxDef {
 }
 
 export const PARRY_FX: Record<ParryFxId, ParryFxDef> = {
-  steel_ring: { id: 'steel_ring', name: 'RELIC PULSE', outer: '#52bfb5', inner: '#e0b35c', cost: 0 },
-  shatter_gold: { id: 'shatter_gold', name: 'GILDED BREAK', outer: '#e2a93b', inner: '#fff2cc', cost: 120 },
-  blood_slash: { id: 'blood_slash', name: 'OXIDE SLASH', outer: '#d93d44', inner: '#f29f4b', cost: 160 },
-  arc_pulse: { id: 'arc_pulse', name: 'ARC SURGE', outer: '#62a4f5', inner: '#d9f2ff', cost: 220 },
-  obsidian_wave: { id: 'obsidian_wave', name: 'VOID RIPPLE', outer: '#b064eb', inner: '#52bfb5', cost: 300 }
+  steel_ring: { id: 'steel_ring', name: 'RELIC RING', outer: '#52bfb5', inner: '#e0b35c', cost: 0 },
+  shatter_gold: { id: 'shatter_gold', name: 'GILDED PULSE', outer: '#e2a93b', inner: '#fff2cc', cost: 120 },
+  blood_slash: { id: 'blood_slash', name: 'OXIDE FLARE', outer: '#d93d44', inner: '#f29f4b', cost: 160 },
+  arc_pulse: { id: 'arc_pulse', name: 'ARC LATTICE', outer: '#62a4f5', inner: '#d9f2ff', cost: 220 },
+  obsidian_wave: { id: 'obsidian_wave', name: 'VOID HALO', outer: '#b064eb', inner: '#52bfb5', cost: 300 }
 };
 
 export const PARRY_FX_ORDER: ParryFxId[] = [

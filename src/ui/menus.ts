@@ -107,6 +107,7 @@ export class OverlayController {
   private forgeMode = false;
   private forgeSelection: string[] = [];
   private activeReelRaf = 0;
+  private activeReelTimer = 0;
   private reelItems: CoatingItem[] | null = null;
   private reelWinner: CoatingItem | null = null;
   private reelCrateKind: 'standard' | 'relic' = 'standard';
@@ -190,6 +191,10 @@ export class OverlayController {
     if (this.activeReelRaf) {
       cancelAnimationFrame(this.activeReelRaf);
       this.activeReelRaf = 0;
+    }
+    if (this.activeReelTimer) {
+      window.clearTimeout(this.activeReelTimer);
+      this.activeReelTimer = 0;
     }
     this.reelItems = null;
     this.reelWinner = null;
@@ -504,6 +509,13 @@ export class OverlayController {
             <div style="flex:5.4;background:#d9483b"></div>
             <div style="flex:1.4;background:#e2a93b"></div>
           </div>
+          <div class="odds-legend">
+            <span style="color:#5b82d6">52%</span>
+            <span style="color:#9c6ae6">28%</span>
+            <span style="color:#d64eb8">13.2%</span>
+            <span style="color:#d9483b">5.4%</span>
+            <span style="color:#e2a93b">★ 1.4%</span>
+          </div>
           <div class="crate-actions">
             <button class="battle-btn" style="height:40px;font-size:13px" id="btn-open-std" ${this.save.standardCrates > 0 ? '' : 'disabled'}>
               OPEN
@@ -530,6 +542,13 @@ export class OverlayController {
             <div style="flex:27;background:#d64eb8"></div>
             <div style="flex:11.8;background:#d9483b"></div>
             <div style="flex:3.2;background:#e2a93b"></div>
+          </div>
+          <div class="odds-legend">
+            <span style="color:#5b82d6">20%</span>
+            <span style="color:#9c6ae6">38%</span>
+            <span style="color:#d64eb8">27%</span>
+            <span style="color:#d9483b">11.8%</span>
+            <span style="color:#e2a93b">★ 3.2%</span>
           </div>
           <div class="crate-actions">
             <button class="battle-btn rust-btn" style="height:40px;font-size:13px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>
@@ -649,7 +668,7 @@ export class OverlayController {
     return `
       <div class="fx-section-title">THRUSTER EXHAUST</div>
       <div class="fx-grid">${trailsHtml}</div>
-      <div class="fx-section-title">PARRY SHOCKWAVE</div>
+      <div class="fx-section-title">STILLPOINT AURA</div>
       <div class="fx-grid">${parryHtml}</div>
     `;
   }
@@ -798,17 +817,17 @@ export class OverlayController {
       const reward = m.rewardLabel ? `${m.rewardLabel} · +${m.rewardShards}` : `+${m.rewardShards}`;
       return `
         <div class="trial-card ${done ? 'done' : ''}">
-          <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
             <div class="r-frame ${done ? 'gold' : 'common'}" style="width:34px;height:34px">
               ${svgIcon(done ? 'check' : 'trophy', 15, done ? '#dfa436' : '#8f8779')}
             </div>
-            <div>
+            <div style="min-width:0">
               <div class="talent-name">${m.name}</div>
               <div class="talent-stat">${m.goalText} · ${Math.min(st.current, st.target).toLocaleString()}/${st.target.toLocaleString()}</div>
               <div class="trial-bar"><div class="trial-bar-fill" style="width:${pct.toFixed(0)}%"></div></div>
             </div>
           </div>
-          <span class="talent-stat" style="color:${done ? 'var(--gold)' : 'var(--muted)'};font-weight:800">${reward}</span>
+          <span class="talent-stat" style="color:${done ? 'var(--gold)' : 'var(--muted)'};font-weight:800;flex-shrink:0;text-align:right">${reward}</span>
         </div>
       `;
     }).join('');
@@ -910,9 +929,19 @@ export class OverlayController {
     const duration = 3500;
     const startTs = performance.now();
     let lastTile = -1;
+    let finished = false;
 
     const finishRoll = () => {
-      this.activeReelRaf = 0;
+      if (finished) return;
+      finished = true;
+      if (this.activeReelRaf) {
+        cancelAnimationFrame(this.activeReelRaf);
+        this.activeReelRaf = 0;
+      }
+      if (this.activeReelTimer) {
+        window.clearTimeout(this.activeReelTimer);
+        this.activeReelTimer = 0;
+      }
       const rar = RARITY_META[FINISHES[winner.finishId].rarity];
       sound.playCrateReveal(rar.order);
       bridge.haptic(rar.order >= 3 ? 'heavy' : 'success');
@@ -925,11 +954,11 @@ export class OverlayController {
     };
 
     this.container.querySelector('#btn-skip-reel')?.addEventListener('click', () => {
-      if (this.activeReelRaf) cancelAnimationFrame(this.activeReelRaf);
       finishRoll();
     });
 
     const step = (now: number) => {
+      if (finished) return;
       const t = Math.min(1, (now - startTs) / duration);
       // Quintic ease-out for suspenseful slowing across the last 5 tiles!
       const ease = 1 - Math.pow(1 - t, 4.2);
@@ -946,7 +975,8 @@ export class OverlayController {
       if (t < 1) {
         this.activeReelRaf = requestAnimationFrame(step);
       } else {
-        window.setTimeout(finishRoll, 320);
+        this.activeReelRaf = 0;
+        this.activeReelTimer = window.setTimeout(finishRoll, 320);
       }
     };
     this.activeReelRaf = requestAnimationFrame(step);
@@ -964,6 +994,22 @@ export class OverlayController {
       ctx.clearRect(0, 0, cv.width, cv.height);
       if (art) {
         ctx.drawImage(art, 0, 0, cv.width, cv.height);
+      } else {
+        const accent = FINISHES[coating.finishId]?.accent ?? '#4cb5ab';
+        ctx.save();
+        ctx.translate(cv.width * 0.5, cv.height * 0.5);
+        ctx.fillStyle = '#2b2823';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = Math.max(2, cv.width * 0.025);
+        ctx.beginPath();
+        ctx.moveTo(0, -cv.height * 0.34);
+        ctx.lineTo(cv.width * 0.28, cv.height * 0.28);
+        ctx.lineTo(0, cv.height * 0.14);
+        ctx.lineTo(-cv.width * 0.28, cv.height * 0.28);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
       }
     });
   }
@@ -1188,7 +1234,7 @@ export class OverlayController {
       }
     });
 
-    // Trails & Parry FX
+    // Trails & Stillpoint Aura FX
     this.container.querySelectorAll<HTMLButtonElement>('[data-trail]').forEach((b) => {
       b.addEventListener('click', () => {
         const tid = b.dataset.trail as TrailId;
@@ -1206,6 +1252,9 @@ export class OverlayController {
           bridge.haptic('success');
           sound.playLevelUp();
           this.renderHub(true);
+        } else {
+          bridge.haptic('warning');
+          this.showToast(`NEED ${t.cost} SHARDS`);
         }
       });
     });
@@ -1227,6 +1276,9 @@ export class OverlayController {
           bridge.haptic('success');
           sound.playLevelUp();
           this.renderHub(true);
+        } else {
+          bridge.haptic('warning');
+          this.showToast(`NEED ${pf.cost} SHARDS`);
         }
       });
     });
@@ -1293,6 +1345,9 @@ export class OverlayController {
           bridge.haptic('success');
           sound.playLevelUp();
           this.renderHub(true);
+        } else {
+          bridge.haptic('warning');
+          this.showToast(`NEED ${v.unlockCost} SHARDS`);
         }
       });
     });
@@ -1313,6 +1368,9 @@ export class OverlayController {
           bridge.haptic('success');
           sound.playLevelUp();
           this.renderHub(true);
+        } else {
+          bridge.haptic('warning');
+          this.showToast(`NEED ${c.unlockCost} SHARDS`);
         }
       });
     });
@@ -1384,9 +1442,8 @@ export class OverlayController {
       elapsed: 0,
       score: 0,
       kills: 0,
-      parries: 0,
-      bestSingleParry: 0,
       grazes: 0,
+      bestGrazeCombo: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -1442,7 +1499,7 @@ export class OverlayController {
             <div class="summary-cell">${svgIcon('timer', 15, 'var(--muted)')}<span class="summary-num">${formatTime(st.elapsed)}</span></div>
             <div class="summary-cell">${svgIcon('trophy', 15, 'var(--muted)')}<span class="summary-num">${st.score.toLocaleString()}</span></div>
             <div class="summary-cell">${svgIcon('skull', 15, 'var(--muted)')}<span class="summary-num">${st.kills}</span></div>
-            <div class="summary-cell">${svgIcon('parry', 15, 'var(--accent)')}<span class="summary-num" style="color:var(--accent)">${st.parries}</span></div>
+            <div class="summary-cell">${svgIcon('graze_conduit', 15, 'var(--accent)')}<span class="summary-num" style="color:var(--accent)">${st.grazes}</span></div>
           </div>
 
           ${

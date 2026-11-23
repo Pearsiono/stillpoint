@@ -269,8 +269,7 @@ export function fireEnemyBullet(
   const curseStacks = ctx.player.curses.filter((c) => c === 'fast_hostiles').length;
   const curseFast = Math.pow(1.18, curseStacks);
   const spd = speed * 1.12 * pactFast * heatFast * curseFast;
-  const isParryBonus = kind === 'parry_orb';
-  const isUnparryable = kind === 'void_unparryable';
+  const isHeavy = kind === 'heavy_orb';
   ctx.enemyBullets.push({
     id: ctx.nextId(),
     kind,
@@ -278,23 +277,19 @@ export function fireEnemyBullet(
     y,
     vx: Math.cos(angle) * spd,
     vy: Math.sin(angle) * spd,
-    radius: isParryBonus ? 8.5 : isUnparryable ? 7.2 : radius,
-    damage: isUnparryable ? Math.round(damage * 1.35) : isParryBonus ? damage + 4 : Math.round(damage * 1.2),
+    radius: isHeavy ? 8.0 : radius,
+    damage: isHeavy ? Math.round(damage * 1.3) : Math.round(damage * 1.15),
     age: 0,
     maxAge: 7.5,
     grazed: false,
-    parryable: !isUnparryable,
-    isParryBonus,
     color:
-      isUnparryable
-        ? '#ff2442'
-        : kind === 'parry_orb'
-          ? '#ff4df0'
-          : kind === 'diamond'
-            ? '#ffb703'
-            : kind === 'needle'
-              ? '#ff2e63'
-              : '#ff4d6d'
+      isHeavy
+        ? '#ff3b5c'
+        : kind === 'diamond'
+          ? '#ffb703'
+          : kind === 'needle'
+            ? '#ff2e63'
+            : '#ff5252'
   });
 }
 
@@ -493,12 +488,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
           e.fireTimer = e.isElite ? 1.35 : 1.85;
           const fan = e.isElite ? [-0.34, -0.17, 0, 0.17, 0.34] : [-0.24, 0, 0.24];
           fan.forEach((off, idx) => {
-            const kind: EnemyBulletKind =
-              e.isElite && (idx === 0 || idx === 4)
-                ? 'void_unparryable'
-                : e.isElite && idx === 2
-                  ? 'parry_orb'
-                  : 'orb';
+            const kind: EnemyBulletKind = e.isElite && idx === 2 ? 'heavy_orb' : 'orb';
             fireEnemyBullet(ctx, e.x, e.y, toPlayer + off, 148, kind, 15, 5.2);
           });
         }
@@ -517,22 +507,16 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         if (e.fireTimer <= 0 && dist < 430) {
           e.fireTimer = e.isElite ? 1.9 : 2.45;
           const pellets = e.isElite ? 12 : 9;
-          const hasVoid = ctx.elapsed > 45 || ctx.activeHeat.includes('cursed_void') || e.isElite;
           for (let i = 0; i < pellets; i++) {
             const ang = e.angle + (i * Math.PI * 2) / pellets;
-            const kind: EnemyBulletKind =
-              hasVoid && i % 4 === 2
-                ? 'void_unparryable'
-                : e.isElite && i % 4 === 0
-                  ? 'parry_orb'
-                  : 'orb';
+            const kind: EnemyBulletKind = e.isElite && i % 4 === 0 ? 'heavy_orb' : 'orb';
             fireEnemyBullet(ctx, e.x, e.y, ang, 126, kind, 15, 5.2);
           }
         }
         break;
       }
       case 'reflector': {
-        // Orbits player at mid-range firing pairs of magenta Parry Orbs!
+        // Orbits player at mid-range firing pairs of heavy plasma orbs!
         e.angle = toPlayer + Math.PI / 2;
         const orbit = dist > 190 ? 0.8 : -0.35;
         const tx = -dy / dist;
@@ -541,8 +525,8 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         e.vy = ((dy / dist) * orbit + ty * 0.85) * e.speed;
         if (e.fireTimer <= 0 && dist < 410) {
           e.fireTimer = e.isElite ? 1.85 : 2.5;
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.16, 122, 'parry_orb', 14, 8);
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.16, 122, 'parry_orb', 14, 8);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.16, 130, 'heavy_orb', 15, 7.5);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.16, 130, 'heavy_orb', 15, 7.5);
         }
         break;
       }
@@ -561,7 +545,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
               e.y,
               ang,
               124,
-              i % 4 === 0 ? 'parry_orb' : 'diamond',
+              i % 4 === 0 ? 'heavy_orb' : 'diamond',
               13,
               5.2
             );
@@ -594,7 +578,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
               isEnemy: true,
               damage: 18
             });
-            fireEnemyBullet(ctx, e.x, e.y, ang, 215, 'void_unparryable', 17, 7.2);
+            fireEnemyBullet(ctx, e.x, e.y, ang, 215, 'needle', 17, 6.2);
             e.telegraphAngle = undefined;
             e.fireTimer = 2.75;
           }
@@ -614,7 +598,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         if (e.fireTimer <= 0 && dist < 380) {
           e.fireTimer = 2.4;
           for (let i = -1; i <= 1; i++) {
-            fireEnemyBullet(ctx, e.x, e.y, toPlayer + i * 0.32, 108, 'parry_orb', 15, 8);
+            fireEnemyBullet(ctx, e.x, e.y, toPlayer + i * 0.32, 114, 'heavy_orb', 15, 7.5);
           }
         }
         break;
@@ -634,7 +618,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
               e.y,
               e.angle + (i * Math.PI * 2) / arms,
               134,
-              i === 0 && (e.isElite || ctx.elapsed > 70) ? 'void_unparryable' : 'diamond',
+              i === 0 ? 'needle' : 'diamond',
               14,
               5
             );
@@ -678,8 +662,8 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         e.vy = (dy / dist) * e.speed;
         if (e.fireTimer <= 0 && dist < 370) {
           e.fireTimer = 2.25;
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.19, 134, 'void_unparryable', 16, 6.2);
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.19, 134, 'void_unparryable', 16, 6.2);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer - 0.19, 134, 'heavy_orb', 16, 6.8);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer + 0.19, 134, 'heavy_orb', 16, 6.8);
         }
         break;
       }
@@ -693,7 +677,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
             const drone = spawnEnemy(ctx, 'swarmer', e.x + i * 16, e.y, false, 0.6);
             drone.radius = 9.5;
           }
-          fireEnemyBullet(ctx, e.x, e.y, toPlayer, 118, 'parry_orb', 14, 8);
+          fireEnemyBullet(ctx, e.x, e.y, toPlayer, 122, 'heavy_orb', 14, 7.5);
         }
         break;
       }
@@ -784,12 +768,11 @@ function updateBossBehavior(
     if (boss.fireTimer > 0) return;
     const pat = boss.patternIndex++;
     if (pat % 4 === 3) {
-      // Every body segment emits a magenta parryable orb!
       boss.fireTimer = 1.05;
       boss.segments.forEach((seg, idx) => {
         if (idx % 2 === 0) {
           const ang = Math.atan2(ctx.player.y - seg.y, ctx.player.x - seg.x);
-          fireEnemyBullet(ctx, seg.x, seg.y, ang, 125, 'parry_orb', 16, 8.5);
+          fireEnemyBullet(ctx, seg.x, seg.y, ang, 132, 'heavy_orb', 16, 8);
         }
       });
     } else {
@@ -802,7 +785,7 @@ function updateBossBehavior(
           boss.y,
           boss.angle + (i * Math.PI * 2) / arms,
           156,
-          i === 0 ? 'void_unparryable' : i % 2 === 0 ? 'diamond' : 'orb',
+          i === 0 ? 'needle' : i % 2 === 0 ? 'diamond' : 'orb',
           16,
           5.5
         );
@@ -827,16 +810,15 @@ function updateBossBehavior(
       boss.fireTimer = boss.phase === 2 ? 0.85 : 1.05;
       const count = boss.phase === 2 ? 7 : 5;
       for (let i = 0; i < count; i++) {
-        const isEdgeVoid = i === 0 || i === count - 1;
         fireEnemyBullet(
           ctx,
           boss.x,
           boss.y,
           toPlayer + (i - (count - 1) / 2) * 0.22,
-          isEdgeVoid ? 148 : 134,
-          isEdgeVoid ? 'void_unparryable' : 'parry_orb',
+          140,
+          'heavy_orb',
           17,
-          8.2
+          8
         );
       }
     } else {
@@ -849,7 +831,7 @@ function updateBossBehavior(
           boss.y,
           t * 2.1 + (i * Math.PI * 2) / arms,
           144,
-          i === 0 ? 'void_unparryable' : i === 2 ? 'diamond' : 'orb',
+          i === 0 ? 'diamond' : 'orb',
           15,
           5.5
         );
@@ -878,7 +860,7 @@ function updateBossBehavior(
           maxLife: 0.95,
           isEnemy: true,
           isTelegraph: true,
-          damage: 20
+          damage: 22
         });
       }
     } else if (pat % 5 === 3) {
@@ -886,24 +868,14 @@ function updateBossBehavior(
       const total = boss.phase === 2 ? 16 : 12;
       for (let i = 0; i < total; i++) {
         const ang = (i * Math.PI * 2) / total + t * 0.6;
-        const isParry = i % 3 === 0;
-        fireEnemyBullet(ctx, boss.x, boss.y, ang, isParry ? 122 : 148 + (i % 2) * 32, isParry ? 'parry_orb' : 'diamond', 15, 5.5);
+        const isHeavy = i % 3 === 0;
+        fireEnemyBullet(ctx, boss.x, boss.y, ang, isHeavy ? 128 : 150 + (i % 2) * 30, isHeavy ? 'heavy_orb' : 'diamond', 15, 5.5);
       }
     } else {
       boss.fireTimer = boss.phase === 2 ? 0.42 : 0.56;
       const spread = boss.phase === 2 ? 7 : 5;
       for (let i = 0; i < spread; i++) {
-        const isEdge = i === 0 || i === spread - 1;
-        fireEnemyBullet(
-          ctx,
-          boss.x,
-          boss.y,
-          toPlayer + (i - (spread - 1) / 2) * 0.26,
-          158,
-          isEdge ? 'void_unparryable' : 'diamond',
-          16,
-          5.5
-        );
+        fireEnemyBullet(ctx, boss.x, boss.y, toPlayer + (i - (spread - 1) / 2) * 0.26, 158, 'diamond', 16, 5.5);
       }
     }
     return;
@@ -927,7 +899,7 @@ function updateBossBehavior(
         maxLife: 0.9,
         isEnemy: true,
         isTelegraph: true,
-        damage: 22
+        damage: 24
       });
     }
   } else if (pat % 6 === 3) {
@@ -935,8 +907,8 @@ function updateBossBehavior(
     const total = boss.phase >= 3 ? 18 : 14;
     for (let i = 0; i < total; i++) {
       const ang = (i * Math.PI * 2) / total + boss.angle;
-      const isParry = i % 2 === 0;
-      fireEnemyBullet(ctx, boss.x, boss.y, ang, isParry ? 126 : 162, isParry ? 'parry_orb' : 'orb', 16, 5.8);
+      const isHeavy = i % 2 === 0;
+      fireEnemyBullet(ctx, boss.x, boss.y, ang, isHeavy ? 132 : 164, isHeavy ? 'heavy_orb' : 'orb', 16, 5.8);
     }
   } else {
     boss.fireTimer = boss.phase >= 3 ? 0.22 : boss.phase === 2 ? 0.28 : 0.36;
@@ -949,7 +921,7 @@ function updateBossBehavior(
         boss.y,
         t * 2.4 * dir + (i * Math.PI * 2) / arms,
         150 + boss.phase * 10,
-        i % 4 === 1 ? 'void_unparryable' : i % 3 === 0 ? 'diamond' : 'orb',
+        i % 3 === 0 ? 'diamond' : 'orb',
         16,
         5.4
       );

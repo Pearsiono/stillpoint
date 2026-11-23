@@ -12,7 +12,6 @@ import {
   InputSnapshot,
   LaserBeam,
   MeteorStrike,
-  ParryWave,
   Pickup,
   PlayerBullet,
   PlayerState,
@@ -36,6 +35,8 @@ export interface RenderState {
   trailColor: string;
   trailCoreColor: string;
   accentColor: string;
+  auraOuter: string;
+  auraInner: string;
   sectorId: SectorId;
   enemies: Enemy[];
   enemyBullets: EnemyBullet[];
@@ -46,7 +47,6 @@ export interface RenderState {
   decoys: BlinkDecoy[];
   meteors: MeteorStrike[];
   lasers: LaserBeam[];
-  parryWaves: ParryWave[];
   pickups: Pickup[];
   enclosure: BossEnclosure;
   particles: ParticleSystem;
@@ -152,7 +152,6 @@ export class WastelandRenderer {
       this.drawArcs(ctx, state.particles);
       this.drawPlayerBullets(ctx, state.playerBullets, state.realTime);
       this.drawEnemyBullets(ctx, state.enemyBullets, state.realTime);
-      this.drawParryWaves(ctx, state.parryWaves);
       this.drawParticles(ctx, state.particles);
       this.drawCallouts(ctx, state.particles);
 
@@ -293,8 +292,8 @@ export class WastelandRenderer {
         ctx.restore();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = 'rgba(216, 255, 200, 0.82)';
-        ctx.font = '800 9px -apple-system, sans-serif';
+        ctx.fillStyle = 'rgba(216, 255, 200, 0.85)';
+        ctx.font = '700 9px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText('2× OVERCLOCK', 0, 4);
       } else if (n.kind === 'shrine') {
@@ -351,11 +350,11 @@ export class WastelandRenderer {
         }
 
         ctx.textAlign = 'center';
-        ctx.font = '800 9px -apple-system, sans-serif';
+        ctx.font = '700 9px "Chakra Petch", sans-serif';
         ctx.fillStyle = pact.accent;
         ctx.fillText(pact.name, 0, -n.radius - 14);
-        ctx.fillStyle = '#ebe7dc';
-        ctx.font = '700 8.5px -apple-system, sans-serif';
+        ctx.fillStyle = '#ebe2d2';
+        ctx.font = '700 8.5px "JetBrains Mono", monospace';
         ctx.fillText(pact.trade, 0, -n.radius - 4);
       }
       ctx.restore();
@@ -520,7 +519,7 @@ export class WastelandRenderer {
       if (cnt > 1) {
         ctx.rotate(-state.realTime * 2.5);
         ctx.fillStyle = '#f6c453';
-        ctx.font = '900 10px -apple-system, sans-serif';
+        ctx.font = '800 10px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`×${cnt}`, 0, -r - 4);
       }
@@ -589,8 +588,9 @@ export class WastelandRenderer {
     const { player, vesselId, coating, realTime } = state;
     const blend = player.stillpointBlend;
     const chargeRatio = Math.max(0, Math.min(1, player.kineticCharge / player.maxKineticCharge));
-    const parryReady = player.parryCooldown <= 0 && player.kineticCharge >= 18;
-    const accent = state.accentColor;
+    const coreReady = player.coreCooldown <= 0 && player.kineticCharge >= 16;
+    const auraOuter = state.auraOuter;
+    const auraInner = state.auraInner;
 
     // 1. Thruster exhaust wake
     for (const t of player.trail) {
@@ -610,7 +610,7 @@ export class WastelandRenderer {
     // 2. Subtle Graze Halo
     ctx.save();
     ctx.rotate(realTime * (0.35 + blend * 1.2));
-    ctx.strokeStyle = player.grazeCombo > 0 ? accent : 'rgba(235, 231, 220, 0.14)';
+    ctx.strokeStyle = player.grazeCombo > 0 ? auraOuter : 'rgba(235, 231, 220, 0.14)';
     ctx.globalAlpha = player.grazeCombo > 0 ? 0.52 : 1;
     ctx.lineWidth = 1.1;
     ctx.setLineDash([4, 9]);
@@ -630,7 +630,7 @@ export class WastelandRenderer {
 
     if (blend > 0.08) {
       ctx.save();
-      ctx.globalAlpha = blend * 0.78;
+      ctx.globalAlpha = blend * 0.82;
       ctx.rotate(-realTime * (state.coreId === 'siphon' ? 2.4 : 0.9));
       ctx.strokeStyle =
         state.coreId === 'siphon'
@@ -639,13 +639,21 @@ export class WastelandRenderer {
             ? '#d94842'
             : state.coreId === 'overclock'
               ? '#e2a93b'
-              : accent;
-      ctx.lineWidth = 1.25;
+              : auraOuter;
+      ctx.lineWidth = 1.4;
       ctx.setLineDash([12, 8, 2, 8]);
       ctx.beginPath();
       ctx.arc(0, 0, state.coreId === 'siphon' ? 68 : 44, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.strokeStyle = auraInner;
+      ctx.globalAlpha = blend * 0.45;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, state.coreId === 'siphon' ? 56 : 36, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = blend * 0.8;
+      ctx.strokeStyle = auraOuter;
       for (let i = 0; i < 4; i++) {
         const a = (i * Math.PI) / 2;
         ctx.beginPath();
@@ -665,16 +673,8 @@ export class WastelandRenderer {
     ctx.stroke();
 
     if (chargeRatio > 0.01) {
-      ctx.strokeStyle = player.overchargeReady
-        ? '#f6c453'
-        : player.focusStallTimer > 0
-          ? '#8c5349'
-          : blend > 0.25
-            ? '#ffffff'
-            : parryReady
-              ? accent
-              : 'rgba(235,231,220,0.45)';
-      ctx.lineWidth = player.overchargeReady ? 3.8 : parryReady ? 3 : 2.2;
+      ctx.strokeStyle = blend > 0.25 ? auraInner : coreReady ? auraOuter : 'rgba(235,231,220,0.45)';
+      ctx.lineWidth = coreReady ? 3 : 2.2;
       ctx.beginPath();
       ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * chargeRatio);
       ctx.stroke();
@@ -748,7 +748,7 @@ export class WastelandRenderer {
       ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = accent;
+      ctx.strokeStyle = auraOuter;
       ctx.lineWidth = 1.6;
       ctx.beginPath();
       ctx.arc(0, 0, 8.8, 0, Math.PI * 2);
@@ -1203,60 +1203,19 @@ export class WastelandRenderer {
     realTime: number
   ): void {
     for (const b of bullets) {
-      if (b.kind === 'void_unparryable') {
-        const img = sprites.get('bullet_void');
-        const pulse = 1 + Math.sin(realTime * 18 + b.id) * 0.1;
-        const size = b.radius * 4.7 * pulse;
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(realTime * 4.5 + b.id);
-        ctx.drawImage(img, -size / 2, -size / 2, size, size);
-        ctx.restore();
-        continue;
-      }
-      const key = b.isParryBonus
-        ? 'bullet_parry'
-        : b.kind === 'diamond'
-          ? 'bullet_amber'
-          : b.kind === 'needle'
-            ? 'bullet_crimson'
-            : 'bullet_coral';
+      const key =
+        b.kind === 'heavy_orb'
+          ? 'bullet_heavy'
+          : b.kind === 'diamond'
+            ? 'bullet_amber'
+            : b.kind === 'needle'
+              ? 'bullet_crimson'
+              : 'bullet_coral';
       const img = sprites.get(key);
-      const pulse = b.isParryBonus ? 1 + Math.sin(realTime * 14 + b.id) * 0.14 : 1;
-      const size = b.radius * (b.isParryBonus ? 4.8 : 4.2) * pulse;
+      const pulse = b.kind === 'heavy_orb' ? 1 + Math.sin(realTime * 12 + b.id) * 0.08 : 1;
+      const size = b.radius * (b.kind === 'heavy_orb' ? 4.6 : 4.2) * pulse;
       ctx.drawImage(img, b.x - size / 2, b.y - size / 2, size, size);
     }
-  }
-
-  private drawParryWaves(ctx: CanvasRenderingContext2D, waves: ParryWave[]): void {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (const w of waves) {
-      const t = Math.min(1, w.age / w.duration);
-      const alpha = (1 - t) * 0.95;
-
-      ctx.strokeStyle = w.colorInner;
-      ctx.globalAlpha = alpha * 0.65;
-      ctx.lineWidth = 4 * (1 - t) + 1.5;
-      ctx.beginPath();
-      ctx.arc(w.x, w.y, Math.max(4, w.radius - 4), 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = w.colorOuter;
-      ctx.globalAlpha = alpha;
-      ctx.lineWidth = 6.5 * (1 - t) + 2;
-      ctx.beginPath();
-      ctx.arc(w.x, w.y, w.radius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#ffffff';
-      ctx.globalAlpha = alpha * 0.85;
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.arc(w.x, w.y, w.radius + 2, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
   }
 
   private drawParticles(ctx: CanvasRenderingContext2D, particles: ParticleSystem): void {
@@ -1306,7 +1265,7 @@ export class WastelandRenderer {
     for (const f of particles.texts) {
       const alpha = Math.min(1, (f.life / f.maxLife) * 1.6);
       ctx.globalAlpha = alpha;
-      ctx.font = `900 ${Math.round(13 * f.scale)}px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif`;
+      ctx.font = `700 ${Math.round(13 * f.scale)}px "Chakra Petch", -apple-system, sans-serif`;
       ctx.fillStyle = '#09090d';
       ctx.fillText(f.text, f.x + 1, f.y + 1);
       ctx.fillStyle = f.color;
@@ -1316,13 +1275,13 @@ export class WastelandRenderer {
   }
 
   private drawMinimalHint(ctx: CanvasRenderingContext2D, state: RenderState): void {
-    const pulse = 0.55 + 0.4 * Math.sin(state.realTime * 4);
+    const pulse = 0.58 + 0.38 * Math.sin(state.realTime * 4);
     ctx.save();
     ctx.textAlign = 'center';
     ctx.globalAlpha = pulse;
-    ctx.font = '800 11px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#ebe7dc';
-    const txt = state.input.hasInteracted ? 'LIFT → STILLPOINT' : 'DRAG · LIFT';
+    ctx.font = '700 10.5px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#ebe2d2';
+    const txt = state.input.hasInteracted ? 'LIFT FOR SLOW-MO' : 'DRAG TO MOVE';
     ctx.fillText(txt, state.player.x, state.player.y + 52);
     ctx.restore();
   }
@@ -1387,11 +1346,11 @@ export class WastelandRenderer {
     ctx.fillRect(0, 0, w, h);
 
     if (!state.menuMode && blend > 0.04 && !state.reduceFlash) {
-      // Subtle military corner rangefinder ticks instead of a neon screen-edge box!
+      // Subtle military corner rangefinder ticks tinted with equipped Stillpoint Aura!
       const m = 12;
       const len = 18;
-      ctx.strokeStyle = state.accentColor;
-      ctx.globalAlpha = blend * 0.55;
+      ctx.strokeStyle = state.auraOuter;
+      ctx.globalAlpha = blend * 0.6;
       ctx.lineWidth = 2;
       for (const [cx, cy, sx, sy] of [
         [m, m, 1, 1],
