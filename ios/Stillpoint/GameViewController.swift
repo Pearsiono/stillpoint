@@ -148,6 +148,13 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if let wv = webView, wv.frame != view.bounds {
+            wv.frame = view.bounds
+        }
+    }
+
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         if message.name == "haptics", let kind = message.body as? String {
             DispatchQueue.main.async {

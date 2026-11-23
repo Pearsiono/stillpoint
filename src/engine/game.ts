@@ -138,6 +138,9 @@ export class StillpointGame {
   private tutorialTimer = 0;
   private hudThrottle = 0;
   private lastFrameTs = 0;
+  private lastCssW = 0;
+  private lastCssH = 0;
+  private lastDpr = 0;
   private scrapHarvestCounter = 0;
   private bonusHealDmg = 0;
   private goodRunCrateAwarded = false;
@@ -162,6 +165,13 @@ export class StillpointGame {
     this.resetWorldState(this.vesselId);
     this.handleResize();
     window.addEventListener('resize', () => this.handleResize());
+    window.addEventListener('orientationchange', () => this.handleResize());
+    window.addEventListener('load', () => this.handleResize());
+    window.visualViewport?.addEventListener('resize', () => this.handleResize());
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.handleResize());
+      ro.observe(this.canvas);
+    }
     document.addEventListener('visibilitychange', () => {
       sound.setSuspended(document.hidden);
       if (document.hidden && this.phase === 'playing') this.pauseGame();
@@ -182,14 +192,16 @@ export class StillpointGame {
   }
 
   handleResize(): void {
-    const rect = this.canvas.parentElement?.getBoundingClientRect();
-    const w = Math.max(320, rect ? rect.width : window.innerWidth);
-    const h = Math.max(480, rect ? rect.height : window.innerHeight);
+    const rect = this.canvas.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width > 100 ? rect.width : window.innerWidth || 390));
+    const h = Math.max(1, Math.round(rect.height > 100 ? rect.height : window.innerHeight || 844));
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    if (w === this.lastCssW && h === this.lastCssH && dpr === this.lastDpr) return;
+    this.lastCssW = w;
+    this.lastCssH = h;
+    this.lastDpr = dpr;
     this.canvas.width = Math.round(w * dpr);
     this.canvas.height = Math.round(h * dpr);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
     this.renderer.resize(w, h, dpr);
   }
 
@@ -2674,6 +2686,11 @@ export class StillpointGame {
   }
 
   private renderFrame(): void {
+    const cw = Math.round(this.canvas.clientWidth || window.innerWidth);
+    const ch = Math.round(this.canvas.clientHeight || window.innerHeight);
+    if (cw > 0 && ch > 0 && (cw !== this.lastCssW || ch !== this.lastCssH)) {
+      this.handleResize();
+    }
     const shakeX = (Math.random() - 0.5) * 2 * this.shakeMag;
     const shakeY = (Math.random() - 0.5) * 2 * this.shakeMag;
     const coating = getEquippedCoating(this.save);
