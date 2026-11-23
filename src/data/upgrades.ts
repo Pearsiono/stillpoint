@@ -217,7 +217,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Singularity Core',
     pairsWith: 'void_mortars',
     accent: '#b97aff',
-    shortStat: '+16% damage, +22% core damage',
+    shortStat: '+15% damage, +20% core damage',
     maxLevel: 5
   },
   graze_conduit: {
@@ -257,7 +257,7 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     name: 'Overclock Core',
     pairsWith: 'rail_turret',
     accent: '#f6c453',
-    shortStat: '+18% XP and shard gain',
+    shortStat: '+15% XP, +16% shard gain',
     maxLevel: 5
   },
   cryo_core: {

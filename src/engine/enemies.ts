@@ -309,7 +309,11 @@ export function updateWaveDirector(
   const maxEnemies = Math.min(112, Math.round((24 + Math.floor(t * 0.28)) * swarmHeat));
   const rate = Math.min(7.8, (2.6 + t * 0.02) * swarmHeat);
 
-  spawnAccum.value += dtWorld * rate;
+  if (ctx.enemies.length < maxEnemies) {
+    spawnAccum.value = Math.min(4, spawnAccum.value + dtWorld * rate);
+  } else {
+    spawnAccum.value = Math.min(1, spawnAccum.value);
+  }
   eliteTimer.value += dtWorld * greedEliteRate;
   nodeTimer.value += dtWorld * (ctx.activeHeat.includes('cursed_void') ? 1.55 : 1.0);
 
@@ -320,7 +324,7 @@ export function updateWaveDirector(
 
     const kind = pickWaveEnemy(t, isElite, ctx.sectorId);
     const angle = Math.random() * Math.PI * 2;
-    const dist = 320 + Math.random() * 110;
+    const dist = 455 + Math.random() * 120;
     spawnEnemy(
       ctx,
       kind,

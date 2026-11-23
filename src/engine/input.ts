@@ -27,9 +27,15 @@ export class InputController {
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (!enabled) {
+      if (this.activePointerId !== null) {
+        try {
+          this.canvas.releasePointerCapture?.(this.activePointerId);
+        } catch {
+          // Ignore if capture was already released
+        }
+      }
       this.pointerDown = false;
       this.activePointerId = null;
-      this.keys.clear();
       this.awaitingTouchAfterResume = true;
     }
   }
@@ -82,6 +88,11 @@ export class InputController {
     if (this.activePointerId !== null) return;
 
     e.preventDefault();
+    try {
+      this.canvas.setPointerCapture?.(e.pointerId);
+    } catch {
+      // Ignore synthetic events without active pointer
+    }
     this.mode = 'touch';
     this.activePointerId = e.pointerId;
     this.pointerDown = true;
@@ -112,6 +123,11 @@ export class InputController {
 
   private onPointerUp = (e: PointerEvent): void => {
     if (e.pointerId !== this.activePointerId) return;
+    try {
+      this.canvas.releasePointerCapture?.(e.pointerId);
+    } catch {
+      // Ignore if capture already released
+    }
     this.pointerDown = false;
     this.activePointerId = null;
   };

@@ -147,6 +147,7 @@ export class OverlayController {
   private dropReveal: { drop: CrateDrop; isDuplicate: boolean; shardRefund: number } | null = null;
   private toastEl: HTMLDivElement | null = null;
   private toastTimer = 0;
+  private toastQueue: string[] = [];
 
   constructor(parent: HTMLElement, save: MetaSave, actions: OverlayActions) {
     this.container = document.createElement('div');
@@ -164,17 +165,34 @@ export class OverlayController {
   }
 
   showToast(message: string): void {
-    if (this.toastEl) this.toastEl.remove();
+    // Deduplicate consecutive identical messages and queue back-to-back unlock notices
+    if (this.toastQueue[this.toastQueue.length - 1] === message) return;
+    if (this.toastEl?.textContent === message && this.toastQueue.length === 0) return;
+    if (this.toastQueue.length >= 4) this.toastQueue.shift();
+    this.toastQueue.push(message);
+    if (!this.toastEl) {
+      this.flushToastQueue();
+    }
+  }
+
+  private flushToastQueue(): void {
     window.clearTimeout(this.toastTimer);
+    if (this.toastQueue.length === 0) {
+      this.toastEl = null;
+      return;
+    }
+    const next = this.toastQueue.shift()!;
     const el = document.createElement('div');
     el.className = 'toast';
-    el.textContent = message;
+    el.textContent = next;
     document.body.appendChild(el);
     this.toastEl = el;
+    const stayMs = this.toastQueue.length > 0 ? 1700 : 2500;
     this.toastTimer = window.setTimeout(() => {
       el.remove();
       this.toastEl = null;
-    }, 2800);
+      this.flushToastQueue();
+    }, stayMs);
   }
 
   renderPhase(

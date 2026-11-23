@@ -441,6 +441,8 @@ export interface PlayerState {
   curses: DraftCurseId[];
   trail: Array<{ x: number; y: number; alpha: number }>;
   distanceMovedSinceDagger: number;
+  haloOrbitAngle: number;
+  droneOrbitAngle: number;
 }
 
 export type EnemyKind =
@@ -486,6 +488,7 @@ export interface Enemy {
   patternIndex: number;
   hitFlash: number;
   chillTimer?: number;
+  shardSpillCooldown?: number;
   telegraphAngle?: number;
   telegraphTimer?: number;
   accent: string;
@@ -543,6 +546,7 @@ export interface PlayerBullet {
   evolved?: boolean;
   blastRadius?: number;
   spinAngle?: number;
+  hitResetTimer?: number;
   returnPhase?: boolean;
 }
 
@@ -601,6 +605,7 @@ export interface LaserBeam {
   isEnemy: boolean;
   isTelegraph?: boolean;
   damage?: number;
+  hitPlayer?: boolean;
 }
 
 export interface Pickup {

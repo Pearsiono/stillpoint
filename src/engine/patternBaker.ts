@@ -533,6 +533,7 @@ export function bakeCoatedShipCanvas(
   // Extra crisp wear scuffs directly on hull for FT / WW / BS!
   if (coating.floatVal > 0.14) {
     ctx.globalCompositeOperation = 'source-atop';
+    ctx.globalAlpha = 1;
     applyWearScratches(ctx, size, coating.seed + 77, coating.floatVal);
   }
   ctx.restore();

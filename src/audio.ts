@@ -41,6 +41,7 @@ export class SoundEngine {
   private sfxEnabled = true;
   private unlocked = false;
   private seqTimer: number | null = null;
+  private nextStepTime = 0;
   private seqStep = 0;
   private phraseCount = 0;
   private inGame = false;
@@ -102,7 +103,8 @@ export class SoundEngine {
       this.noiseBuffer = nb;
     }
 
-    if (this.ctx.state === 'suspended') {
+    // Resume from both 'suspended' and iOS WebKit's 'interrupted' state
+    if ((this.ctx.state as string) !== 'running' && this.ctx.state !== 'closed') {
       this.ctx.resume().catch(() => {});
     }
     if (!this.unlocked) {
@@ -116,7 +118,12 @@ export class SoundEngine {
     if (!this.ctx) return;
     if (hidden) {
       if (this.ctx.state === 'running') this.ctx.suspend().catch(() => {});
-    } else if (this.unlocked && this.ctx.state === 'suspended') {
+    } else if (
+      this.unlocked &&
+      (this.ctx.state as string) !== 'running' &&
+      this.ctx.state !== 'closed'
+    ) {
+      this.nextStepTime = 0;
       this.ctx.resume().catch(() => {});
     }
   }
@@ -145,13 +152,27 @@ export class SoundEngine {
 
   private startSequencer(): void {
     if (this.seqTimer !== null) return;
-    // 16th-note pulse at ~128 BPM (~117ms)
+    const stepDur = 60 / 128 / 4; // Exact 16th-note at 128 BPM (0.1171875s)
+    const lookahead = 0.12;
     this.seqTimer = window.setInterval(() => {
       if (!this.ctx || this.ctx.state !== 'running' || !this.musicEnabled || !this.musicGain) {
+        this.nextStepTime = 0;
         return;
       }
 
-      const now = this.ctx.currentTime + 0.01;
+      const ct = this.ctx.currentTime;
+      if (this.nextStepTime < ct - 0.15 || this.nextStepTime > ct + 1.0) {
+        this.nextStepTime = ct + 0.03;
+      }
+
+      while (this.nextStepTime < ct + lookahead) {
+        this.scheduleMusicStep(this.nextStepTime);
+        this.nextStepTime += stepDur;
+      }
+    }, 25);
+  }
+
+  private scheduleMusicStep(now: number): void {
       const step = this.seqStep % 64;
       const bar = Math.floor(step / 16);
       const sub = step % 16;
@@ -214,7 +235,6 @@ export class SoundEngine {
       }
 
       this.seqStep++;
-    }, 117);
   }
 
   private playPadVoice(

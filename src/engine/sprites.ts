@@ -199,10 +199,15 @@ class SpriteBank {
 
     const cacheKey = `${vesselId}:${coating.finishId}:${coating.seed}:${coating.floatVal.toFixed(4)}:${size}`;
     const existing = this.coatingShipCache.get(cacheKey);
-    if (existing) return existing;
+    if (existing) {
+      // Refresh LRU position so active locker thumbnails never evict on repeated taps
+      this.coatingShipCache.delete(cacheKey);
+      this.coatingShipCache.set(cacheKey, existing);
+      return existing;
+    }
 
     const baked = bakeCoatedShipCanvas(baseImg, coating, size);
-    if (this.coatingShipCache.size >= 40) {
+    if (this.coatingShipCache.size >= 180) {
       const oldest = this.coatingShipCache.keys().next().value;
       if (oldest) this.coatingShipCache.delete(oldest);
     }

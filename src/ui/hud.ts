@@ -21,6 +21,7 @@ export class HudView {
   private timerEl: HTMLDivElement;
   private scoreEl: HTMLDivElement;
   private bossArea: HTMLDivElement;
+  private bossFillEl: HTMLDivElement | null = null;
   private comboEl: HTMLDivElement;
   private lastLoadoutKey = '';
   private lastBossKey = '';
@@ -153,7 +154,7 @@ export class HudView {
     }
 
     const bossKey = h.boss
-      ? `b:${h.boss.name}:${h.boss.hp}`
+      ? `b:${h.boss.name}`
       : h.bossWarning
         ? `w:${h.bossWarning}`
         : h.eventBanner
@@ -161,6 +162,7 @@ export class HudView {
           : '';
     if (bossKey !== this.lastBossKey) {
       this.lastBossKey = bossKey;
+      this.bossFillEl = null;
       if (h.boss) {
         const pct = Math.max(0, Math.min(100, (h.boss.hp / Math.max(1, h.boss.maxHp)) * 100));
         this.bossArea.innerHTML = `
@@ -169,6 +171,7 @@ export class HudView {
             <div class="boss-track"><div class="boss-fill" style="width:${pct.toFixed(1)}%"></div></div>
           </div>
         `;
+        this.bossFillEl = this.bossArea.querySelector('.boss-fill');
       } else if (h.bossWarning) {
         this.bossArea.innerHTML = `<div class="boss-warn">${h.bossWarning}</div>`;
       } else if (h.eventBanner) {
@@ -176,6 +179,9 @@ export class HudView {
       } else {
         this.bossArea.innerHTML = '';
       }
+    } else if (h.boss && this.bossFillEl) {
+      const pct = Math.max(0, Math.min(100, (h.boss.hp / Math.max(1, h.boss.maxHp)) * 100));
+      this.bossFillEl.style.width = `${pct.toFixed(1)}%`;
     }
   }
 }

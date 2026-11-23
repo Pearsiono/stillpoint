@@ -74,6 +74,7 @@ export class WastelandRenderer {
   private height = 844;
   private dpr = 1;
   private worldScale = 1;
+  private vignetteCache: { key: string; grad: CanvasGradient } | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
@@ -170,7 +171,7 @@ export class WastelandRenderer {
     }
 
     if (!state.menuMode && state.input.joystickActive) {
-      this.drawFloatingJoystick(ctx, state.input, skin.accent);
+      this.drawFloatingJoystick(ctx, state.input, state.accentColor);
     }
 
     ctx.restore();
@@ -797,7 +798,7 @@ export class WastelandRenderer {
   }
 
   private drawOrbitalWeapons(ctx: CanvasRenderingContext2D, state: RenderState): void {
-    const blades = getHaloBladesPositions(state.player, state.realTime);
+    const blades = getHaloBladesPositions(state.player);
     for (const b of blades) {
       ctx.save();
       ctx.translate(b.x, b.y);
@@ -821,7 +822,7 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    const drones = getPrismDronePositions(state.player, state.realTime);
+    const drones = getPrismDronePositions(state.player);
     for (const d of drones) {
       ctx.save();
       ctx.translate(d.x, d.y);
@@ -1332,16 +1333,22 @@ export class WastelandRenderer {
     skin: SkinDef
   ): void {
     const blend = state.player.stillpointBlend;
-    const grad = ctx.createRadialGradient(
-      w * 0.5,
-      h * 0.48,
-      Math.min(w, h) * 0.28,
-      w * 0.5,
-      h * 0.5,
-      Math.max(w, h) * 0.74
-    );
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(1, `rgba(7, 7, 10, ${state.menuMode ? 0.62 : 0.42 + blend * 0.28})`);
+    const edgeAlpha = state.menuMode ? 0.62 : Math.round((0.42 + blend * 0.28) * 50) / 50;
+    const vigKey = `${w}x${h}:${edgeAlpha}`;
+    let grad = this.vignetteCache?.key === vigKey ? this.vignetteCache.grad : null;
+    if (!grad) {
+      grad = ctx.createRadialGradient(
+        w * 0.5,
+        h * 0.48,
+        Math.min(w, h) * 0.28,
+        w * 0.5,
+        h * 0.5,
+        Math.max(w, h) * 0.74
+      );
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, `rgba(7, 7, 10, ${edgeAlpha})`);
+      this.vignetteCache = { key: vigKey, grad };
+    }
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 

@@ -1,5 +1,5 @@
 import { bridge } from '../bridge';
-import { HEAT_ORDER } from './builds';
+import { CORE_ORDER, HEAT_ORDER } from './builds';
 import {
   CRATE_KEY_COST,
   createStarterCoating,
@@ -16,6 +16,9 @@ import {
   MODULES,
   STARTER_UNLOCKED_MODULES
 } from './loadout';
+import { SECTOR_ORDER } from './sectors';
+import { SKINS } from './skins';
+import { VESSEL_ORDER } from './vessels';
 import {
   CoatingItem,
   CoreId,
@@ -356,13 +359,28 @@ export function loadMetaSave(): MetaSave {
         ...(parsed.settings ?? {})
       },
       unlockedVessels: Array.isArray(parsed.unlockedVessels)
-        ? (Array.from(new Set(['vesper', ...parsed.unlockedVessels])) as VesselId[])
+        ? (Array.from(
+            new Set([
+              'vesper',
+              ...parsed.unlockedVessels.filter((v) => VESSEL_ORDER.includes(v as VesselId))
+            ])
+          ) as VesselId[])
         : ['vesper'],
       unlockedCores: Array.isArray(parsed.unlockedCores)
-        ? (Array.from(new Set(['deflector', ...parsed.unlockedCores])) as CoreId[])
+        ? (Array.from(
+            new Set([
+              'deflector',
+              ...parsed.unlockedCores.filter((c) => CORE_ORDER.includes(c as CoreId))
+            ])
+          ) as CoreId[])
         : ['deflector'],
       unlockedSkins: Array.isArray(parsed.unlockedSkins)
-        ? (Array.from(new Set(['cyanide', ...parsed.unlockedSkins])) as SkinId[])
+        ? (Array.from(
+            new Set([
+              'cyanide',
+              ...parsed.unlockedSkins.filter((s) => typeof s === 'string' && s in SKINS)
+            ])
+          ) as SkinId[])
         : ['cyanide'],
       coatings:
         Array.isArray(parsed.coatings) && parsed.coatings.length > 0
@@ -373,14 +391,24 @@ export function loadMetaSave(): MetaSave {
           ? parsed.equippedCoatingUid
           : fallback.equippedCoatingUid,
       unlockedTrails: Array.isArray(parsed.unlockedTrails)
-        ? (Array.from(new Set(['ion_ash', ...parsed.unlockedTrails])) as TrailId[])
+        ? (Array.from(
+            new Set([
+              'ion_ash',
+              ...parsed.unlockedTrails.filter((t) => typeof t === 'string' && t in TRAILS)
+            ])
+          ) as TrailId[])
         : ['ion_ash'],
       selectedTrail:
         parsed.selectedTrail && parsed.selectedTrail in TRAILS
           ? parsed.selectedTrail
           : 'ion_ash',
       unlockedParryFx: Array.isArray(parsed.unlockedParryFx)
-        ? (Array.from(new Set(['steel_ring', ...parsed.unlockedParryFx])) as ParryFxId[])
+        ? (Array.from(
+            new Set([
+              'steel_ring',
+              ...parsed.unlockedParryFx.filter((p) => typeof p === 'string' && p in PARRY_FX)
+            ])
+          ) as ParryFxId[])
         : ['steel_ring'],
       selectedParryFx:
         parsed.selectedParryFx && parsed.selectedParryFx in PARRY_FX
@@ -399,7 +427,12 @@ export function loadMetaSave(): MetaSave {
           ? Math.max(0, Math.floor(parsed.relicCrates))
           : 0,
       unlockedSectors: Array.isArray(parsed.unlockedSectors)
-        ? (Array.from(new Set(['drift', ...parsed.unlockedSectors])) as SectorId[])
+        ? (Array.from(
+            new Set([
+              'drift',
+              ...parsed.unlockedSectors.filter((s) => SECTOR_ORDER.includes(s as SectorId))
+            ])
+          ) as SectorId[])
         : ['drift'],
       activeHeat: Array.isArray(parsed.activeHeat)
         ? (Array.from(new Set(parsed.activeHeat)).filter((h) =>

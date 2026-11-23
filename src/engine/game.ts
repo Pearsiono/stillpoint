@@ -316,6 +316,9 @@ export class StillpointGame {
   }
 
   returnToMenu(): void {
+    if (this.phase === 'paused' || this.phase === 'levelup') {
+      this.finalizeMetaProgress(false);
+    }
     this.phase = 'menu';
     this.input.setEnabled(false);
     sound.setGameState(false, false);
@@ -515,7 +518,9 @@ export class StillpointGame {
       pacts: [],
       curses: [],
       trail: [],
-      distanceMovedSinceDagger: 0
+      distanceMovedSinceDagger: 0,
+      haloOrbitAngle: 0,
+      droneOrbitAngle: 0
     };
 
     this.recomputePlayerStats();
@@ -889,11 +894,20 @@ export class StillpointGame {
       player.y = Math.max(this.enclosure.cy - this.enclosure.halfH + m, Math.min(this.enclosure.cy + this.enclosure.halfH - m, player.y));
     }
 
-    if (player.invulnTimer > 0) player.invulnTimer = Math.max(0, player.invulnTimer - dtReal);
+    if (player.invulnTimer > 0) {
+      // Scale i-frame decay gently during Stillpoint so slow-mo never causes 5x contact hits
+      const invulnDt = Math.max(dtWorld, dtReal * 0.35);
+      player.invulnTimer = Math.max(0, player.invulnTimer - invulnDt);
+    }
     if (player.hitFlash > 0) player.hitFlash = Math.max(0, player.hitFlash - dtReal * 5);
     if (player.grazeComboTimer > 0) {
       player.grazeComboTimer -= dtReal;
       if (player.grazeComboTimer <= 0) player.grazeCombo = 0;
+    }
+    for (const e of this.enemies) {
+      if (e.shardSpillCooldown && e.shardSpillCooldown > 0) {
+        e.shardSpillCooldown = Math.max(0, e.shardSpillCooldown - dtReal);
+      }
     }
 
     const camTX = this.enclosure.active ? this.enclosure.cx * 0.42 + player.x * 0.58 : player.x;
@@ -906,22 +920,32 @@ export class StillpointGame {
     this.updateTacticalEvents(dtWorld);
     this.updateWorldNodes(dtWorld, dtReal);
     this.updateDecoysAndMeteors(dtWorld, dtReal);
+    if (this.phase !== 'playing') return;
     this.updateBossDirector(dtWorld, dtReal);
+    if (this.phase !== 'playing') return;
 
     const enemyCtx = this.makeEnemyCtx();
     updateWaveDirector(enemyCtx, dtWorld, this.spawnAccum, this.eliteTimer, this.nodeTimer);
     updateEnemies(enemyCtx, dtWorld);
+    if (this.phase !== 'playing') return;
 
     // Overclock Core: boost weapon tick rate 2.3x during Stillpoint!
     const weaponDtReal =
       player.inStillpoint && this.coreId === 'overclock' ? dtReal * 2.3 : dtReal;
     updateWeapons(this.makeWeaponCtx(justEntered, justExited), dtWorld, weaponDtReal);
+    if (this.phase !== 'playing') return;
     this.updateHazards(dtWorld, dtReal);
+    if (this.phase !== 'playing') return;
     this.updateLasers(dtWorld, dtReal);
+    if (this.phase !== 'playing') return;
     this.updatePlayerBullets(dtWorld, dtReal);
+    if (this.phase !== 'playing') return;
     this.updateEnemyBulletsAndGrazing(dtWorld);
+    if (this.phase !== 'playing') return;
     this.updateEnemyContactCollisions();
+    if (this.phase !== 'playing') return;
     this.updatePickups(dtWorld, dtReal);
+    if (this.phase !== 'playing') return;
     this.particles.update(dtWorld, dtReal);
 
     this.hudThrottle += dtReal;
@@ -1420,13 +1444,28 @@ export class StillpointGame {
         bridge.haptic('heavy');
         this.addShake(9);
 
+        this.spawnAccum.value = 0;
+        const pad = 24;
+        const minX = enc.cx - enc.halfW + pad;
+        const maxX = enc.cx + enc.halfW - pad;
+        const minY = enc.cy - enc.halfH + pad;
+        const maxY = enc.cy + enc.halfH - pad;
+
         for (let i = this.enemies.length - 1; i >= 0; i--) {
           const e = this.enemies[i];
-          if (!e.isBoss) {
-            this.spawnXp(e.x, e.y, e.xpValue);
-            this.particles.shatter(e.x, e.y, e.accent, 4, 0.8);
-            this.enemies.splice(i, 1);
+          if (e.isBoss) continue;
+          if (e.kind === 'hauler') {
+            e.x = Math.max(minX, Math.min(maxX, e.x));
+            e.y = Math.max(minY, Math.min(maxY, e.y));
+            continue;
           }
+          this.spawnXp(e.x, e.y, e.xpValue);
+          this.particles.shatter(e.x, e.y, e.accent, 4, 0.8);
+          this.enemies.splice(i, 1);
+        }
+        for (const pk of this.pickups) {
+          pk.x = Math.max(minX, Math.min(maxX, pk.x));
+          pk.y = Math.max(minY, Math.min(maxY, pk.y));
         }
         this.enemyBullets.length = 0;
 
@@ -1492,6 +1531,9 @@ export class StillpointGame {
           e.y += (dy / d) * pull;
         }
       }
+      if (h.damagePerSec > 0) {
+        this.damageShrinesInRadius(h.x, h.y, h.radius, h.damagePerSec * dtWorld);
+      }
 
       if (h.evolved && (h.kind === 'singularity' || h.kind === 'crater')) {
         for (let bi = this.enemyBullets.length - 1; bi >= 0; bi--) {
@@ -1533,7 +1575,8 @@ export class StillpointGame {
 
       if (l.isEnemy && !l.isTelegraph && l.damage) {
         const dist = pointToSegmentDist(p.x, p.y, l.x1, l.y1, l.x2, l.y2);
-        if (dist <= hurtR + l.width * 0.42) {
+        if (!l.hitPlayer && dist <= hurtR + l.width * 0.42) {
+          l.hitPlayer = true;
           this.damagePlayer(l.damage);
           if (this.phase !== 'playing') return;
         } else if (dist <= p.grazeRadius + l.width * 0.5 && Math.random() < 0.22) {
@@ -1546,6 +1589,9 @@ export class StillpointGame {
   private updatePlayerBullets(dtWorld: number, dtReal: number): void {
     const phantomEvolved = this.player.weapons.some((w) => w.id === 'phase_daggers' && w.evolved);
     const orbitalBonus = this.player.relics.includes('orbital_overdrive') ? 1.45 : 1.0;
+    const homingMult =
+      1 + (this.player.passives.find((p) => p.id === 'targeting_array')?.level ?? 0) * 0.25;
+    const enemySnap = [...this.enemies];
 
     for (let i = this.playerBullets.length - 1; i >= 0; i--) {
       if (i >= this.playerBullets.length) i = this.playerBullets.length - 1;
@@ -1576,7 +1622,12 @@ export class StillpointGame {
           b.x += b.vx * dtWorld;
           b.y += b.vy * dtWorld;
         }
-        if (Math.floor(b.age * 7) !== Math.floor((b.age - dtS) * 7)) b.hitSet.clear();
+        // Reset Scythe hitSet in real time (~7 hits/sec) so hovering blades shred during Stillpoint
+        b.hitResetTimer = (b.hitResetTimer ?? 0) + dtReal;
+        if (b.hitResetTimer >= 1 / 7) {
+          b.hitResetTimer -= 1 / 7;
+          b.hitSet.clear();
+        }
       } else {
         const dt =
           b.kind === 'parry_shard' || b.kind === 'dagger_homing' || b.kind === 'missile'
@@ -1593,11 +1644,12 @@ export class StillpointGame {
             const r = b.blastRadius ?? 68;
             this.particles.burst(b.x, b.y, '#d387ff', 12, 50, 180, 3.2, 0.36);
             this.particles.ring(b.x, b.y, '#d387ff', 16, 0.28);
-            for (const e of [...this.enemies]) {
+            for (const e of enemySnap) {
               if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
                 this.damageEnemy(e, b.damage, '#d387ff');
               }
             }
+            this.damageShrinesInRadius(b.x, b.y, r, b.damage);
             this.hazards.push({
               id: this.nextEntityId++,
               kind: b.evolved || this.player.inStillpoint ? 'singularity' : 'crater',
@@ -1634,7 +1686,7 @@ export class StillpointGame {
             let diff = desired - cur;
             while (diff > Math.PI) diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
-            const nextAng = cur + diff * Math.min(1, b.homing * dt);
+            const nextAng = cur + diff * Math.min(1, b.homing * homingMult * dt);
             b.vx = Math.cos(nextAng) * speed;
             b.vy = Math.sin(nextAng) * speed;
           }
@@ -1662,7 +1714,9 @@ export class StillpointGame {
       for (let ni = this.nodes.length - 1; ni >= 0; ni--) {
         const n = this.nodes[ni];
         if (n.kind !== 'shrine') continue;
+        if (b.hitSet.has(-n.id)) continue;
         if ((n.x - b.x) ** 2 + (n.y - b.y) ** 2 <= (n.radius + b.radius) ** 2) {
+          b.hitSet.add(-n.id);
           n.hp -= b.damage;
           this.particles.burst(b.x, b.y, '#e5b34c', 4, 40, 120, 2, 0.2);
           if (n.hp <= 0) {
@@ -1681,7 +1735,7 @@ export class StillpointGame {
       }
 
       // Enemy collision
-      for (const e of [...this.enemies]) {
+      for (const e of enemySnap) {
         if (this.phase !== 'playing') return;
         if (e.hp <= 0 || b.hitSet.has(e.id)) continue;
         const dx = e.x - b.x;
@@ -2065,6 +2119,7 @@ export class StillpointGame {
       if (target) {
         this.particles.arc(p.x, p.y, target.x, target.y, '#6fa8ff', 1.6, 0.12);
         this.damageEnemy(target, 14 * p.damageMult, '#6fa8ff');
+        if (this.phase !== 'playing') return;
       }
     }
 
@@ -2108,8 +2163,9 @@ export class StillpointGame {
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
 
-    // Treasure Hauler spills Shards when damaged!
-    if (enemy.kind === 'hauler' && Math.random() < 0.32) {
+    // Treasure Hauler spills Shards on a real-time cooldown so DoTs/120Hz cannot farm it
+    if (enemy.kind === 'hauler' && !(enemy.shardSpillCooldown && enemy.shardSpillCooldown > 0)) {
+      enemy.shardSpillCooldown = 0.28;
       this.pickups.push({
         id: this.nextEntityId++,
         kind: 'shard',
@@ -2284,6 +2340,7 @@ export class StillpointGame {
 
     this.enclosure.active = false;
     this.enclosure.bossId = null;
+    this.spawnAccum.value = 0;
     this.enemyBullets.length = 0;
     this.lasers = this.lasers.filter((l) => !l.isEnemy);
 
@@ -2450,21 +2507,67 @@ export class StillpointGame {
     }
     persistMetaSave(this.save);
     this.checkAndToastMilestones();
-    return { ...this.stats, shardsEarned: totalPayout };
+    return {
+      ...this.stats,
+      shardsEarned: this.stats.endlessMode && !isVictory ? deltaShards : totalPayout
+    };
   }
 
   private checkAndToastMilestones(): void {
     const notices = evaluateMilestones(this.save);
-    if (notices.length > 0) this.callbacks.onUnlockNotice(notices[0]);
+    for (const notice of notices) {
+      this.callbacks.onUnlockNotice(notice);
+    }
   }
+
+  private damageShrinesInRadius = (x: number, y: number, radius: number, dmg: number): void => {
+    for (let ni = this.nodes.length - 1; ni >= 0; ni--) {
+      const n = this.nodes[ni];
+      if (n.kind !== 'shrine') continue;
+      if ((n.x - x) ** 2 + (n.y - y) ** 2 <= (n.radius + radius) ** 2) {
+        n.hp -= dmg;
+        if (Math.random() < 0.4) this.particles.burst(n.x, n.y, '#e5b34c', 3, 30, 100, 1.8, 0.18);
+        if (n.hp <= 0) {
+          this.shatterShrine(n);
+          this.nodes.splice(ni, 1);
+        }
+      }
+    }
+  };
+
+  private damageShrinesAlongLine = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    halfWidth: number,
+    dmg: number
+  ): void => {
+    for (let ni = this.nodes.length - 1; ni >= 0; ni--) {
+      const n = this.nodes[ni];
+      if (n.kind !== 'shrine') continue;
+      if (pointToSegmentDist(n.x, n.y, x1, y1, x2, y2) <= n.radius + halfWidth) {
+        n.hp -= dmg;
+        this.particles.burst(n.x, n.y, '#e5b34c', 4, 40, 120, 2, 0.2);
+        if (n.hp <= 0) {
+          this.shatterShrine(n);
+          this.nodes.splice(ni, 1);
+        }
+      }
+    }
+  };
 
   private spawnXp = (x: number, y: number, value: number): void => {
     if (this.pickups.length > 160) {
-      const first = this.pickups.find((pk) => pk.kind.startsWith('xp'));
-      if (first) {
-        first.value += value;
-        first.kind = first.value >= 35 ? 'xp_large' : first.value >= 16 ? 'xp_mid' : 'xp_small';
-        return;
+      // Merge overflow into the newest XP gem and refresh its age so merged XP is never lost
+      for (let i = this.pickups.length - 1; i >= 0; i--) {
+        const newest = this.pickups[i];
+        if (newest.kind.startsWith('xp')) {
+          newest.value += value;
+          newest.age = 0;
+          newest.kind = newest.value >= 35 ? 'xp_large' : newest.value >= 16 ? 'xp_mid' : 'xp_small';
+          return;
+        }
       }
     }
     const kind = value >= 35 ? 'xp_large' : value >= 16 ? 'xp_mid' : 'xp_small';
@@ -2512,11 +2615,14 @@ export class StillpointGame {
       playerBullets: this.playerBullets,
       pylons: this.pylons,
       hazards: this.hazards,
+      nodes: this.nodes,
       lasers: this.lasers,
       particles: this.particles,
       accentColor: accent,
       nextId: () => this.nextEntityId++,
       damageEnemy: this.damageEnemy,
+      damageShrinesInRadius: this.damageShrinesInRadius,
+      damageShrinesAlongLine: this.damageShrinesAlongLine,
       spawnXp: this.spawnXp,
       time: this.realTime,
       justEnteredStillpoint: justEntered,

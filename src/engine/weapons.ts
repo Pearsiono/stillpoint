@@ -7,7 +7,8 @@ import {
   OwnedWeapon,
   PlayerBullet,
   PlayerState,
-  RailPylon
+  RailPylon,
+  WorldNode
 } from '../types';
 import { ParticleSystem } from './particles';
 
@@ -18,11 +19,14 @@ export interface WeaponWorldContext {
   playerBullets: PlayerBullet[];
   pylons: RailPylon[];
   hazards: HazardZone[];
+  nodes: WorldNode[];
   lasers: LaserBeam[];
   particles: ParticleSystem;
   accentColor: string;
   nextId: () => number;
   damageEnemy: (enemy: Enemy, dmg: number, color: string, isCrit?: boolean) => void;
+  damageShrinesInRadius: (x: number, y: number, radius: number, dmg: number) => void;
+  damageShrinesAlongLine: (x1: number, y1: number, x2: number, y2: number, halfWidth: number, dmg: number) => void;
   spawnXp: (x: number, y: number, value: number) => void;
   time: number;
   justEnteredStillpoint: boolean;
@@ -70,7 +74,7 @@ export function findNearestEnemy(
   return best;
 }
 
-export function getHaloBladesPositions(player: PlayerState, time: number): HaloBladeRender[] {
+export function getHaloBladesPositions(player: PlayerState): HaloBladeRender[] {
   const w = player.weapons.find((item) => item.id === 'halo_blades');
   if (!w) return [];
 
@@ -78,12 +82,10 @@ export function getHaloBladesPositions(player: PlayerState, time: number): HaloB
   const blend = player.stillpointBlend;
   const baseCount = w.evolved ? 5 : 2 + Math.floor((w.level + 1) / 2);
   const orbitRadius = (56 + blend * 30) * player.areaMult;
-  const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
-  const speed = (2.8 + w.level * 0.35 + blend * 3.8) * orbSpin;
   const bladeRadius = (13 + w.level * 1.4 + blend * 5) * Math.min(1.5, player.areaMult);
 
   for (let i = 0; i < baseCount; i++) {
-    const ang = time * speed + (i * Math.PI * 2) / baseCount;
+    const ang = player.haloOrbitAngle + (i * Math.PI * 2) / baseCount;
     result.push({
       x: player.x + Math.cos(ang) * orbitRadius,
       y: player.y + Math.sin(ang) * orbitRadius,
@@ -97,7 +99,7 @@ export function getHaloBladesPositions(player: PlayerState, time: number): HaloB
   if (w.evolved) {
     const outerRadius = (96 + blend * 22) * player.areaMult;
     for (let i = 0; i < 4; i++) {
-      const ang = -time * (speed * 0.72) + (i * Math.PI * 2) / 4;
+      const ang = -player.haloOrbitAngle * 0.72 + (i * Math.PI * 2) / 4;
       result.push({
         x: player.x + Math.cos(ang) * outerRadius,
         y: player.y + Math.sin(ang) * outerRadius,
@@ -112,16 +114,15 @@ export function getHaloBladesPositions(player: PlayerState, time: number): HaloB
   return result;
 }
 
-export function getPrismDronePositions(player: PlayerState, time: number): PrismDroneRender[] {
+export function getPrismDronePositions(player: PlayerState): PrismDroneRender[] {
   const w = player.weapons.find((item) => item.id === 'prism_drones');
   if (!w) return [];
   const count = w.evolved ? 6 : 1 + Math.ceil(w.level / 2);
   const blend = player.stillpointBlend;
   const dist = (46 - blend * 14) * Math.min(1.3, player.areaMult);
-  const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
   const result: PrismDroneRender[] = [];
   for (let i = 0; i < count; i++) {
-    const ang = time * (1.8 + blend * 2.2) * orbSpin + (i * Math.PI * 2) / count;
+    const ang = player.droneOrbitAngle + (i * Math.PI * 2) / count;
     result.push({
       x: player.x + Math.cos(ang) * dist,
       y: player.y + Math.sin(ang) * dist,
@@ -140,6 +141,19 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   const frenzyMult = player.frenzyTimer > 0 ? 1.4 : 1;
   const berserkMult = 1 + Math.min(0.6, player.berserkStacks * 0.08);
   const totalRateMult = player.fireRateMult * overclockMult * surgeMult * frenzyMult * berserkMult;
+
+  // Integrate continuous orbital phases so Stillpoint transitions never snap blade/drone angles
+  const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;
+  const haloW = player.weapons.find((item) => item.id === 'halo_blades');
+  if (haloW) {
+    const haloSpeed = (2.8 + haloW.level * 0.35 + player.stillpointBlend * 3.8) * orbSpin;
+    player.haloOrbitAngle = (player.haloOrbitAngle + haloSpeed * dtReal) % (Math.PI * 200);
+  }
+  const droneW = player.weapons.find((item) => item.id === 'prism_drones');
+  if (droneW) {
+    const droneSpeed = (1.8 + player.stillpointBlend * 2.2) * orbSpin;
+    player.droneOrbitAngle = (player.droneOrbitAngle + droneSpeed * dtReal) % (Math.PI * 200);
+  }
 
   if (ctx.justEnteredStillpoint) {
     for (const h of hazards) {
@@ -305,6 +319,7 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
           particles.burst(e.x, e.y, ctx.accentColor, 4, 40, 120, 2.5, 0.25);
         }
       }
+      ctx.damageShrinesAlongLine(sx, sy, ex, ey, beamWidth * 0.65, dmg);
 
       if (w.evolved && off === offsets[0]) {
         hazards.push({
@@ -358,7 +373,7 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 
 function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
-  const blades = getHaloBladesPositions(player, ctx.time);
+  const blades = getHaloBladesPositions(player);
   const tickInterval = player.inStillpoint ? 0.095 : 0.16;
 
   // Evolved ECLIPSE GYRO periodically launches homing solar razor flares!
@@ -406,11 +421,12 @@ function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
         ctx.damageEnemy(e, dmg, '#4effb4');
       }
     }
+    ctx.damageShrinesInRadius(blade.x, blade.y, blade.radius, dmg);
   }
 }
 
 function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
-  const { player, enemies, particles } = ctx;
+  const { player, enemies, particles, nodes } = ctx;
   if (w.cooldown > 0) return;
 
   const inFocus = player.inStillpoint;
@@ -423,6 +439,8 @@ function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const dmg = (w.evolved ? 38 : 17 + w.level * 6) * (inFocus ? 1.1 : 1.15) * player.damageMult;
 
   const first = findNearestEnemy(player.x, player.y, enemies, range, false);
+  let lastX = player.x;
+  let lastY = player.y;
   if (first) {
     sound.playShoot('zap');
     const visited = new Set<number>([first.id]);
@@ -463,6 +481,20 @@ function updateArcTether(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       ctx.damageEnemy(next, dmg * Math.pow(0.92, c), '#6fa8ff');
       curr = next;
     }
+    lastX = curr.x;
+    lastY = curr.y;
+  }
+
+  // Also arc to nearby Resonance Shrines so Volt / Arc Tether builds can shatter them!
+  const nearbyShrine = nodes.find(
+    (n) => n.kind === 'shrine' && Math.hypot(n.x - player.x, n.y - player.y) <= range + n.radius
+  );
+  if (nearbyShrine) {
+    if (!first) sound.playShoot('zap');
+    const sx = Math.hypot(nearbyShrine.x - lastX, nearbyShrine.y - lastY) <= range ? lastX : player.x;
+    const sy = sx === lastX ? lastY : player.y;
+    particles.arc(sx, sy, nearbyShrine.x, nearbyShrine.y, '#6fa8ff', inFocus ? 2.8 : 2.0, 0.18);
+    ctx.damageShrinesInRadius(nearbyShrine.x, nearbyShrine.y, 4, dmg);
   }
 }
 
@@ -477,7 +509,7 @@ function updatePrismDrones(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 
   if (w.cooldown > 0) return;
-  const drones = getPrismDronePositions(player, ctx.time);
+  const drones = getPrismDronePositions(player);
   const inFocus = player.inStillpoint;
   w.cooldown = inFocus
     ? w.evolved ? 0.24 : 0.34
@@ -522,12 +554,24 @@ function updateVoidMortars(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const dmg = (w.evolved ? 48 : 22 + w.level * 7) * player.damageMult;
   const blastR = (68 + w.level * 7 + (w.evolved ? 18 : 0)) * player.areaMult;
 
+  const nearby = enemies.filter(
+    (e) => e.hp > 0 && (e.x - player.x) ** 2 + (e.y - player.y) ** 2 <= 460 * 460
+  );
+  nearby.sort(
+    (a, b) =>
+      (a.x - player.x) ** 2 +
+      (a.y - player.y) ** 2 -
+      ((b.x - player.x) ** 2 + (b.y - player.y) ** 2)
+  );
+  const pool = nearby.slice(0, 8);
+  const fallbackTarget = pool.length === 0 ? findNearestEnemy(player.x, player.y, enemies, 680, true) : null;
+
   sound.playShoot('mortar');
   for (let i = 0; i < count; i++) {
     const target =
-      enemies.length > 0
-        ? enemies[Math.floor(Math.random() * Math.min(enemies.length, 10))]
-        : null;
+      pool.length > 0
+        ? pool[Math.floor(Math.random() * pool.length)]
+        : fallbackTarget;
     const tx = target ? target.x + (Math.random() - 0.5) * 45 : player.x + (Math.random() - 0.5) * 180;
     const ty = target ? target.y + (Math.random() - 0.5) * 45 : player.y + (Math.random() - 0.5) * 180;
     const flightTime = 0.42;
@@ -701,6 +745,7 @@ function fireNovaWave(
       }
     }
   }
+  ctx.damageShrinesInRadius(player.x, player.y, radius, dmg * (evolved ? 1.25 : 1));
 }
 
 // NEW WEAPON 10: Rail Pylons — Autonomous beacons linking with laser tripwires in Stillpoint!
@@ -763,6 +808,7 @@ function updateActivePylons(ctx: WeaponWorldContext, dtWorld: number, dtReal: nu
             ctx.damageEnemy(e, py.damage * 1.4, '#f6c453', true);
           }
         }
+        ctx.damageShrinesAlongLine(py.x, py.y, next.x, next.y, 10, py.damage * 1.4);
       } else {
         py.fireTimer = py.evolved ? 0.42 : 0.65;
         const target = findNearestEnemy(py.x, py.y, enemies, 420);

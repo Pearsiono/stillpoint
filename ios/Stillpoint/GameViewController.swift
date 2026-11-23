@@ -187,6 +187,25 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
     }
 
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        let controller = webView.configuration.userContentController
+        controller.removeAllUserScripts()
+        let savedJson = UserDefaults.standard.string(forKey: nativeSaveKey) ?? ""
+        let escapedSave = escapeJSString(savedJson)
+        let bootstrapSource = """
+        window.__STILLPOINT_NATIVE__ = true;
+        window.__STILLPOINT_NATIVE_SAVE__ = \(escapedSave);
+        """
+        controller.addUserScript(WKUserScript(
+            source: bootstrapSource,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
+        if let startURL = URL(string: "stillpoint://game/index.html") {
+            webView.load(URLRequest(url: startURL))
+        }
+    }
+
     private func escapeJSString(_ raw: String) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: [raw], options: []),
               let arr = String(data: data, encoding: .utf8),

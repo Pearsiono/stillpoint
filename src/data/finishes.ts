@@ -389,9 +389,8 @@ export function createCoatingItem(
 ): CoatingItem {
   const def = FINISHES[finishId];
   const seed = forcedSeed ?? Math.floor(Math.random() * 1000);
-  // Slightly curved float distribution so FN feels coveted but genuinely rollable!
-  const rawU = Math.random();
-  const skewed = rawU < 0.22 ? rawU * 0.55 : rawU;
+  // Smooth continuous power curve: full [minFloat, maxFloat] coverage with FN still coveted
+  const skewed = Math.pow(Math.random(), 1.25);
   const floatVal =
     forcedFloat !== undefined
       ? Number(forcedFloat.toFixed(4))
