@@ -62,6 +62,32 @@ export function rarityForVessel(id: VesselId): RarityTier {
   }
 }
 
+export function rarityForWeapon(id: WeaponId): RarityTier {
+  switch (id) {
+    case 'pulse_lance': return 'rare';
+    case 'halo_blades':
+    case 'arc_tether':
+    case 'ricochet_shard':
+    case 'chrono_scythe':
+      return 'good';
+    case 'nova_pulse':
+    case 'phase_daggers':
+    case 'frost_nova':
+    case 'acid_sprayer':
+    case 'shatter_mine':
+      return 'rare';
+    case 'prism_drones':
+    case 'rail_turret':
+    case 'grav_flail':
+      return 'epic';
+    case 'void_mortars':
+    case 'swarm_missiles':
+      return 'gold';
+    case 'mirror_beam':
+      return 'mythic';
+  }
+}
+
 export function rarityForSkin(id: SkinId): RarityTier {
   switch (id) {
     case 'cyanide': return 'common';

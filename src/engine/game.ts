@@ -109,6 +109,7 @@ export class StillpointGame {
   phase: GamePhase = 'menu';
   player!: PlayerState;
   vesselId: VesselId = 'vesper';
+  weaponId: WeaponId = 'pulse_lance';
   coreId: CoreId = 'deflector';
   skinId: SkinId = 'cyanide';
   sectorId: SectorId = 'drift';
@@ -177,6 +178,7 @@ export class StillpointGame {
     this.save = save;
     this.callbacks = callbacks;
     this.vesselId = save.selectedVessel;
+    this.weaponId = save.selectedWeapon;
     this.coreId = save.selectedCore;
     this.skinId = save.selectedSkin;
     this.sectorId = save.selectedSector;
@@ -247,6 +249,12 @@ export class StillpointGame {
     persistMetaSave(this.save);
   }
 
+  setWeapon(id: WeaponId): void {
+    this.weaponId = id;
+    this.save.selectedWeapon = id;
+    persistMetaSave(this.save);
+  }
+
   setCore(id: CoreId): void {
     this.coreId = id;
     this.save.selectedCore = id;
@@ -276,6 +284,7 @@ export class StillpointGame {
 
   randomizeBuild(): void {
     const vPool = this.save.unlockedVessels;
+    const wPool = this.save.unlockedWeapons;
     const cPool = this.save.unlockedCores;
     const coatPool = this.save.coatings;
     const tPool = this.save.effectItems.filter((e) => e.slot === 'trail');
@@ -286,12 +295,14 @@ export class StillpointGame {
       return others[Math.floor(Math.random() * others.length)];
     };
     let nextV = vPool[Math.floor(Math.random() * vPool.length)];
+    let nextW = wPool[Math.floor(Math.random() * wPool.length)];
     let nextC = cPool[Math.floor(Math.random() * cPool.length)];
     let nextCoat = coatPool[Math.floor(Math.random() * coatPool.length)].uid;
     const nextT = tPool[Math.floor(Math.random() * tPool.length)];
     const nextA = aPool[Math.floor(Math.random() * aPool.length)];
     if (
       nextV === this.vesselId &&
+      nextW === this.weaponId &&
       nextC === this.coreId &&
       nextCoat === this.save.equippedCoatingUid
     ) {
@@ -302,11 +313,14 @@ export class StillpointGame {
         );
       } else if (vPool.length > 1) {
         nextV = pick(vPool, this.vesselId);
+      } else if (wPool.length > 1) {
+        nextW = pick(wPool, this.weaponId);
       } else if (cPool.length > 1) {
         nextC = pick(cPool, this.coreId);
       }
     }
     this.setVessel(nextV);
+    this.setWeapon(nextW);
     this.setCore(nextC);
     this.save.equippedCoatingUid = nextCoat;
     if (nextT) {
@@ -335,6 +349,7 @@ export class StillpointGame {
   replaceSave(next: MetaSave): void {
     Object.assign(this.save, next);
     this.vesselId = this.save.selectedVessel;
+    this.weaponId = this.save.selectedWeapon;
     this.coreId = this.save.selectedCore;
     this.skinId = this.save.selectedSkin;
     this.sectorId = this.save.selectedSector;
@@ -351,6 +366,7 @@ export class StillpointGame {
   startNewRun(): void {
     sound.unlock();
     this.vesselId = this.save.selectedVessel;
+    this.weaponId = this.save.selectedWeapon;
     this.coreId = this.save.selectedCore;
     this.skinId = this.save.selectedSkin;
     this.sectorId = this.save.selectedSector;
@@ -589,7 +605,7 @@ export class StillpointGame {
       slowDmgMult: 1,
       armor: vessel.stats.armor,
       modules: activeModules,
-      weapons: [{ id: vessel.starterWeapon, level: starterLevel, evolved: false, cooldown: 0.18, auxTimer: 0 }],
+      weapons: [{ id: this.weaponId, level: starterLevel, evolved: false, cooldown: 0.18, auxTimer: 0 }],
       passives: [],
       relics: [],
       pacts: [],
@@ -2703,11 +2719,10 @@ export class StillpointGame {
             const ang = next ? Math.atan2(next.y - b.y, next.x - b.x) : Math.random() * Math.PI * 2;
             b.vx = Math.cos(ang) * spd;
             b.vy = Math.sin(ang) * spd;
-            // Prism ship passive: ricochet bounces empower damage +35% and add +1 pierce
+            // Prism ship passive: ricochet bounces empower damage +35% (+1 pierce is granted globally on shot spawn)
             if (this.vesselId === 'prism' && !b.banked) {
               b.banked = true;
               b.damage *= 1.35;
-              b.pierce += 1;
             }
 
             if ((this.player.inStillpoint || b.evolved) && this.playerBullets.length < 180) {

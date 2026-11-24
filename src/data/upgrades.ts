@@ -78,7 +78,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Auto-bolts that become a piercing railbeam in slow-mo',
     stillpointShort: 'Piercing Chrono Railbeam',
     evolvedShort: 'Twin rails tear detonating gravity rifts',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 0
   },
   halo_blades: {
     id: 'halo_blades',
@@ -89,7 +90,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Orbiting saws that widen and accelerate in slow-mo',
     stillpointShort: 'Wide high-RPM shredder ring',
     evolvedShort: 'Dual solar rings launch homing razor flares',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 80
   },
   arc_tether: {
     id: 'arc_tether',
@@ -100,7 +102,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Chain lightning that jumps to 3 extra foes in slow-mo',
     stillpointShort: 'Rapid +3 chain high-voltage arcs',
     evolvedShort: 'Kills discharge secondary chain lightning',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 95
   },
   prism_drones: {
     id: 'prism_drones',
@@ -111,7 +114,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Orbiting drones that fire split beams in slow-mo',
     stillpointShort: 'Tri-split refraction beams',
     evolvedShort: 'Six drones with periodic shield recharge',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 210
   },
   void_mortars: {
     id: 'void_mortars',
@@ -122,7 +126,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Plasma craters that pull enemies inward in slow-mo',
     stillpointShort: 'Pulls foes, detonates on resume',
     evolvedShort: 'Black holes convert enemy shots into XP',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 255
   },
   phase_daggers: {
     id: 'phase_daggers',
@@ -133,7 +138,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Trail blades that recall toward elites in slow-mo',
     stillpointShort: 'Recalls all knives at elites',
     evolvedShort: 'Grazes spawn daggers and execute under 20% HP',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 145
   },
   chrono_scythe: {
     id: 'chrono_scythe',
@@ -144,7 +150,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Boomerang arcs that lock in place shredding waves in slow-mo',
     stillpointShort: 'Hovers mid-air shredding hostiles',
     evolvedShort: 'Twin crimson saws carve dense waves',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 120
   },
   ricochet_shard: {
     id: 'ricochet_shard',
@@ -155,7 +162,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Bouncing needles that split on hit in slow-mo',
     stillpointShort: 'Fractures into 2 shards per bounce',
     evolvedShort: 'Multi-bounce shards flood the arena',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 110
   },
   nova_pulse: {
     id: 'nova_pulse',
@@ -166,7 +174,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Shockwave aura that detonates outward on resume',
     stillpointShort: 'Mega knockback blast on touch-down',
     evolvedShort: 'Wide thermal waves crush nearby swarms',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 130
   },
   rail_turret: {
     id: 'rail_turret',
@@ -177,7 +186,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Deploys pylons that link with laser tripwires in slow-mo',
     stillpointShort: 'Links pylons with lethal beams',
     evolvedShort: 'Triangulates plasma fields between pylons',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 225
   },
   frost_nova: {
     id: 'frost_nova',
@@ -188,7 +198,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Chills enemies and shatters frozen foes in slow-mo',
     stillpointShort: 'Shatters chilled foes into ice spikes',
     evolvedShort: 'Deep-freeze shockwaves shatter waves on contact',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 160
   },
   swarm_missiles: {
     id: 'swarm_missiles',
@@ -199,7 +210,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Paints lock-ons in slow-mo and launches salvo on resume',
     stillpointShort: 'Launches painted missile swarm on resume',
     evolvedShort: 'Continuous warhead barrage shreds bosses',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 275
   },
   grav_flail: {
     id: 'grav_flail',
@@ -210,7 +222,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Tethered heavy wrecking orb that crushes waves in wide arcs',
     stillpointShort: 'High-speed crushing orbit slam',
     evolvedShort: 'Twin golden flails leave shock craters on impact',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 240
   },
   acid_sprayer: {
     id: 'acid_sprayer',
@@ -221,7 +234,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Sprays corrosive acid globs that leave melt puddles (+25% dmg taken)',
     stillpointShort: 'Long-range pressurized corrosive spray',
     evolvedShort: 'Corroded foes burst into acid clouds on death',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 175
   },
   mirror_beam: {
     id: 'mirror_beam',
@@ -232,7 +246,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Bouncing laser beam that refracts into 3 beams in slow-mo',
     stillpointShort: 'Tri-way refraction laser fan',
     evolvedShort: 'Five-way golden prism rays scorch the arena',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 290
   },
   shatter_mine: {
     id: 'shatter_mine',
@@ -243,9 +258,29 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     shortDesc: 'Drifting proximity mines that detonate at double radius in slow-mo',
     stillpointShort: 'Detonates all mines at 2× blast radius',
     evolvedShort: 'Mines burst into 3 homing cluster sub-munitions',
-    maxLevel: 5
+    maxLevel: 5,
+    unlockCost: 190
   }
 };
+
+export const WEAPON_ORDER: WeaponId[] = [
+  'pulse_lance',
+  'halo_blades',
+  'arc_tether',
+  'ricochet_shard',
+  'chrono_scythe',
+  'nova_pulse',
+  'phase_daggers',
+  'frost_nova',
+  'acid_sprayer',
+  'shatter_mine',
+  'prism_drones',
+  'rail_turret',
+  'grav_flail',
+  'void_mortars',
+  'swarm_missiles',
+  'mirror_beam'
+];
 
 export const PASSIVES: Record<PassiveId, PassiveDef> = {
   chrono_capacitor: {

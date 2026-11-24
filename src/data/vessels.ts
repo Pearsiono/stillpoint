@@ -67,7 +67,7 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 0,
       shield: 10
     },
-    perkShort: 'Ricochet bounces gain +35% damage and +1 pierce'
+    perkShort: '+1 pierce on shots; ricochet bounces gain +35% damage'
   },
   phantom: {
     id: 'phantom',
@@ -135,7 +135,7 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 3,
       shield: 18
     },
-    perkShort: '+1 max Rail Pylon and +25% fire rate in slow-mo'
+    perkShort: '+25% fire rate in slow-mo and +1 max Rail Pylon'
   },
   nova: {
     id: 'nova',
@@ -203,7 +203,7 @@ export const VESSELS: Record<VesselId, VesselDef> = {
       armor: 1,
       shield: 18
     },
-    perkShort: '2× lock-on speed in slow-mo and missile salvo every 5 grazes'
+    perkShort: 'Missile salvo every 5 grazes and 2× slow-mo lock-on speed'
   }
 };
 

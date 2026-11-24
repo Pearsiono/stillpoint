@@ -50,7 +50,7 @@ import {
 } from '../data/meta';
 import { escapeHtml, getLatestNewsId, getNewsEntries, hasUnreadNews } from '../data/news';
 import { SECTOR_ORDER, SECTORS } from '../data/sectors';
-import { PASSIVES, WEAPONS } from '../data/upgrades';
+import { PASSIVES, WEAPON_ORDER, WEAPONS } from '../data/upgrades';
 import { VESSEL_ORDER, VESSELS } from '../data/vessels';
 import {
   drawEffectStillpointAura,
@@ -88,6 +88,7 @@ import {
   rarityForCore,
   rarityForLevel,
   rarityForVessel,
+  rarityForWeapon,
   sectorBannerUrl,
   shipArtUrl
 } from './artIcons';
@@ -95,7 +96,7 @@ import { formatTime, renderUpgradeDraftHtml } from './hud';
 import { svgIcon } from './icons';
 
 type HubTab = 'armory' | 'hangar' | 'battle' | 'loadout' | 'trials';
-type HangarSub = 'ships' | 'cores';
+type HangarSub = 'ships' | 'weapons' | 'cores';
 type ArmorySub = 'crates' | 'locker' | 'fx';
 type FxFilter = 'all' | 'trail' | 'aura';
 type FxDemoMode = 'auto' | 'flight' | 'stillpoint';
@@ -125,6 +126,7 @@ export interface PauseBuildInfo {
 export interface OverlayActions {
   onStartRun: () => void;
   onSelectVessel: (vessel: VesselId) => void;
+  onSelectWeapon: (weapon: WeaponId) => void;
   onSelectCore: (core: CoreId) => void;
   onSelectSkin: (skin: SkinId) => void;
   onSelectSector: (sector: SectorId) => void;
@@ -443,6 +445,7 @@ export class OverlayController {
     const totalMult = sector.shardMult * (1 + heatCount * 0.25);
 
     const vessel = VESSELS[this.save.selectedVessel];
+    const weapon = WEAPONS[this.save.selectedWeapon];
     const core = CORES[this.save.selectedCore];
     const coating = getEquippedCoating(this.save);
     const finish = FINISHES[coating.finishId];
@@ -505,8 +508,8 @@ export class OverlayController {
                 <span class="rig-class-tag">${presetTag}</span>
               </div>
               <div class="rig-icons">
-                <span class="r-frame ${rarityForVessel(vessel.id)}" style="width:28px;height:28px">
-                  ${artIconImg(vessel.starterWeapon, 19)}
+                <span class="r-frame ${rarityForWeapon(weapon.id)}" style="width:28px;height:28px">
+                  ${artIconImg(weapon.id, 19)}
                 </span>
                 <span class="r-frame ${rarityForCore(core.id)}" style="width:28px;height:28px">
                   ${coreIconImg(core.id, 19)}
@@ -514,11 +517,15 @@ export class OverlayController {
               </div>
             </div>
             <div class="rig-sub">
-              <span style="color:${core.accent}">${core.name}</span>
-              <span style="display:inline-flex;align-items:center;gap:5px;color:${rarColor}">
-                <span>${finish.name}</span>
-                <span class="wear-code" style="color:${wear.color}">${wear.code}</span>
+              <span class="rig-sub-combo">
+                <span style="color:${weapon.accent}">${weapon.name}</span>
+                <span> · </span>
+                <span style="color:${core.accent}">${core.name}</span>
               </span>
+            </div>
+            <div class="rig-coat-line" style="color:${rarColor}">
+              <span>${finish.name}</span>
+              <span class="wear-code" style="color:${wear.color}">${wear.code}</span>
             </div>
           </div>
         </button>
@@ -537,6 +544,8 @@ export class OverlayController {
   private buildHangarTab(): string {
     const displayVid = this.previewShipId ?? this.save.selectedVessel;
     const vessel = VESSELS[displayVid];
+    const equippedWeapon = WEAPONS[this.save.selectedWeapon];
+    const equippedCore = CORES[this.save.selectedCore];
     const isDisplayUnlocked = this.save.unlockedVessels.includes(displayVid);
     const canBuyDisplay = !isDisplayUnlocked && this.save.shards >= vessel.unlockCost;
     const coating = getEquippedCoating(this.save);
@@ -573,26 +582,49 @@ export class OverlayController {
               </button>
             `;
           }).join('')}</div>`
-        : `<div class="ledger-list">${CORE_ORDER.map((cid) => {
-            const c = CORES[cid];
-            const unlocked = this.save.unlockedCores.includes(cid);
-            const selected = this.save.selectedCore === cid;
-            const canBuy = !unlocked && this.save.shards >= c.unlockCost;
-            return `
-              <button class="ledger-row ${selected ? 'active-mark' : ''}" data-core="${cid}" style="${selected ? `border-left-color:${c.accent}` : ''}">
-                <div class="r-frame ledger-node ${rarityForCore(cid)}">
-                  ${coreIconImg(cid, 25)}
-                </div>
-                <div class="ledger-body">
-                  <div class="ledger-title" style="color:${c.accent}">${c.name}</div>
-                  <div class="ledger-sub">${c.shortDesc}</div>
-                </div>
-                <span class="buy-pill ${canBuy ? 'ready' : ''}">
-                  ${unlocked ? (selected ? svgIcon('check', 13, '#dfa436') : 'Equip') : `${artIconImg('shard', 11)}${c.unlockCost}`}
-                </span>
-              </button>
-            `;
-          }).join('')}</div>`;
+        : this.hangarSub === 'weapons'
+          ? `<div class="ledger-list">${WEAPON_ORDER.map((wid) => {
+              const w = WEAPONS[wid];
+              const unlocked = this.save.unlockedWeapons.includes(wid);
+              const selected = this.save.selectedWeapon === wid;
+              const canBuy = !unlocked && this.save.shards >= w.unlockCost;
+              const catalyst = PASSIVES[w.catalystPassive];
+              return `
+                <button class="ledger-row ${selected ? 'active-mark' : ''}" data-weapon="${wid}" style="${selected ? `border-left-color:${w.accent}` : ''}">
+                  <div class="r-frame ledger-node ${rarityForWeapon(wid)}">
+                    ${artIconImg(wid, 25)}
+                  </div>
+                  <div class="ledger-body">
+                    <div class="ledger-title" style="color:${w.accent}">${w.name}</div>
+                    <div class="ledger-sub">${w.shortDesc}</div>
+                    <div class="ledger-meta">Evo: ${w.evolvedName} (${catalyst.name})</div>
+                  </div>
+                  <span class="buy-pill ${canBuy ? 'ready' : ''}">
+                    ${unlocked ? (selected ? svgIcon('check', 13, '#dfa436') : 'Equip') : `${artIconImg('shard', 11)}${w.unlockCost}`}
+                  </span>
+                </button>
+              `;
+            }).join('')}</div>`
+          : `<div class="ledger-list">${CORE_ORDER.map((cid) => {
+              const c = CORES[cid];
+              const unlocked = this.save.unlockedCores.includes(cid);
+              const selected = this.save.selectedCore === cid;
+              const canBuy = !unlocked && this.save.shards >= c.unlockCost;
+              return `
+                <button class="ledger-row ${selected ? 'active-mark' : ''}" data-core="${cid}" style="${selected ? `border-left-color:${c.accent}` : ''}">
+                  <div class="r-frame ledger-node ${rarityForCore(cid)}">
+                    ${coreIconImg(cid, 25)}
+                  </div>
+                  <div class="ledger-body">
+                    <div class="ledger-title" style="color:${c.accent}">${c.name}</div>
+                    <div class="ledger-sub">${c.shortDesc}</div>
+                  </div>
+                  <span class="buy-pill ${canBuy ? 'ready' : ''}">
+                    ${unlocked ? (selected ? svgIcon('check', 13, '#dfa436') : 'Equip') : `${artIconImg('shard', 11)}${c.unlockCost}`}
+                  </span>
+                </button>
+              `;
+            }).join('')}</div>`;
 
     return `
       <div class="bay-stage">
@@ -603,11 +635,14 @@ export class OverlayController {
         }
         <div class="rig-info">
           <div class="rig-head">
-            <div style="display:flex;align-items:center;gap:7px">
+            <div style="display:flex;align-items:center;gap:6px;min-width:0">
               <span class="rig-name">${vessel.name}</span>
-              <span class="r-frame ${rarityForVessel(vessel.id)}" style="width:22px;height:22px">
-                ${artIconImg(vessel.starterWeapon, 14)}
-              </span>
+              <button class="r-frame stage-slot-btn ${rarityForWeapon(equippedWeapon.id)} ${this.hangarSub === 'weapons' ? 'slot-active' : ''}" data-hsub="weapons" aria-label="Starting weapon: ${equippedWeapon.name}" title="${equippedWeapon.name}">
+                ${artIconImg(equippedWeapon.id, 16)}
+              </button>
+              <button class="r-frame stage-slot-btn ${rarityForCore(equippedCore.id)} ${this.hangarSub === 'cores' ? 'slot-active' : ''}" data-hsub="cores" aria-label="Core: ${equippedCore.name}" title="${equippedCore.name}">
+                ${coreIconImg(equippedCore.id, 16)}
+              </button>
             </div>
             ${
               isDisplayUnlocked
@@ -642,6 +677,7 @@ export class OverlayController {
 
       <div class="subtab-row">
         <button class="subtab-btn ${this.hangarSub === 'ships' ? 'active' : ''}" data-hsub="ships">Ships (${this.save.unlockedVessels.length}/${VESSEL_ORDER.length})</button>
+        <button class="subtab-btn ${this.hangarSub === 'weapons' ? 'active' : ''}" data-hsub="weapons">Weapons (${this.save.unlockedWeapons.length}/${WEAPON_ORDER.length})</button>
         <button class="subtab-btn ${this.hangarSub === 'cores' ? 'active' : ''}" data-hsub="cores">Cores (${this.save.unlockedCores.length}/${CORE_ORDER.length})</button>
       </div>
 
@@ -1440,7 +1476,7 @@ export class OverlayController {
         points: [
           'Draft weapons, passives, and Relics as you level up. Raise a weapon to <strong>LV 5</strong> while holding its paired passive to forge an <strong>Evolved</strong> weapon.',
           'Pause at any moment to inspect your active weapons, evolution pairs, relics, and live combat stats.',
-          'Customize a Pick-10 <strong>Loadout</strong> before launch and unlock cosmetic Crates in the <strong>Armory</strong> with Shards earned from runs and Trials.'
+          'Mix any <strong>Ship</strong>, <strong>Starting Weapon</strong>, and <strong>Core</strong> freely in the Hangar, tune a Pick-10 <strong>Loadout</strong>, and open cosmetic Crates in the <strong>Armory</strong>.'
         ]
       }
     ];
@@ -2498,6 +2534,31 @@ export class OverlayController {
         bridge.haptic('warning');
         this.showToast(`Need ${v.unlockCost} shards`);
       }
+    });
+
+    // Starting Weapons (Direct Shard purchase in Hangar, decoupled from ships)
+    this.container.querySelectorAll<HTMLButtonElement>('[data-weapon]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const wid = b.dataset.weapon as WeaponId;
+        const w = WEAPONS[wid];
+        if (this.save.unlockedWeapons.includes(wid)) {
+          this.actions.onSelectWeapon(wid);
+          bridge.haptic('light');
+          this.renderHub(true);
+        } else if (this.save.shards >= w.unlockCost) {
+          this.save.shards -= w.unlockCost;
+          this.save.unlockedWeapons.push(wid);
+          this.actions.onSelectWeapon(wid);
+          persistMetaSave(this.save);
+          bridge.haptic('success');
+          sound.playLevelUp();
+          this.showToast(`${w.name} unlocked`);
+          this.renderHub(true);
+        } else {
+          bridge.haptic('warning');
+          this.showToast(`Need ${w.unlockCost} shards`);
+        }
+      });
     });
 
     // Cores (Direct Shard purchase in Hangar)

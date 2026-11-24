@@ -24,7 +24,8 @@ import {
 } from './loadout';
 import { SECTOR_ORDER } from './sectors';
 import { SKINS } from './skins';
-import { VESSEL_ORDER } from './vessels';
+import { WEAPON_ORDER } from './upgrades';
+import { VESSEL_ORDER, VESSELS } from './vessels';
 import {
   CoatingItem,
   CoreId,
@@ -40,7 +41,8 @@ import {
   SectorId,
   SkinId,
   TrailId,
-  VesselId
+  VesselId,
+  WeaponId
 } from '../types';
 
 export const SAVE_STORAGE_KEY = 'stillpoint_save_v1';
@@ -294,6 +296,8 @@ export function createDefaultSave(): MetaSave {
     bestTimeBySector: {},
     unlockedVessels: ['vesper'],
     selectedVessel: 'vesper',
+    unlockedWeapons: ['pulse_lance'],
+    selectedWeapon: 'pulse_lance',
     unlockedCores: ['deflector'],
     selectedCore: 'deflector',
     unlockedSkins: ['cyanide'],
@@ -450,6 +454,40 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
     const rawCtrl = parsed.settings?.controlMode;
     const controlMode = rawCtrl === 'direct' ? 'direct' : 'joystick';
 
+    const unlockedVessels: VesselId[] = Array.isArray(parsed.unlockedVessels)
+      ? (Array.from(
+          new Set([
+            'vesper',
+            ...parsed.unlockedVessels.filter((v) => VESSEL_ORDER.includes(v as VesselId))
+          ])
+        ) as VesselId[])
+      : ['vesper'];
+
+    const selectedVessel: VesselId =
+      typeof parsed.selectedVessel === 'string' && unlockedVessels.includes(parsed.selectedVessel as VesselId)
+        ? (parsed.selectedVessel as VesselId)
+        : 'vesper';
+
+    // Backward-compatible migration: legacy saves inherit starting weapons from every already-unlocked ship
+    const hasWeaponField = Array.isArray(parsed.unlockedWeapons);
+    const unlockedWeapons: WeaponId[] = hasWeaponField
+      ? (Array.from(
+          new Set([
+            'pulse_lance',
+            ...parsed.unlockedWeapons!.filter((w) => WEAPON_ORDER.includes(w as WeaponId))
+          ])
+        ) as WeaponId[])
+      : (Array.from(
+          new Set(['pulse_lance', ...unlockedVessels.map((v) => VESSELS[v].starterWeapon)])
+        ) as WeaponId[]);
+
+    const selectedWeapon: WeaponId =
+      typeof parsed.selectedWeapon === 'string' && unlockedWeapons.includes(parsed.selectedWeapon as WeaponId)
+        ? (parsed.selectedWeapon as WeaponId)
+        : !hasWeaponField
+          ? VESSELS[selectedVessel].starterWeapon
+          : 'pulse_lance';
+
     const merged: MetaSave = {
       ...fallback,
       ...parsed,
@@ -499,14 +537,10 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
         ...(parsed.settings ?? {}),
         controlMode
       },
-      unlockedVessels: Array.isArray(parsed.unlockedVessels)
-        ? (Array.from(
-            new Set([
-              'vesper',
-              ...parsed.unlockedVessels.filter((v) => VESSEL_ORDER.includes(v as VesselId))
-            ])
-          ) as VesselId[])
-        : ['vesper'],
+      unlockedVessels,
+      selectedVessel,
+      unlockedWeapons,
+      selectedWeapon,
       unlockedCores: Array.isArray(parsed.unlockedCores)
         ? (Array.from(
             new Set([
@@ -592,6 +626,7 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
     }
     if (!Number.isFinite(merged.shards) || merged.shards < 0) merged.shards = 0;
     if (!merged.unlockedVessels.includes(merged.selectedVessel)) merged.selectedVessel = 'vesper';
+    if (!merged.unlockedWeapons.includes(merged.selectedWeapon)) merged.selectedWeapon = 'pulse_lance';
     if (!merged.unlockedCores.includes(merged.selectedCore)) merged.selectedCore = 'deflector';
     if (!merged.unlockedSkins.includes(merged.selectedSkin)) merged.selectedSkin = 'cyanide';
     if (!merged.unlockedSectors.includes(merged.selectedSector)) merged.selectedSector = 'drift';
@@ -606,6 +641,7 @@ function saveProgressWeight(s: MetaSave): number {
     s.totalRuns * 100 +
     s.totalKills +
     s.unlockedVessels.length * 250 +
+    s.unlockedWeapons.length * 140 +
     s.unlockedCores.length * 250 +
     s.unlockedModules.length * 120 +
     s.coatings.length * 80 +

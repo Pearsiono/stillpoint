@@ -25,6 +25,7 @@ function bootstrap(): void {
   const overlays = new OverlayController(uiRoot, save, {
     onStartRun: () => game.startNewRun(),
     onSelectVessel: (vessel) => game.setVessel(vessel),
+    onSelectWeapon: (weapon) => game.setWeapon(weapon),
     onSelectCore: (core) => game.setCore(core),
     onSelectSkin: (skin) => game.setSkin(skin),
     onSelectSector: (sector) => game.setSector(sector),

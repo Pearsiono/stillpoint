@@ -401,13 +401,20 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     }
   }
 
-  // Heavy Ordnance module: newly fired shots gain +1 pierce and wider profile
-  if (player.modules.includes('heavy_ordnance') && playerBullets.length > startBulletLen) {
+  // Heavy Ordnance module & Prism hull: newly fired shots gain +1 pierce (Heavy Ordnance also widens)
+  const hasHeavyOrd = player.modules.includes('heavy_ordnance');
+  const isPrismHull = ctx.vesselId === 'prism';
+  if ((hasHeavyOrd || isPrismHull) && playerBullets.length > startBulletLen) {
     for (let i = startBulletLen; i < playerBullets.length; i++) {
       const b = playerBullets[i];
       if (b.kind !== 'mortar_shell' && b.kind !== 'scythe') {
-        b.pierce += 1;
-        b.radius = Math.min(11, b.radius * 1.25);
+        if (hasHeavyOrd) {
+          b.pierce += 1;
+          b.radius = Math.min(11, b.radius * 1.25);
+        }
+        if (isPrismHull) {
+          b.pierce += 1;
+        }
       }
     }
   }

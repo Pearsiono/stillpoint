@@ -36,8 +36,9 @@ export const BUNDLED_NEWS: NewsEntry[] = [
     summary:
       'Full 1.0 release featuring tightened Stillpoint Focus economy with Reactor Stall risk, painted gritty industrial combat hardware and explosions, Direct Drag controls, and per-sector synth soundtracks.',
     bullets: [
+      'Free Hangar Buildcraft: pick any Ship, Starting Weapon (all 16 weapons), and Core independently in the Hangar.',
       'Stillpoint & Reactor Stall: slower Focus recharge rewards smart slow-mo budgeting and aggressive bullet grazing, while draining Focus to 0% triggers a 2.4s Reactor Stall lockout.',
-      'Added Emergency Vent and Thermal Siphon Pick-10 Loadout modules.',
+      'Expanded Pick-10 Loadout with Emergency Vent, Thermal Siphon, and four 1-point modules (Cold-Start Chamber, Salvage Coil, Field Welder, Spare Requisition).',
       'Full Combat Visual Overhaul: painted industrial sprites for every deployed turret, drone, sawblade, flail, mine, missile, mortar, kunai, scythe, and pickup, plus gritty tracer ordnance, multi-layered lasers, and 4-frame volumetric explosions.',
       'Added Direct 1:1 Drag alongside Floating Stick, Pause Build Inspector with Evolution hints, and Run-End Damage Breakdown bars.',
       'Composed 4 distinct synth soundtracks for Ash Flats, Sunken Metro, Slag Foundry, and The Monolith.',

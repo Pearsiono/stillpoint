@@ -273,6 +273,7 @@ export interface WeaponDef {
   stillpointShort: string;
   evolvedShort: string;
   maxLevel: number;
+  unlockCost: number;
 }
 
 export interface PassiveDef {
@@ -371,6 +372,8 @@ export interface MetaSave {
   bestTimeBySector: Partial<Record<SectorId, number>>;
   unlockedVessels: VesselId[];
   selectedVessel: VesselId;
+  unlockedWeapons: WeaponId[];
+  selectedWeapon: WeaponId;
   unlockedCores: CoreId[];
   selectedCore: CoreId;
   unlockedSkins: SkinId[];
