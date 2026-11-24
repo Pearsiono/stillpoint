@@ -618,6 +618,7 @@ export class StillpointGame {
       kineticShieldDelay: 0,
       empCooldown: 0,
       exitVortexCooldown: 0,
+      reflexCooldown: 0,
       freeFocusTimer: 0,
       shotCounter: 0,
       bloodKillCounter: 0,
@@ -745,7 +746,7 @@ export class StillpointGame {
     const dmgBonus =
       (this.player.pacts.includes('bloodlust') ? 1.4 : 1.0) *
       (this.save.activeHeat.includes('fragile') ? 1.25 : 1.0) *
-      (hasMod('ricochet_rig') ? 0.88 : 1.0);
+      (hasMod('ricochet_rig') ? 0.92 : 1.0);
     const greedShardMult = this.player.pacts.includes('greed') ? 1.6 : 1.0;
     const heatShardBonus =
       1 + this.save.activeHeat.reduce((acc, h) => acc + (HEAT_MODS[h]?.shardBonus ?? 0), 0);
@@ -770,7 +771,7 @@ export class StillpointGame {
     this.player.armor = v.stats.armor + plateLv + heavyLv;
     const chronosFocusMult = this.player.pacts.includes('chronos') ? 1.5 : 1.0;
     this.player.maxKineticCharge = Math.round((v.stats.maxCharge + capLv * 18) * chronosFocusMult);
-    const overclockDrainMult = this.coreId === 'overclock' ? 0.62 : 1.0;
+    const overclockDrainMult = this.coreId === 'overclock' ? 0.9 : 1.0;
     const timeBankDrainMult = this.player.relics.includes('time_bank') ? 1.22 : 1.0;
     this.player.stillpointDrainMult =
       Math.pow(0.9, capLv) *
@@ -782,27 +783,28 @@ export class StillpointGame {
     const echoSlow = this.player.relics.includes('echo_salvo') ? 0.9 : 1.0;
     this.player.moveSpeed = v.stats.moveSpeed * (1 + thrLv * 0.09) * curseSlowMult * chronosSlow * echoSlow;
     this.player.chargeRateMult = v.stats.chargeRateMult * (1 + thrLv * 0.16);
+    const vesperRofMult = this.vesselId === 'vesper' ? 1.1 : 1.0;
     const doubleTapRofMult = this.player.relics.includes('double_tap') ? 0.86 : 1.0;
     const specialistRofMult = hasMod('specialist_lock') ? 1.32 : 1.0;
     const heavyRofMult = hasMod('heavy_ordnance') ? 0.85 : 1.0;
     const furyRofMult = this.player.pacts.includes('berserker') ? 1.35 : 1.0;
     this.player.fireRateMult =
-      (1 + coilLv * 0.13) * doubleTapRofMult * specialistRofMult * heavyRofMult * furyRofMult;
+      (1 + coilLv * 0.13) * vesperRofMult * doubleTapRofMult * specialistRofMult * heavyRofMult * furyRofMult;
     this.player.coreCooldownMax =
       (this.vesselId === 'phantom' ? 0.55 : 0.75) * Math.pow(0.88, coilLv);
     const colossusArea = this.player.pacts.includes('colossus') ? 1.45 : 1.0;
-    this.player.areaMult = (1 + lensLv * 0.16) * colossusArea;
+    const prismArea = this.vesselId === 'prism' ? 1.14 : 1.0;
+    this.player.areaMult = (1 + lensLv * 0.16) * colossusArea * prismArea;
     this.player.damageMult = Math.max(0.75, (1 + coreLv * 0.15 + this.bonusHealDmg) * dmgBonus);
-    this.player.bossDmgMult = 1 + tgtLv * 0.16;
+    this.player.bossDmgMult = (1 + tgtLv * 0.16) * (this.vesselId === 'valkyrie' ? 1.16 : 1.0);
     this.player.corePowerMult = 1 + coreLv * 0.2;
     this.player.grazeRadius = v.stats.grazeRadius + grazeLv * 14;
     this.player.magnetRadius =
       (74 + grazeLv * 18) * (hasMod('salvage_magnet') ? 1.45 : 1.0);
     const execCrit = this.player.pacts.includes('execution') ? 0.25 : 0;
-    this.player.critChance = 0.05 + (this.vesselId === 'vesper' ? 0.08 : 0) + edgeLv * 0.1 + execCrit;
-    this.player.critMult = 1.75 + opticLv * 0.15;
+    this.player.critChance = 0.05 + (this.vesselId === 'vesper' ? 0.1 : 0) + edgeLv * 0.1 + execCrit;
+    this.player.critMult = 1.75 + opticLv * 0.15 + (this.vesselId === 'prism' ? 0.25 : 0);
     this.player.projectileSpeedMult =
-      (this.vesselId === 'vesper' ? 1.18 : 1.0) *
       (hasMod('heavy_ordnance') ? 0.75 : 1.0) *
       (1 + edgeLv * 0.12);
     this.player.bonusProjectiles =
@@ -869,6 +871,7 @@ export class StillpointGame {
     if (player.bloodSpeedTimer > 0) player.bloodSpeedTimer = Math.max(0, player.bloodSpeedTimer - dtReal);
     if (player.empCooldown > 0) player.empCooldown = Math.max(0, player.empCooldown - dtReal);
     if (player.exitVortexCooldown > 0) player.exitVortexCooldown = Math.max(0, player.exitVortexCooldown - dtReal);
+    if (player.reflexCooldown > 0) player.reflexCooldown = Math.max(0, player.reflexCooldown - dtReal);
     if (player.freeFocusTimer > 0) player.freeFocusTimer = Math.max(0, player.freeFocusTimer - dtReal);
     if (player.berserkTimer > 0) {
       player.berserkTimer -= dtReal;
@@ -914,8 +917,9 @@ export class StillpointGame {
       sound.playStillpointEnter();
       bridge.haptic('light');
 
-      // Reflex Tap Pick-10 module: entering Stillpoint at 5+ graze combo gives 1.6s zero drain & resets core!
-      if (player.modules.includes('focus_surge') && player.grazeCombo >= 5) {
+      // Reflex Tap Pick-10 module: entering Stillpoint at 5+ graze combo gives 1.6s zero drain & resets core (5s CD)!
+      if (player.modules.includes('focus_surge') && player.grazeCombo >= 5 && player.reflexCooldown <= 0) {
+        player.reflexCooldown = 5.0;
         player.freeFocusTimer = 1.6;
         player.coreCooldown = 0;
         this.particles.callout(player.x, player.y - 44, 'REFLEX TAP', '#7bf7ff', 1.05, 0.75);
@@ -934,19 +938,6 @@ export class StillpointGame {
 
       if (player.coreCooldown <= 0 && player.kineticCharge >= 16) {
         this.activateStillpointCoreEntry();
-      }
-
-      if (this.vesselId === 'volt') {
-        const sorted = [...this.enemies]
-          .filter((e) => e.hp > 0)
-          .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))
-          .slice(0, 3);
-        for (const t of sorted) {
-          if (Math.hypot(t.x - player.x, t.y - player.y) <= 280) {
-            this.particles.arc(player.x, player.y, t.x, t.y, '#6fa8ff', 2.8, 0.2);
-            this.damageEnemy(t, 28 * player.damageMult, '#6fa8ff', true);
-          }
-        }
       }
     }
 
@@ -1018,9 +1009,9 @@ export class StillpointGame {
     this.stats.elapsed += dtWorld;
     if (this.tutorialTimer > 0) this.tutorialTimer -= dtReal;
 
-    // Glacier ship passive: continuously chill close enemies within 150px!
+    // Glacier ship passive: continuously chill close enemies within 165px!
     if (this.vesselId === 'glacier') {
-      const chillR2 = 150 * 150;
+      const chillR2 = 165 * 165;
       for (const e of this.enemies) {
         if (e.hp > 0 && (e.x - player.x) ** 2 + (e.y - player.y) ** 2 <= chillR2) {
           e.chillTimer = Math.max(e.chillTimer ?? 0, 1.4);
@@ -1188,9 +1179,9 @@ export class StillpointGame {
     updateEnemies(enemyCtx, dtWorld);
     if (this.phase !== 'playing') return;
 
-    // Overclock Core: boost weapon tick rate 2.3x during Stillpoint!
+    // Overclock Core: boost weapon tick rate 2x during Stillpoint!
     const weaponDtReal =
-      player.inStillpoint && this.coreId === 'overclock' ? dtReal * 2.3 : dtReal;
+      player.inStillpoint && this.coreId === 'overclock' ? dtReal * 2.0 : dtReal;
     updateWeapons(this.makeWeaponCtx(justEntered, justExited), dtWorld, weaponDtReal);
     if (this.phase !== 'playing') return;
     this.updateHazards(dtWorld, dtReal);
@@ -1219,6 +1210,25 @@ export class StillpointGame {
     const v = VESSELS[this.vesselId];
     const aura = getEffectVisualParams(getEquippedAuraItem(this.save));
     const coreRadiusMult = p.areaMult * v.stats.coreAreaMult;
+
+    // Aegis vessel passive: every Core trigger restores +8 Shield (works with all 9 Cores)
+    if (this.vesselId === 'aegis' && !p.modules.includes('blood_pact')) {
+      p.shield = Math.min(p.maxShield, p.shield + 8);
+    }
+
+    // Volt vessel passive: every Core trigger arcs high-voltage lightning to 4 nearby foes (gated by Core CD)
+    if (this.vesselId === 'volt') {
+      const sorted = [...this.enemies]
+        .filter((e) => e.hp > 0)
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))
+        .slice(0, 4);
+      for (const t of sorted) {
+        if (Math.hypot(t.x - p.x, t.y - p.y) <= 295) {
+          this.particles.arc(p.x, p.y, t.x, t.y, '#6fa8ff', 2.8, 0.22);
+          this.damageEnemy(t, 38 * p.damageMult, '#6fa8ff', true);
+        }
+      }
+    }
 
     // Nova vessel passive: drop a pulling gravity rift whenever a Core triggers!
     if (this.vesselId === 'nova') {
@@ -1298,7 +1308,7 @@ export class StillpointGame {
         }
       }
       if (erased > 0) {
-        p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + Math.min(36, erased * 4));
+        p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + Math.min(28, erased * 3.5));
         this.addMomentum(Math.min(20, erased * 3));
         this.particles.callout(p.x, p.y - 38, `STASIS ×${erased}`, '#62a4f5', 1.15, 0.8);
       }
@@ -1435,9 +1445,10 @@ export class StillpointGame {
         if (e.hp <= 0) continue;
         if (Math.hypot(e.x - p.x, e.y - p.y) <= slashR + e.radius) {
           hitCount++;
-          const isExec = !e.isBoss && e.hp / e.maxHp <= 0.32;
+          const lowHp = e.hp / e.maxHp <= 0.32;
+          const isExec = !e.isBoss && lowHp;
           if (isExec) execs++;
-          this.damageEnemy(e, isExec ? e.hp + 20 : dmg, '#ff4858', true);
+          this.damageEnemy(e, isExec ? e.hp + 20 : lowHp ? dmg * 2 : dmg, '#ff4858', true);
         }
       }
       if (hitCount > 0) {
@@ -1496,9 +1507,6 @@ export class StillpointGame {
     }
     if (hitCount > 0) {
       this.addMomentum(Math.min(18, hitCount * 4));
-      if (this.vesselId === 'aegis' && hitCount >= 3 && !p.modules.includes('blood_pact')) {
-        p.shield = Math.min(p.maxShield, p.shield + 10);
-      }
     }
   }
 
@@ -1538,7 +1546,7 @@ export class StillpointGame {
       const tgt = findNearestEnemy(p.x, p.y, this.enemies, 680, true);
       const aimAng = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : p.facingAngle;
       const beamLen = 680;
-      const beamW = (16 + chargePct * 18) * p.areaMult * (ventBoost ? 1.15 : 1);
+      const beamW = (16 + chargePct * 18) * p.areaMult * v.stats.coreAreaMult * (ventBoost ? 1.15 : 1);
       const dmg = (68 + chargePct * 185) * p.damageMult * p.corePowerMult * boostMult;
       const ex = p.x + Math.cos(aimAng) * beamLen;
       const ey = p.y + Math.sin(aimAng) * beamLen;
@@ -1656,7 +1664,8 @@ export class StillpointGame {
 
   private detonateDecoy(d: BlinkDecoy, amplified = false): void {
     const p = this.player;
-    const blastR = 135 * p.areaMult * (amplified ? 1.2 : 1);
+    const v = VESSELS[this.vesselId];
+    const blastR = 135 * p.areaMult * v.stats.coreAreaMult * (amplified ? 1.2 : 1);
     const dmg = 54 * p.damageMult * p.corePowerMult * (amplified ? 1.5 : 1);
     sound.playShoot('mortar');
     this.particles.explode(d.x, d.y, amplified ? 1.45 : 1.15, amplified ? '#f6c453' : '#cf7dff');
@@ -1691,7 +1700,7 @@ export class StillpointGame {
   private triggerPyreThermalRing(): void {
     const p = this.player;
     const rad = 118 * p.areaMult;
-    const dmg = 36 * p.damageMult;
+    const dmg = 42 * p.damageMult;
     this.hazards.push({
       id: this.nextEntityId++,
       kind: 'nova_wave',
@@ -2565,7 +2574,13 @@ export class StillpointGame {
           // Chill / Corrode effects on hit
           if (b.kind === 'acid_glob') {
             e.corrodeTimer = Math.max(e.corrodeTimer ?? 0, 4.0);
-            if (this.hazards.length < 22) {
+            const existingPool = this.hazards.find(
+              (h) => h.kind === 'acid_pool' && (h.x - b.x) ** 2 + (h.y - b.y) ** 2 <= 26 * 26
+            );
+            if (existingPool) {
+              existingPool.age = 0;
+              existingPool.damagePerSec = Math.max(existingPool.damagePerSec, b.damage * 0.85);
+            } else if (this.hazards.length < 22) {
               const corrLv = this.player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
               this.hazards.push({
                 id: this.nextEntityId++,
@@ -2573,7 +2588,7 @@ export class StillpointGame {
                 x: b.x,
                 y: b.y,
                 radius: b.blastRadius ?? 46 * this.player.areaMult,
-                damagePerSec: b.damage * 1.15,
+                damagePerSec: b.damage * 0.85,
                 age: 0,
                 maxAge: (b.evolved ? 4.2 : 3.0) * (1 + corrLv * 0.2),
                 color: '#78d65c',
@@ -2587,7 +2602,7 @@ export class StillpointGame {
             e.chillTimer = 3.2;
           } else if (this.player.modules.includes('cryo_shatter')) {
             this.player.shotCounter++;
-            if (this.player.shotCounter >= 5) {
+            if (this.player.shotCounter >= 4) {
               this.player.shotCounter = 0;
               e.chillTimer = Math.max(e.chillTimer ?? 0, 2.6);
             }
@@ -2719,11 +2734,6 @@ export class StillpointGame {
             const ang = next ? Math.atan2(next.y - b.y, next.x - b.x) : Math.random() * Math.PI * 2;
             b.vx = Math.cos(ang) * spd;
             b.vy = Math.sin(ang) * spd;
-            // Prism ship passive: ricochet bounces empower damage +35% (+1 pierce is granted globally on shot spawn)
-            if (this.vesselId === 'prism' && !b.banked) {
-              b.banked = true;
-              b.damage *= 1.35;
-            }
 
             if ((this.player.inStillpoint || b.evolved) && this.playerBullets.length < 180) {
               this.playerBullets.push({
@@ -2762,7 +2772,7 @@ export class StillpointGame {
               const ang = Math.atan2(next.y - b.y, next.x - b.x);
               b.vx = Math.cos(ang) * spd;
               b.vy = Math.sin(ang) * spd;
-              b.damage *= 0.65;
+              b.damage *= 0.7;
               b.banked = true;
               b.age = Math.min(b.age, b.maxAge * 0.65);
               break;
@@ -2870,7 +2880,7 @@ export class StillpointGame {
     this.stats.score += (14 + Math.min(44, p.grazeCombo * 3)) * p.surgeTier;
 
     const deflectBonus = p.inStillpoint && p.relics.includes('ricochet_aura') ? 2.0 : 1.0;
-    const siphonGrazeBonus = p.modules.includes('surge_capacitor') ? 1.35 : 1.0;
+    const siphonGrazeBonus = p.modules.includes('surge_capacitor') ? 1.4 : 1.0;
     p.kineticCharge = Math.min(
       p.maxKineticCharge,
       p.kineticCharge + 8.8 * p.chargeRateMult * pactGrazeMult * deflectBonus * siphonGrazeBonus
@@ -3203,6 +3213,7 @@ export class StillpointGame {
     const p = this.player;
     const bossScale = enemy.isBoss || enemy.isElite ? p.bossDmgMult : 1;
     const corrodeScale = enemy.corrodeTimer && enemy.corrodeTimer > 0 ? 1.25 : 1;
+    const catalystScale = enemy.catalystMark && enemy.catalystMark > 0 ? 1.15 : 1;
 
     // Point-Blank Choke Pick-10 module: +50% within 150px, -25% beyond 240px
     let rangeScale = 1;
@@ -3249,6 +3260,7 @@ export class StillpointGame {
       rawDmg *
       bossScale *
       corrodeScale *
+      catalystScale *
       rangeScale *
       redlineScale *
       gildedScale *
@@ -3291,9 +3303,9 @@ export class StillpointGame {
     const eqTrail = getEquippedTrailItem(this.save);
     if (eqTrail.striker) eqTrail.statCount++;
 
-    // Reaper ship passive: kills during Stillpoint refund +7 focus!
+    // Reaper ship passive: kills during Stillpoint refund +5.5 focus!
     if (this.vesselId === 'reaper' && this.player.inStillpoint) {
-      this.player.kineticCharge = Math.min(this.player.maxKineticCharge, this.player.kineticCharge + 7);
+      this.player.kineticCharge = Math.min(this.player.maxKineticCharge, this.player.kineticCharge + 5.5);
     }
 
     // Time Thief relic: killing elites or bosses refills Focus and restores 15% HP!
@@ -3407,10 +3419,10 @@ export class StillpointGame {
       }
     }
 
-    // Siphon Chassis Pick-10 module: every 15 kills drops a magnetized healing blood cell!
+    // Siphon Chassis Pick-10 module: every 12 kills drops a magnetized healing blood cell!
     if (this.player.modules.includes('blood_pact')) {
       this.player.bloodKillCounter++;
-      if (this.player.bloodKillCounter >= 15) {
+      if (this.player.bloodKillCounter >= 12) {
         this.player.bloodKillCounter = 0;
         this.pickups.push({
           id: this.nextEntityId++,
@@ -3641,7 +3653,8 @@ export class StillpointGame {
     if (this.enclosure.active) this.enclosure.playerHitDuringBoss = true;
 
     const furyTaken = p.pacts.includes('berserker') ? 1.2 : 1.0;
-    let dmg = Math.max(7, Math.round(rawDmg * furyTaken) - p.armor);
+    const bastionDR = this.vesselId === 'bastion' && p.inStillpoint ? 0.75 : 1.0;
+    let dmg = Math.max(5, Math.round(rawDmg * furyTaken * bastionDR) - p.armor);
     p.hitFlash = 1;
     p.grazeCombo = 0;
     p.kineticShieldDelay = 4.0;

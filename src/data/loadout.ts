@@ -73,11 +73,11 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     id: 'ricochet_rig',
     name: 'Bank-Shot Rig',
     category: 'combat',
-    points: 3,
-    unlockCost: 210,
+    points: 2,
+    unlockCost: 185,
     iconKey: 'ricochet_shard',
     accent: '#5ce1e6',
-    line: 'Single-target shots bounce once to a nearby foe for 65% damage, -12% base damage'
+    line: 'Single-target shots bounce once to a nearby foe for 70% damage, -8% base damage'
   },
   specialist_lock: {
     id: 'specialist_lock',
@@ -149,7 +149,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     unlockCost: 215,
     iconKey: 'chrono_capacitor',
     accent: '#7bf7ff',
-    line: 'Entering slow-mo at 5+ graze combo gives 1.6s zero focus drain and resets core'
+    line: 'Entering slow-mo at 5+ graze combo gives 1.6s zero focus drain and resets core (5s CD)'
   },
 
   // Defense & Status Tricks
@@ -187,11 +187,11 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     id: 'surge_capacitor',
     name: 'Thermal Siphon',
     category: 'tactics',
-    points: 3,
-    unlockCost: 225,
+    points: 2,
+    unlockCost: 185,
     iconKey: 'graze_conduit',
     accent: '#5cd6d0',
-    line: 'Grazing enemy shots restores +35% more focus; passive movement focus recharge is 20% slower'
+    line: 'Grazing enemy shots restores +40% more focus; passive movement focus recharge is 20% slower'
   },
   emp_shell: {
     id: 'emp_shell',
@@ -211,17 +211,17 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     unlockCost: 165,
     iconKey: 'frost_nova',
     accent: '#7ee8ff',
-    line: 'Every 5th shot chills foes; killing chilled enemies shatters 4 ice splinters'
+    line: 'Every 4th shot chills foes; killing chilled enemies shatters 4 ice splinters'
   },
   blood_pact: {
     id: 'blood_pact',
     name: 'Siphon Chassis',
     category: 'tactics',
-    points: 3,
-    unlockCost: 205,
+    points: 2,
+    unlockCost: 175,
     iconKey: 'phase_daggers',
     accent: '#d94842',
-    line: 'Disables shield; every 15 kills drops a healing blood cell (+10 HP and +20% speed)'
+    line: 'Disables shield; every 12 kills drops a healing blood cell (+10 HP and +20% speed)'
   },
   chain_detonate: {
     id: 'chain_detonate',
@@ -234,7 +234,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     line: 'Crits prime foes for 3s; killing primed targets blasts nearby foes for 22% max HP'
   },
 
-  // Risk Traits (negative point cost expands Pick-10 budget up to 15)
+  // Risk Traits (negative point cost expands Pick-10 budget up to 16)
   risk_glass: {
     id: 'risk_glass',
     name: 'Stripped Hull',
@@ -259,11 +259,11 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     id: 'risk_strict',
     name: 'Locked Draft',
     category: 'risk',
-    points: -1,
-    unlockCost: 80,
+    points: -2,
+    unlockCost: 90,
     iconKey: 'overclock_core',
     accent: '#d97134',
-    line: '0 rerolls and 2 draft choices for +1 loadout point'
+    line: '0 rerolls and 2 draft choices for +2 loadout points'
   }
 };
 

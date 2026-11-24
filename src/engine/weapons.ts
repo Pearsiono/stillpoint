@@ -182,7 +182,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   const momentumMult = player.modules.includes('momentum_drive')
     ? 0.85 + player.momentumMoveTime * 0.55
     : 1;
-  const bastionStillMult = ctx.vesselId === 'bastion' && inStillpoint ? 1.25 : 1;
+  const bastionStillMult = ctx.vesselId === 'bastion' && inStillpoint ? 1.28 : 1;
   const totalRateMult =
     player.fireRateMult *
     overclockMult *
@@ -696,7 +696,7 @@ function updateVoidMortars(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (w.cooldown > 0) return;
 
-  w.cooldown = w.evolved ? 1.15 : Math.max(1.35, 2.2 - w.level * 0.16);
+  w.cooldown = w.evolved ? 1.05 : Math.max(1.2, 1.85 - w.level * 0.13);
   const count = (w.evolved ? 2 : w.level >= 4 ? 2 : 1) + Math.min(1, player.bonusProjectiles);
   const dmg = (w.evolved ? 48 : 22 + w.level * 7) * player.damageMult;
   const blastR = (68 + w.level * 7 + (w.evolved ? 18 : 0)) * player.areaMult;
@@ -719,8 +719,8 @@ function updateVoidMortars(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       pool.length > 0
         ? pool[Math.floor(Math.random() * pool.length)]
         : fallbackTarget;
-    const tx = target ? target.x + (Math.random() - 0.5) * 45 : player.x + (Math.random() - 0.5) * 180;
-    const ty = target ? target.y + (Math.random() - 0.5) * 45 : player.y + (Math.random() - 0.5) * 180;
+    const tx = target ? target.x + (Math.random() - 0.5) * 22 : player.x + (Math.random() - 0.5) * 180;
+    const ty = target ? target.y + (Math.random() - 0.5) * 22 : player.y + (Math.random() - 0.5) * 180;
     const flightTime = 0.42;
 
     playerBullets.push({
@@ -745,7 +745,7 @@ function updateVoidMortars(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 }
 
 function updatePhaseDaggers(ctx: WeaponWorldContext, w: OwnedWeapon): void {
-  const { player, playerBullets } = ctx;
+  const { player, enemies, playerBullets } = ctx;
   if (player.inStillpoint) return;
 
   const spacing = w.evolved ? 34 : Math.max(38, 60 - w.level * 4);
@@ -754,10 +754,29 @@ function updatePhaseDaggers(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 
   const maxPlanted = w.evolved ? 22 : 6 + w.level * 2;
   let currentPlanted = 0;
+  let oldest: PlayerBullet | null = null;
   for (const b of playerBullets) {
-    if (b.kind === 'dagger_planted') currentPlanted++;
+    if (b.kind === 'dagger_planted') {
+      currentPlanted++;
+      if (!oldest) oldest = b;
+    }
   }
-  if (currentPlanted >= maxPlanted) return;
+  // When at planted cap, automatically release the oldest dagger as a homing blade so solo play never stalls
+  if (currentPlanted >= maxPlanted && oldest) {
+    oldest.kind = 'dagger_homing';
+    oldest.age = 0;
+    oldest.maxAge = 2.0;
+    oldest.homing = 10.5;
+    const target = findNearestEnemy(oldest.x, oldest.y, enemies, 640, true);
+    const ang = target
+      ? Math.atan2(target.y - oldest.y, target.x - oldest.x)
+      : player.facingAngle;
+    const spd = 470 * player.projectileSpeedMult;
+    oldest.vx = Math.cos(ang) * spd;
+    oldest.vy = Math.sin(ang) * spd;
+    oldest.targetId = target?.id;
+    sound.playShoot('dagger');
+  }
 
   spawnPlantedDagger(ctx, w, player.x, player.y);
 }
@@ -845,9 +864,9 @@ function updateNovaPulse(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   if (player.inStillpoint) return; // Charges silently for release burst!
   if (w.cooldown > 0) return;
 
-  w.cooldown = w.evolved ? 1.15 : Math.max(1.35, 2.35 - w.level * 0.2);
-  const radius = (95 + w.level * 12 + (w.evolved ? 28 : 0)) * player.areaMult;
-  const dmg = (w.evolved ? 48 : 18 + w.level * 7) * player.damageMult;
+  w.cooldown = w.evolved ? 1.05 : Math.max(1.2, 2.0 - w.level * 0.16);
+  const radius = (106 + w.level * 12 + (w.evolved ? 28 : 0)) * player.areaMult;
+  const dmg = (w.evolved ? 52 : 26 + w.level * 7) * player.damageMult;
   fireNovaWave(ctx, radius, dmg, w.evolved, false);
 }
 
@@ -900,8 +919,8 @@ function updateRailTurret(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, pylons } = ctx;
   if (w.cooldown > 0) return;
 
-  w.cooldown = w.evolved ? 2.4 : Math.max(2.8, 4.4 - w.level * 0.32);
-  const maxPylons = (w.evolved ? 5 : 2 + Math.floor(w.level / 2)) + (ctx.vesselId === 'bastion' ? 1 : 0);
+  w.cooldown = w.evolved ? 2.0 : Math.max(2.2, 3.4 - w.level * 0.24);
+  const maxPylons = w.evolved ? 5 : 2 + Math.floor(w.level / 2);
   if (pylons.length >= maxPylons) {
     pylons.shift();
   }
@@ -912,10 +931,10 @@ function updateRailTurret(ctx: WeaponWorldContext, w: OwnedWeapon): void {
     x: player.x + Math.cos(ang) * 42,
     y: player.y + Math.sin(ang) * 42,
     age: 0,
-    maxAge: w.evolved ? 14 : 10,
+    maxAge: w.evolved ? 15 : 12,
     fireTimer: 0.2,
     evolved: w.evolved,
-    damage: (w.evolved ? 34 : 15 + w.level * 5) * player.damageMult * orbDmg
+    damage: (w.evolved ? 34 : 16 + w.level * 5) * player.damageMult * orbDmg
   });
   ctx.particles.ring(player.x + Math.cos(ang) * 42, player.y + Math.sin(ang) * 42, '#f6c453', 14, 0.26);
 }
@@ -957,8 +976,8 @@ function updateActivePylons(ctx: WeaponWorldContext, dtWorld: number, dtReal: nu
         }
         ctx.damageShrinesAlongLine(py.x, py.y, next.x, next.y, 10, py.damage * 1.4);
       } else {
-        py.fireTimer = py.evolved ? 0.42 : 0.65;
-        const target = findNearestEnemy(py.x, py.y, enemies, 420);
+        py.fireTimer = py.evolved ? 0.42 : 0.62;
+        const target = findNearestEnemy(py.x, py.y, enemies, 470);
         if (target) {
           const ang = Math.atan2(target.y - py.y, target.x - py.x);
           const spd = 480 * player.projectileSpeedMult;
@@ -1049,12 +1068,13 @@ export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 
   if (w.cooldown > 0) return;
-  w.cooldown = w.evolved ? 0.55 : Math.max(0.68, 1.15 - w.level * 0.09);
+  w.cooldown = w.evolved ? 0.55 : Math.max(0.68, 1.12 - w.level * 0.085);
 
-  const count = (w.evolved ? 8 : 4 + Math.floor(w.level / 2)) + player.bonusProjectiles;
-  const dmg = (w.evolved ? 28 : 12 + w.level * 4) * player.damageMult;
-  const spd = 340 * player.projectileSpeedMult;
-  const base = ctx.time * 1.3;
+  const count = (w.evolved ? 8 : 5 + Math.floor(w.level / 2)) + player.bonusProjectiles;
+  const dmg = (w.evolved ? 28 : 15 + w.level * 4) * player.damageMult;
+  const spd = 360 * player.projectileSpeedMult;
+  const tgt = findNearestEnemy(player.x, player.y, enemies, 460);
+  const base = tgt ? Math.atan2(tgt.y - player.y, tgt.x - player.x) : ctx.time * 1.3;
 
   sound.playShoot('pulse');
   for (let i = 0; i < count; i++) {
@@ -1085,9 +1105,8 @@ function updateSwarmMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   if (player.inStillpoint) {
     // Paint lock-on reticles while in Stillpoint!
     if (w.cooldown > 0) return;
-    const valkSpeed = ctx.vesselId === 'valkyrie' ? 0.5 : 1;
-    w.cooldown = (w.evolved ? 0.11 : 0.17) * valkSpeed;
-    const maxLocks = (w.evolved ? 14 : 4 + w.level * 2) + player.bonusProjectiles + (ctx.vesselId === 'valkyrie' ? 4 : 0);
+    w.cooldown = w.evolved ? 0.095 : 0.14;
+    const maxLocks = (w.evolved ? 14 : 5 + w.level * 2) + player.bonusProjectiles;
     if (player.missileLocks.length < maxLocks) {
       const candidates = enemies.filter((e) => e.hp > 0 && Math.hypot(e.x - player.x, e.y - player.y) < 520);
       if (candidates.length > 0) {
@@ -1227,7 +1246,7 @@ function updateAcidSprayer(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const baseAng = tgt ? Math.atan2(tgt.y - player.y, tgt.x - player.x) : player.facingAngle;
   const count = (w.evolved ? 4 : w.level >= 3 ? 3 : 2) + Math.min(2, player.bonusProjectiles);
   const corrLv = player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
-  const dmg = (w.evolved ? 26 : 11 + w.level * 3.8) * (1 + corrLv * 0.2) * player.damageMult;
+  const dmg = (w.evolved ? 22 : 9 + w.level * 3.2) * (1 + corrLv * 0.2) * player.damageMult;
   const spd = (inFocus ? 480 : 300) * player.projectileSpeedMult;
 
   sound.playShoot('pulse');
@@ -1334,7 +1353,7 @@ function updateShatterMine(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (player.inStillpoint || w.cooldown > 0) return;
 
-  w.cooldown = w.evolved ? 0.72 : Math.max(0.88, 1.55 - w.level * 0.12);
+  w.cooldown = w.evolved ? 0.7 : Math.max(0.82, 1.32 - w.level * 0.1);
   let activeMines = 0;
   for (const b of playerBullets) {
     if (b.kind === 'seeker_mine') activeMines++;
@@ -1344,8 +1363,8 @@ function updateShatterMine(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const blastLv = player.passives.find((p) => p.id === 'blast_capacitor')?.level ?? 0;
   const blastMult = 1 + blastLv * 0.18;
   const count = (w.evolved ? 2 : w.level >= 4 ? 2 : 1) + Math.min(1, player.bonusProjectiles);
-  const dmg = (w.evolved ? 52 : 24 + w.level * 8) * blastMult * player.damageMult;
-  const blastR = (62 + w.level * 6) * player.areaMult * blastMult;
+  const dmg = (w.evolved ? 54 : 28 + w.level * 8) * blastMult * player.damageMult;
+  const blastR = (64 + w.level * 6) * player.areaMult * blastMult;
   const tgt = findNearestEnemy(player.x, player.y, enemies, 480);
 
   sound.playShoot('mortar');
@@ -1358,15 +1377,15 @@ function updateShatterMine(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       kind: 'seeker_mine',
       x: player.x + Math.cos(ang) * 18,
       y: player.y + Math.sin(ang) * 18,
-      vx: Math.cos(ang) * 145,
-      vy: Math.sin(ang) * 145,
+      vx: Math.cos(ang) * 185,
+      vy: Math.sin(ang) * 185,
       radius: 8,
       damage: dmg,
       pierce: 1,
       age: 0,
       maxAge: 6.5,
       color: w.evolved ? '#f0bc42' : '#e0533c',
-      homing: 2.2,
+      homing: 3.4,
       targetId: tgt?.id,
       hitSet: new Set(),
       evolved: w.evolved,

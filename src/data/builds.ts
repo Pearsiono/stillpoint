@@ -39,7 +39,7 @@ export const CORES: Record<CoreId, CoreDef> = {
   overclock: {
     id: 'overclock',
     name: 'Overclock',
-    shortDesc: '2.3× fire rate and guaranteed crits in slow-mo',
+    shortDesc: '2× fire rate and guaranteed crits in slow-mo',
     accent: '#e2a93b',
     unlockCost: 250
   },
@@ -53,14 +53,14 @@ export const CORES: Record<CoreId, CoreDef> = {
   berserk: {
     id: 'berserk',
     name: 'Razor Reflex',
-    shortDesc: 'Executes foes under 32% HP for shield and haste',
+    shortDesc: 'Executes foes under 32% HP (2× vs bosses) for shield and haste',
     accent: '#d94842',
     unlockCost: 310
   },
   catalyst_surge: {
     id: 'catalyst_surge',
     name: 'Chain Catalyst',
-    shortDesc: 'Marks nearby foes in slow-mo to chain-detonate on death',
+    shortDesc: 'Marks nearby foes (+15% dmg taken) to chain-detonate on death',
     accent: '#e05fa8',
     unlockCost: 350
   }

@@ -567,6 +567,7 @@ export interface PlayerState {
   kineticShieldDelay: number;
   empCooldown: number;
   exitVortexCooldown: number;
+  reflexCooldown: number;
   freeFocusTimer: number;
   shotCounter: number;
   bloodKillCounter: number;
