@@ -31,7 +31,7 @@ export const PACTS: Record<
   bullet_magnet: {
     id: 'bullet_magnet',
     name: 'Overdrive',
-    trade: '+75% graze, faster fire',
+    trade: '+75% graze, +25% enemy shot speed',
     accent: '#d96bff'
   },
   greed: {
@@ -77,7 +77,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     accent: '#22e6ff',
     shortDesc: 'Auto-bolts that become a piercing railbeam in slow-mo',
     stillpointShort: 'Piercing Chrono Railbeam',
-    evolvedShort: 'Twin rails tear detonating gravity rifts',
+    evolvedShort: 'Twin rails tear pulling gravity rifts',
     maxLevel: 5,
     unlockCost: 0
   },
@@ -149,7 +149,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     accent: '#ff5c8a',
     shortDesc: 'Boomerang arcs that lock in place shredding waves in slow-mo',
     stillpointShort: 'Hovers mid-air shredding hostiles',
-    evolvedShort: 'Twin crimson saws carve dense waves',
+    evolvedShort: 'Three crimson saws carve dense waves',
     maxLevel: 5,
     unlockCost: 120
   },
@@ -172,7 +172,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     catalystPassive: 'reactive_plating',
     accent: '#ff9f43',
     shortDesc: 'Shockwave aura that detonates outward on resume',
-    stillpointShort: 'Mega knockback blast on touch-down',
+    stillpointShort: 'Wide knockback blast on touch-down',
     evolvedShort: 'Wide thermal waves crush nearby swarms',
     maxLevel: 5,
     unlockCost: 130
@@ -185,7 +185,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     accent: '#f6c453',
     shortDesc: 'Deploys pylons that link with laser tripwires in slow-mo',
     stillpointShort: 'Links pylons with lethal beams',
-    evolvedShort: 'Triangulates plasma fields between pylons',
+    evolvedShort: 'High-voltage laser web links up to 5 pylons',
     maxLevel: 5,
     unlockCost: 225
   },

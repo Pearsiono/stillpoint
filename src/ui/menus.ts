@@ -204,7 +204,7 @@ export class OverlayController {
   }
 
   refreshExternalState(): void {
-    if (this.currentPhase === 'menu') {
+    if (this.currentPhase === 'menu' && !this.reelItems) {
       this.browsingSectorIdx = Math.max(0, SECTOR_ORDER.indexOf(this.save.selectedSector));
       this.renderHub(true);
     }
@@ -649,7 +649,7 @@ export class OverlayController {
                 ? `<button class="icon-square" id="btn-randomize" style="width:30px;height:30px" aria-label="Randomize loadout">
                      ${svgIcon('reroll', 14)}
                    </button>`
-                : `<button class="buy-pill ${canBuyDisplay ? 'ready' : ''}" id="btn-buy-ship" data-buy-ship="${vessel.id}" ${canBuyDisplay ? '' : 'disabled'}>
+                : `<button class="buy-pill ${canBuyDisplay ? 'ready' : ''}" id="btn-buy-ship" data-buy-ship="${vessel.id}">
                      <span>Unlock</span>${artIconImg('shard', 11)}<span>${vessel.unlockCost}</span>
                    </button>`
             }
@@ -751,9 +751,9 @@ export class OverlayController {
       const btnText = this.adBusy
         ? 'Loading...'
         : nativeAds && !adReady
-          ? 'Buffering...'
+          ? 'Load ad'
           : 'Watch ad';
-      const btnDisabled = this.adBusy || (nativeAds && !adReady);
+      const btnDisabled = this.adBusy;
       boostHtml = `
         <div class="boost-card">
           <div class="boost-left">
@@ -839,7 +839,7 @@ export class OverlayController {
                   ×${this.save.relicCrates}
                 </span>
               </div>
-              <div class="ledger-sub">High-heat sector clears, no-hit bosses, and prestige trials.</div>
+              <div class="ledger-sub">High-modifier sector clears, no-hit bosses, and prestige trials.</div>
             </div>
           </div>
           <button class="battle-btn rust-btn ${this.save.relicCrates > 0 && !hasKeys ? 'need-key' : ''}" style="height:40px;font-size:14px" id="btn-open-relic" ${this.save.relicCrates > 0 ? '' : 'disabled'}>
@@ -912,7 +912,7 @@ export class OverlayController {
           </div>
 
           <div class="odds-note">
-            Pool contains 20 pattern skins and 14 thruster or aura effects. Each drop rolls pattern #000 to #999, float wear FN to BS, and a 10% ST tracker chance. Trade up 5 matching drops to craft the next tier.
+            Pool contains 20 pattern skins and 14 thruster or aura effects. Each drop rolls pattern #000 to #999, float wear FN to BS, and a 10% ST tracker chance (18% on Classified crates). Trade up 5 matching drops to craft the next tier.
           </div>
 
           <button class="ghost-btn" id="btn-close-odds">Done</button>
@@ -2034,6 +2034,7 @@ export class OverlayController {
     });
 
     this.container.querySelector('#btn-close-settings')?.addEventListener('click', () => {
+      window.clearTimeout(this.resetConfirmTimer);
       this.settingsOpen = false;
       this.resetConfirmArmed = false;
       this.renderHub(true);
@@ -2041,6 +2042,7 @@ export class OverlayController {
 
     this.container.querySelector('#settings-bg')?.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).id === 'settings-bg') {
+        window.clearTimeout(this.resetConfirmTimer);
         this.settingsOpen = false;
         this.resetConfirmArmed = false;
         this.renderHub(true);
@@ -2119,11 +2121,15 @@ export class OverlayController {
     });
 
     this.container.querySelector('#btn-save-export')?.addEventListener('click', () => {
+      window.clearTimeout(this.resetConfirmTimer);
+      this.resetConfirmArmed = false;
       this.saveModalMode = 'export';
       bridge.haptic('light');
       this.renderHub(true);
     });
     this.container.querySelector('#btn-save-import')?.addEventListener('click', () => {
+      window.clearTimeout(this.resetConfirmTimer);
+      this.resetConfirmArmed = false;
       this.saveModalMode = 'import';
       bridge.haptic('light');
       this.renderHub(true);
@@ -2141,10 +2147,30 @@ export class OverlayController {
     this.container.querySelector('#btn-copy-save')?.addEventListener('click', () => {
       const box = this.container.querySelector<HTMLTextAreaElement>('#save-code-input');
       if (!box) return;
+      box.focus();
       box.select();
-      navigator.clipboard?.writeText(box.value).catch(() => {});
-      bridge.haptic('success');
-      this.showToast('Backup code copied');
+      box.setSelectionRange(0, box.value.length);
+      const notifyCopied = () => {
+        bridge.haptic('success');
+        this.showToast('Backup code copied');
+      };
+      const fallbackCopy = () => {
+        try {
+          if (document.execCommand('copy')) {
+            notifyCopied();
+            return;
+          }
+        } catch {
+          // Ignore execCommand failure
+        }
+        bridge.haptic('light');
+        this.showToast('Code selected. Tap Copy to save.');
+      };
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(box.value).then(notifyCopied).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
     });
     this.container.querySelector('#btn-apply-save')?.addEventListener('click', () => {
       const box = this.container.querySelector<HTMLTextAreaElement>('#save-code-input');
@@ -2498,7 +2524,7 @@ export class OverlayController {
       }
     });
 
-    // Ships (Direct Shard purchase in Hangar — tap locked to preview, unlock directly with Shards!)
+    // Ships: direct Shard purchase in Hangar (tap locked to preview, unlock directly with Shards)
     this.container.querySelectorAll<HTMLButtonElement>('[data-ship]').forEach((b) => {
       b.addEventListener('click', () => {
         const vid = b.dataset.ship as VesselId;
@@ -2799,11 +2825,11 @@ export class OverlayController {
       )
       .join('');
 
-    const dmgEntries = Object.entries(st.weaponDamage ?? {})
+    const allDmgEntries = Object.entries(st.weaponDamage ?? {})
       .filter(([, v]) => v >= 1)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-    const totalDmg = dmgEntries.reduce((sum, [, v]) => sum + v, 0);
+      .sort((a, b) => b[1] - a[1]);
+    const totalDmg = allDmgEntries.reduce((sum, [, v]) => sum + v, 0);
+    const dmgEntries = allDmgEntries.slice(0, 5);
     const dmgHtml =
       dmgEntries.length > 0 && totalDmg > 0
         ? `
@@ -2843,7 +2869,7 @@ export class OverlayController {
               ${isVictory ? 'Sector clear' : 'Hull destroyed'}
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              ${totalRunCrates > 0 ? `<span class="crate-trigger">+${totalRunCrates} crate</span>` : ''}
+              ${totalRunCrates > 0 ? `<span class="crate-trigger">+${totalRunCrates} ${totalRunCrates === 1 ? 'crate' : 'crates'}</span>` : ''}
               <span class="currency-readout" style="color:var(--gold)">
                 ${artIconImg('shard', 14)} +${st.shardsEarned}
               </span>
@@ -2905,7 +2931,7 @@ export class OverlayController {
     this.container.querySelector('#btn-endless')?.addEventListener('click', () => this.actions.onContinueEndless());
     this.container.querySelector('#btn-retry')?.addEventListener('click', () => this.actions.onStartRun());
     this.container.querySelector('#btn-home')!.addEventListener('click', () => {
-      this.tab = totalRunCrates > 0 ? 'armory' : 'battle';
+      this.tab = totalRunCrates > 0 ? 'armory' : 'hangar';
       if (totalRunCrates > 0) this.armorySub = 'crates';
       this.actions.onQuitToMenu();
     });

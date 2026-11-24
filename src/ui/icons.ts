@@ -1,39 +1,7 @@
-// Bespoke geometric SVG icons — zero generic Unicode symbols.
+// Bespoke geometric SVG icons (zero generic Unicode symbols).
 
 const PATHS: Record<string, string> = {
-  // Weapons
-  pulse_lance: '<path d="M12 2L16 12L12 22L8 12Z" /><line x1="12" y1="6" x2="12" y2="18" />',
-  halo_blades: '<circle cx="12" cy="12" r="7" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" />',
-  arc_tether: '<polyline points="14 2 6 13 12 13 10 22 18 11 12 11 14 2" />',
-  prism_drones: '<polygon points="12 3 20 18 4 18" /><polygon points="12 9 15.5 16 8.5 16" />',
-  void_mortars: '<circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" fill="currentColor" /><path d="M12 4a8 8 0 0 1 6 3" />',
-  phase_daggers: '<path d="M5 19L19 5M14 5h5v5M5 10l4 4M10 15l4 4" />',
-  chrono_scythe: '<path d="M5 17C5 9 11 4 19 4C16 9 13 12 7 13" /><line x1="5" y1="17" x2="17" y2="20" />',
-  ricochet_shard: '<polyline points="3 18 10 6 15 15 21 5" /><polyline points="16 5 21 5 21 10" />',
-  nova_pulse: '<circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="7" stroke-dasharray="3 2" /><circle cx="12" cy="12" r="10" stroke-opacity="0.5" />',
-  rail_turret: '<polygon points="12 3 17 8 15 20 9 20 7 8" /><line x1="12" y1="3" x2="12" y2="14" />',
-
-  // Passives
-  chrono_capacitor: '<path d="M6 3h12M6 21h12M7 3l5 9-5 9M17 3l-5 9 5 9" />',
-  kinetic_thrusters: '<polyline points="5 17 12 10 19 17" /><polyline points="5 11 12 4 19 11" />',
-  flux_coil: '<path d="M3 12c2-6 4-6 6 0s4 6 6 0 4-6 6 0" />',
-  aether_lens: '<polygon points="12 3 21 12 12 21 3 12" /><circle cx="12" cy="12" r="2.5" />',
-  singularity_core: '<circle cx="12" cy="12" r="4" /><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />',
   graze_conduit: '<circle cx="12" cy="12" r="8" stroke-dasharray="4 3" /><circle cx="12" cy="12" r="2.5" fill="currentColor" />',
-  momentum_edge: '<polygon points="4 19 12 4 20 19 12 15" />',
-  echo_chamber: '<path d="M7 18L12 6l5 12" /><path d="M3 16l4-10M21 16l-4-10" stroke-opacity="0.55" />',
-  reactive_plating: '<path d="M12 3l8 3.5v6c0 4.5-3.4 7.8-8 9.5-4.6-1.7-8-5-8-9.5v-6L12 3z" />',
-  overclock_core: '<polygon points="12 2 20 7 20 17 12 22 4 17 4 7" /><circle cx="12" cy="12" r="3" />',
-
-  // Vessel silhouettes
-  vesper: '<polygon points="12 2 21 19 12 15 3 19" />',
-  aegis: '<polygon points="12 2 20 7 20 17 12 22 4 17 4 7" /><line x1="12" y1="6" x2="12" y2="18" />',
-  phantom: '<polygon points="12 1 19 20 12 16 5 20" /><line x1="12" y1="7" x2="12" y2="14" />',
-  volt: '<polygon points="7 3 12 11 17 3 20 19 12 15 4 19" />',
-  nova: '<polygon points="12 2 21 12 17 20 7 20 3 12" /><circle cx="12" cy="12" r="2.5" />',
-  seraph: '<polygon points="12 2 16 11 22 14 14 16 12 22 10 16 2 14 8 11" />',
-
-  // UI Icons
   shard: '<polygon points="12 2 19 12 12 22 5 12" fill="currentColor" fill-opacity="0.22" /><polygon points="12 2 19 12 12 22 5 12" />',
   pause: '<rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none" /><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none" />',
   play: '<polygon points="6 4 20 12 6 20" fill="currentColor" stroke="none" />',
@@ -53,7 +21,6 @@ const PATHS: Record<string, string> = {
   heal: '<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />',
   back: '<polyline points="15 5 8 12 15 19" />',
   chevron: '<polyline points="9 6 15 12 9 18" />',
-  parry: '<circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" />',
   skull: '<circle cx="12" cy="10" r="6" /><path d="M9 16v4h6v-4M9.5 10h.5M14 10h.5" />',
   timer: '<circle cx="12" cy="13" r="8" /><polyline points="12 9 12 13 15 15" /><line x1="9" y1="2" x2="15" y2="2" />',
   info: '<circle cx="12" cy="12" r="9" /><line x1="12" y1="11" x2="12" y2="16.5" /><line x1="12" y1="7.4" x2="12" y2="7.7" />',

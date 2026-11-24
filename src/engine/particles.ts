@@ -106,32 +106,6 @@ export class ParticleSystem {
     }
   }
 
-  shatter(x: number, y: number, color: string, count = 7, scale = 1): void {
-    for (let i = 0; i < count; i++) {
-      if (this.particles.length >= MAX_PARTICLES) {
-        this.particles.shift();
-      }
-      const ang = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
-      const spd = (65 + Math.random() * 140) * scale;
-      const life = 0.38 + Math.random() * 0.28;
-      this.particles.push({
-        x,
-        y,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd,
-        size: (4.5 + Math.random() * 4.5) * scale,
-        color,
-        alpha: 1,
-        life,
-        maxLife: life,
-        drag: 0.91,
-        shape: 'shard',
-        rot: Math.random() * Math.PI * 2,
-        vrot: (Math.random() - 0.5) * 14
-      });
-    }
-  }
-
   ring(x: number, y: number, color: string, size = 18, life = 0.35): void {
     if (this.particles.length >= MAX_PARTICLES) this.particles.shift();
     this.particles.push({

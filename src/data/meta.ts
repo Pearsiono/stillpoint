@@ -245,7 +245,7 @@ export const MILESTONES: MilestoneDef[] = [
   {
     id: 'heat_clear_2',
     name: 'Pressure Test',
-    goalText: 'Clear at 2+ Heat',
+    goalText: 'Clear with 2+ Modifiers',
     rewardShards: 250,
     rewardLabel: '+1 classified',
     check: (s) => ({ current: s.heatClears, target: 1, done: s.heatClears >= 1 })
@@ -357,9 +357,25 @@ export function getMetaUpgradeCost(def: MetaUpgradeDef, currentLevel: number): n
 function isValidEffectItem(x: unknown): x is EffectItem {
   if (!x || typeof x !== 'object') return false;
   const e = x as Partial<EffectItem>;
+  const okNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  if (!okNum(e.seed) || !okNum(e.floatVal) || !okNum(e.statCount)) return false;
   if (e.slot === 'trail') return typeof e.effectId === 'string' && e.effectId in TRAILS && typeof e.uid === 'string';
   if (e.slot === 'aura') return typeof e.effectId === 'string' && e.effectId in PARRY_FX && typeof e.uid === 'string';
   return false;
+}
+
+function isValidCoatingItem(x: unknown): x is CoatingItem {
+  if (!x || typeof x !== 'object') return false;
+  const c = x as Partial<CoatingItem>;
+  const okNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  return (
+    typeof c.uid === 'string' &&
+    typeof c.finishId === 'string' &&
+    c.finishId in FINISHES &&
+    okNum(c.seed) &&
+    okNum(c.floatVal) &&
+    okNum(c.kills)
+  );
 }
 
 export function parseMetaSaveJson(raw: string): MetaSave | null {
@@ -400,7 +416,14 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
         new Set(arr.map(remapMod).filter((m): m is ModuleId => validMod(m) && unlockedModules.includes(m)))
       );
       if (needsTheoryMigration && kept.length === 0) return [...DEFAULT_PRESETS[idx]];
-      return kept;
+      // Enforce Pick-10 point capacity on imported saves so crafted backup codes cannot bypass budget
+      const risks = kept.filter((m) => MODULES[m].points < 0);
+      const positives = kept.filter((m) => MODULES[m].points > 0);
+      const budgeted: ModuleId[] = [...risks];
+      for (const m of positives) {
+        if (canToggleModule(budgeted, m).ok) budgeted.push(m);
+      }
+      return budgeted;
     };
     const loadoutPresets: [ModuleId[], ModuleId[], ModuleId[]] = [
       sanitizePreset(rawPresets?.[0], 0),
@@ -559,7 +582,7 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
         : ['cyanide'],
       coatings:
         Array.isArray(parsed.coatings) && parsed.coatings.length > 0
-          ? parsed.coatings.filter((c) => c && c.finishId in FINISHES)
+          ? parsed.coatings.filter(isValidCoatingItem)
           : fallback.coatings,
       equippedCoatingUid:
         typeof parsed.equippedCoatingUid === 'string'
@@ -778,8 +801,11 @@ export function scrapCoating(save: MetaSave, uid: string): number {
   const item = save.coatings[idx];
   const payout = getCoatingScrapValue(item);
   save.coatings.splice(idx, 1);
+  if (save.coatings.length === 0) {
+    save.coatings.push(createStarterCoating());
+  }
   if (save.equippedCoatingUid === uid) {
-    save.equippedCoatingUid = save.coatings[0]?.uid ?? createStarterCoating().uid;
+    save.equippedCoatingUid = save.coatings[0].uid;
   }
   save.shards += payout;
   persistMetaSave(save);
@@ -866,6 +892,11 @@ export function executeEffectTradeUp(save: MetaSave, uids: string[]): EffectItem
 
   save.effectItems = save.effectItems.filter((e) => !unique.includes(e.uid));
   save.effectItems.unshift(forged);
+  if (forged.slot === 'trail' && !save.unlockedTrails.includes(forged.effectId as TrailId)) {
+    save.unlockedTrails.push(forged.effectId as TrailId);
+  } else if (forged.slot === 'aura' && !save.unlockedParryFx.includes(forged.effectId as ParryFxId)) {
+    save.unlockedParryFx.push(forged.effectId as ParryFxId);
+  }
   if (unique.includes(save.equippedTrailUid)) {
     const fb = save.effectItems.find((e) => e.slot === 'trail') ?? createStarterTrailItem();
     save.equippedTrailUid = fb.uid;

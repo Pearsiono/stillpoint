@@ -1,6 +1,6 @@
 import { sound } from '../audio';
 import { bridge } from '../bridge';
-import { CORES, HEAT_MODS, RELICS } from '../data/builds';
+import { HEAT_MODS, RELICS } from '../data/builds';
 import { FINISHES, getEffectVisualParams } from '../data/finishes';
 import { getActiveLoadout } from '../data/loadout';
 import {
@@ -161,6 +161,7 @@ export class StillpointGame {
   private bonusHealDmg = 0;
   private crateBoostActive = false;
   private crateBoostConsumed = false;
+  private inExecChain = false;
   private metaCommitted = {
     shards: 0,
     kills: 0,
@@ -389,6 +390,8 @@ export class StillpointGame {
     if (this.phase !== 'playing') return;
     this.phase = 'paused';
     this.player.inStillpoint = false;
+    this.player.coreActiveThisHold = false;
+    this.player.missileLocks.length = 0;
     this.input.setEnabled(false);
     sound.setStillpointBlend(0);
     this.callbacks.onPhaseChange('paused');
@@ -417,6 +420,8 @@ export class StillpointGame {
   continueEndless(): void {
     if (this.phase !== 'victory') return;
     this.stats.endlessMode = true;
+    this.stats.cratesEarned = 0;
+    this.stats.relicCratesEarned = 0;
     this.endlessBossTimer = 80;
     this.phase = 'playing';
     this.input.setEnabled(true);
@@ -498,6 +503,13 @@ export class StillpointGame {
       this.player.xp -= this.player.xpToNext;
       this.player.level++;
       this.player.xpToNext = this.nextLevelXp(this.player.level);
+      if (this.player.modules.includes('field_patch')) {
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + 6);
+        if (!this.player.modules.includes('blood_pact')) {
+          this.player.shield = Math.min(this.player.maxShield, this.player.shield + 8);
+        }
+        this.particles.callout(this.player.x, this.player.y - 30, '+6 HP', '#8ee06c', 0.9, 0.65);
+      }
       this.openUpgradeDraft(false);
       return;
     }
@@ -633,7 +645,8 @@ export class StillpointGame {
       droneOrbitAngle: 0,
       stallTimer: 0,
       stallMaxTimer: 2.4,
-      coldStartReady: false
+      coldStartReady: false,
+      coreActiveThisHold: false
     };
 
     this.recomputePlayerStats();
@@ -914,6 +927,7 @@ export class StillpointGame {
       this.hasUsedStillpoint = true;
       player.stillpointTimeHeld = 0;
       player.railChargeTime = 0;
+      player.coreActiveThisHold = false;
       sound.playStillpointEnter();
       bridge.haptic('light');
 
@@ -941,10 +955,10 @@ export class StillpointGame {
       }
     }
 
-    // 3. Kinetic Charge — Tightened Earned Focus Economy (-20% recharge) + Reactor Stall Risk
+    // 3. Kinetic Charge: Earned Focus Economy (-20% recharge) + Reactor Stall Risk
     if (player.inStillpoint) {
       player.stillpointTimeHeld += dtReal;
-      if (this.coreId === 'singularity_lance') {
+      if (this.coreId === 'singularity_lance' && player.coreActiveThisHold) {
         player.railChargeTime = Math.min(1.6, player.railChargeTime + dtReal);
       }
       if (player.freeFocusTimer <= 0) {
@@ -993,6 +1007,7 @@ export class StillpointGame {
       }
       sound.playStillpointExit();
       this.activateStillpointCoreExit(ventBoost);
+      player.coreActiveThisHold = false;
       player.railChargeTime = 0;
     }
 
@@ -1001,8 +1016,8 @@ export class StillpointGame {
       (targetBlend - player.stillpointBlend) * Math.min(1, dtReal * (player.inStillpoint ? 22 : 16));
     sound.setStillpointBlend(player.stillpointBlend);
 
-    // Overclock Core slows time to 35% instead of 17%, trading deep slow-mo for 2.3x turret DPS!
-    const slowDepth = this.coreId === 'overclock' ? 0.65 : 0.83;
+    // Overclock Core slows time to 35% instead of 17%, trading deep slow-mo for 2x turret DPS!
+    const slowDepth = this.coreId === 'overclock' && player.coreActiveThisHold ? 0.65 : 0.83;
     const timeScale = 1 - player.stillpointBlend * slowDepth;
     const dtWorld = dtReal * timeScale;
     this.worldTime += dtWorld;
@@ -1020,7 +1035,7 @@ export class StillpointGame {
     }
 
     // 2. Gravity Siphon continuous enemy pull while in Stillpoint!
-    if (player.inStillpoint && this.coreId === 'siphon') {
+    if (player.inStillpoint && this.coreId === 'siphon' && player.coreActiveThisHold) {
       const pullR = 240 * player.areaMult;
       for (const e of this.enemies) {
         if (e.hp <= 0 || e.isBoss) continue;
@@ -1036,12 +1051,16 @@ export class StillpointGame {
 
     const plateLv = player.passives.find((p) => p.id === 'reactive_plating')?.level ?? 0;
     const hasBloodPact = player.modules.includes('blood_pact');
-    if (!hasBloodPact && plateLv > 0 && player.shield < player.maxShield) {
+    const hasSeraphRegen = this.vesselId === 'seraph';
+    if (!hasBloodPact && (plateLv > 0 || hasSeraphRegen) && player.shield < player.maxShield) {
       player.shieldRegenTimer += dtWorld;
-      const interval = Math.max(2.0, 5.5 - plateLv * 0.6);
+      const interval = hasSeraphRegen
+        ? Math.max(1.5, 2.6 - plateLv * 0.25)
+        : Math.max(2.0, 5.5 - plateLv * 0.6);
+      const regenAmt = hasSeraphRegen ? 5 + plateLv : 4;
       if (player.shieldRegenTimer >= interval) {
         player.shieldRegenTimer = 0;
-        player.shield = Math.min(player.maxShield, player.shield + 4);
+        player.shield = Math.min(player.maxShield, player.shield + regenAmt);
       }
     }
 
@@ -1058,12 +1077,15 @@ export class StillpointGame {
     if (isActivelyMoving) {
       let step = 0;
       if (input.mode === 'touch' && input.controlMode === 'direct') {
-        const rawDist = Math.hypot(directDelta.dx, directDelta.dy);
-        const maxStep = player.moveSpeed * speedBoost * 1.75 * dtReal;
+        const wScale = Math.max(0.5, this.renderer.getWorldScale());
+        const worldDx = directDelta.dx / wScale;
+        const worldDy = directDelta.dy / wScale;
+        const rawDist = Math.hypot(worldDx, worldDy);
+        const maxStep = player.moveSpeed * speedBoost * 1.18 * dtReal;
         if (rawDist > 0.05) {
           const scale = rawDist > maxStep ? maxStep / rawDist : 1;
-          const stepX = directDelta.dx * scale;
-          const stepY = directDelta.dy * scale;
+          const stepX = worldDx * scale;
+          const stepY = worldDy * scale;
           player.x += stepX;
           player.y += stepY;
           player.vx = stepX / dtReal;
@@ -1179,9 +1201,9 @@ export class StillpointGame {
     updateEnemies(enemyCtx, dtWorld);
     if (this.phase !== 'playing') return;
 
-    // Overclock Core: boost weapon tick rate 2x during Stillpoint!
+    // Overclock Core: boost weapon tick rate 2x during Stillpoint when Core activated
     const weaponDtReal =
-      player.inStillpoint && this.coreId === 'overclock' ? dtReal * 2.0 : dtReal;
+      player.inStillpoint && this.coreId === 'overclock' && player.coreActiveThisHold ? dtReal * 2.0 : dtReal;
     updateWeapons(this.makeWeaponCtx(justEntered, justExited), dtWorld, weaponDtReal);
     if (this.phase !== 'playing') return;
     this.updateHazards(dtWorld, dtReal);
@@ -1210,6 +1232,7 @@ export class StillpointGame {
     const v = VESSELS[this.vesselId];
     const aura = getEffectVisualParams(getEquippedAuraItem(this.save));
     const coreRadiusMult = p.areaMult * v.stats.coreAreaMult;
+    p.coreActiveThisHold = true;
 
     // Aegis vessel passive: every Core trigger restores +8 Shield (works with all 9 Cores)
     if (this.vesselId === 'aegis' && !p.modules.includes('blood_pact')) {
@@ -1268,7 +1291,8 @@ export class StillpointGame {
           color: '#8ee06c',
           homing: 7,
           hitSet: new Set(),
-          evolved: true
+          evolved: true,
+          sourceKey: 'halo_blades'
         });
       }
     }
@@ -1540,8 +1564,10 @@ export class StillpointGame {
       this.particles.ripple(p.x, p.y, 92 * p.areaMult, 12, '#a974e8', 0.35);
     }
 
-    // Rail Collapse Core: fire colossal charged directional beam on touch-down!
-    if (this.coreId === 'singularity_lance' && p.railChargeTime > 0.12) {
+    // Rail Collapse Core: fire heavy charged directional beam on touch-down
+    let firedExitCore = false;
+    if (this.coreId === 'singularity_lance' && p.coreActiveThisHold && p.railChargeTime > 0.12) {
+      firedExitCore = true;
       const chargePct = Math.min(1, p.railChargeTime / 1.4);
       const tgt = findNearestEnemy(p.x, p.y, this.enemies, 680, true);
       const aimAng = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : p.facingAngle;
@@ -1585,6 +1611,7 @@ export class StillpointGame {
 
     // Detonate Blink Decoys on touch-down!
     if (this.coreId === 'blink' && this.decoys.length > 0) {
+      firedExitCore = true;
       for (const d of this.decoys) {
         this.detonateDecoy(d, ventBoost);
       }
@@ -1592,7 +1619,8 @@ export class StillpointGame {
     }
 
     // Gravity Siphon: shatter all sucked-in enemies outward + fire shrapnel ring on touch-down!
-    if (this.coreId === 'siphon' && p.stillpointTimeHeld > 0.14) {
+    if (this.coreId === 'siphon' && p.coreActiveThisHold && p.stillpointTimeHeld > 0.14) {
+      firedExitCore = true;
       const blastR = 180 * p.areaMult * v.stats.coreAreaMult * (ventBoost ? 1.15 : 1);
       this.hazards.push({
         id: this.nextEntityId++,
@@ -1658,6 +1686,20 @@ export class StillpointGame {
       if (hitCount > 0) {
         this.addMomentum(Math.min(22, hitCount * 5));
         this.particles.callout(p.x, p.y - 38, `SIPHON ×${hitCount}`, '#ff9f43', 1.2, 0.85);
+      }
+    }
+
+    // Emergency Vent universal surge for Cores without a dedicated touch-down burst
+    if (ventBoost && !firedExitCore) {
+      p.kineticCharge = Math.min(p.maxKineticCharge, p.kineticCharge + 18);
+      const ventR = 126 * p.areaMult;
+      const ventDmg = 42 * p.damageMult * p.corePowerMult;
+      this.particles.ripple(p.x, p.y, ventR, 12, '#e08538', 0.34);
+      sound.playCoreBurst(3, false);
+      for (const e of [...this.enemies]) {
+        if (e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= ventR + e.radius) {
+          this.damageEnemy(e, ventDmg, '#e08538', true, 'core');
+        }
       }
     }
   }
@@ -1858,7 +1900,8 @@ export class StillpointGame {
             maxAge: 0.95,
             color: '#7ae352',
             homing: 0,
-            hitSet: new Set()
+            hitSet: new Set(),
+            sourceKey: 'core'
           });
           sound.playShoot('mortar');
         } else if (wid === 'frost_nova') {
@@ -1879,7 +1922,8 @@ export class StillpointGame {
               maxAge: 1.0,
               color: '#7ee8ff',
               homing: 0,
-              hitSet: new Set()
+              hitSet: new Set(),
+              sourceKey: 'core'
             });
           }
           sound.playShoot('pulse');
@@ -1900,7 +1944,8 @@ export class StillpointGame {
             maxAge: 1.35,
             color: '#62f0d4',
             homing: 0,
-            hitSet: new Set()
+            hitSet: new Set(),
+            sourceKey: 'core'
           });
           sound.playShoot('pulse');
         } else if (wid === 'swarm_missiles') {
@@ -1922,28 +1967,32 @@ export class StillpointGame {
               color: '#f0b84e',
               homing: 9,
               targetId: tgt.id,
-              hitSet: new Set()
+              hitSet: new Set(),
+              sourceKey: 'core'
             });
           }
           sound.playShoot('pulse');
         } else if (wid === 'void_mortars') {
           ec.fireTimer = 0.58 * fastMult;
+          const distToTgt = Math.hypot(tgt.x - tipX, tgt.y - tipY);
+          const flightTime = Math.max(0.28, Math.min(0.65, distToTgt / 420));
           this.playerBullets.push({
             id: this.nextEntityId++,
             kind: 'mortar_shell',
             x: tipX,
             y: tipY,
-            vx: cosA * 340 * p.projectileSpeedMult,
-            vy: sinA * 340 * p.projectileSpeedMult,
+            vx: (tgt.x - tipX) / flightTime,
+            vy: (tgt.y - tipY) / flightTime,
             radius: 6.5,
             damage: dmg * 1.25,
-            pierce: 1,
+            pierce: 99,
             blastRadius: 68 * p.areaMult,
             age: 0,
-            maxAge: 0.9,
+            maxAge: flightTime,
             color: '#c978ff',
             homing: 0,
-            hitSet: new Set()
+            hitSet: new Set(),
+            sourceKey: 'core'
           });
           sound.playShoot('mortar');
         } else if (wid === 'phase_daggers') {
@@ -1965,7 +2014,8 @@ export class StillpointGame {
               color: '#ff66e5',
               homing: 7,
               targetId: tgt.id,
-              hitSet: new Set()
+              hitSet: new Set(),
+              sourceKey: 'core'
             });
           }
           sound.playShoot('pulse');
@@ -1987,7 +2037,8 @@ export class StillpointGame {
             homing: 0,
             spinAngle: 0,
             hitResetTimer: 0,
-            hitSet: new Set()
+            hitSet: new Set(),
+            sourceKey: 'core'
           });
           sound.playShoot('pulse');
         } else if (wid === 'shatter_mine') {
@@ -2008,7 +2059,8 @@ export class StillpointGame {
               maxAge: 0.75,
               color: '#ff7b47',
               homing: 0,
-              hitSet: new Set()
+              hitSet: new Set(),
+              sourceKey: 'core'
             });
           }
           sound.playShoot('mortar');
@@ -2030,7 +2082,8 @@ export class StillpointGame {
               maxAge: 1.0,
               color: '#5cd68d',
               homing: 0,
-              hitSet: new Set()
+              hitSet: new Set(),
+              sourceKey: 'core'
             });
           }
           sound.playShoot('pulse');
@@ -2308,11 +2361,12 @@ export class StillpointGame {
             e.corrodeTimer = Math.max(e.corrodeTimer ?? 0, 3.5);
           }
           const hazSource: WeaponId | 'core' =
-            h.kind === 'crater' || h.kind === 'singularity'
+            h.sourceKey ??
+            (h.kind === 'crater' || h.kind === 'singularity'
               ? 'void_mortars'
               : h.kind === 'acid_pool'
                 ? 'acid_sprayer'
-                : 'core';
+                : 'core');
           this.damageEnemy(e, h.damagePerSec * hazDmgMult * dtWorld, h.color, false, hazSource);
           if (this.phase !== 'playing') return;
         }
@@ -2446,12 +2500,15 @@ export class StillpointGame {
             const r = b.blastRadius ?? 68;
             this.particles.explode(b.x, b.y, 1.25, '#c678ff');
             this.particles.ring(b.x, b.y, '#d387ff', 18, 0.28);
+            const mortarSrc = b.sourceKey ?? 'void_mortars';
             for (const e of enemySnap) {
               if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
-                this.damageEnemy(e, b.damage, '#d387ff', false, 'void_mortars');
+                this.damageEnemy(e, b.damage, '#d387ff', false, mortarSrc);
+                if (this.phase !== 'playing') return;
               }
             }
             this.damageShrinesInRadius(b.x, b.y, r, b.damage);
+            const corrLv = this.player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
             this.hazards.push({
               id: this.nextEntityId++,
               kind: b.evolved || this.player.inStillpoint ? 'singularity' : 'crater',
@@ -2460,11 +2517,12 @@ export class StillpointGame {
               radius: r,
               damagePerSec: b.damage * 0.72,
               age: 0,
-              maxAge: b.evolved ? 4.4 : 3.2,
+              maxAge: (b.evolved ? 4.4 : 3.2) * (1 + corrLv * 0.2),
               color: '#b97aff',
               collapsed: this.player.inStillpoint,
               evolved: Boolean(b.evolved),
-              pullStrength: b.evolved ? 220 : this.player.inStillpoint ? 240 : 0
+              pullStrength: b.evolved ? 220 : this.player.inStillpoint ? 240 : 0,
+              sourceKey: mortarSrc
             });
             this.playerBullets.splice(i, 1);
           }
@@ -2574,27 +2632,29 @@ export class StillpointGame {
           // Chill / Corrode effects on hit
           if (b.kind === 'acid_glob') {
             e.corrodeTimer = Math.max(e.corrodeTimer ?? 0, 4.0);
+            const corrLv = this.player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
+            const basePoolDps = (b.damage / (1 + corrLv * 0.2)) * 0.85;
             const existingPool = this.hazards.find(
               (h) => h.kind === 'acid_pool' && (h.x - b.x) ** 2 + (h.y - b.y) ** 2 <= 26 * 26
             );
             if (existingPool) {
               existingPool.age = 0;
-              existingPool.damagePerSec = Math.max(existingPool.damagePerSec, b.damage * 0.85);
+              existingPool.damagePerSec = Math.max(existingPool.damagePerSec, basePoolDps);
             } else if (this.hazards.length < 22) {
-              const corrLv = this.player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
               this.hazards.push({
                 id: this.nextEntityId++,
                 kind: 'acid_pool',
                 x: b.x,
                 y: b.y,
                 radius: b.blastRadius ?? 46 * this.player.areaMult,
-                damagePerSec: b.damage * 0.85,
+                damagePerSec: basePoolDps,
                 age: 0,
                 maxAge: (b.evolved ? 4.2 : 3.0) * (1 + corrLv * 0.2),
                 color: '#78d65c',
                 collapsed: false,
                 evolved: Boolean(b.evolved),
-                pullStrength: 0
+                pullStrength: 0,
+                sourceKey: b.sourceKey ?? 'acid_sprayer'
               });
             }
           }
@@ -2607,9 +2667,6 @@ export class StillpointGame {
               e.chillTimer = Math.max(e.chillTimer ?? 0, 2.6);
             }
           }
-          if (e.chillTimer && e.chillTimer > 0) {
-            finalDmg *= this.player.slowDmgMult;
-          }
 
           // Heavy Ordnance Pick-10 module: knock non-boss foes back along bullet vector
           if (this.player.modules.includes('heavy_ordnance') && !e.isBoss) {
@@ -2618,9 +2675,9 @@ export class StillpointGame {
             e.y += (b.vy / bSpd) * 18;
           }
 
-          // Auto-crit in Overclock Core Stillpoint!
+          // Auto-crit in Overclock Core Stillpoint when Core activated
           const isCrit =
-            (this.coreId === 'overclock' && this.player.inStillpoint) ||
+            (this.coreId === 'overclock' && this.player.inStillpoint && this.player.coreActiveThisHold) ||
             Math.random() < this.player.critChance;
           if (isCrit) {
             finalDmg *= this.player.critMult;
@@ -2633,6 +2690,8 @@ export class StillpointGame {
           if (phantomEvolved && b.kind === 'dagger_homing' && !e.isBoss && e.hp / e.maxHp <= 0.2) {
             finalDmg = e.hp + 10;
           }
+
+          const srcKey = b.sourceKey ?? this.bulletSourceKey(b.kind);
 
           // Missile & Seeker Mine AoE splash!
           if ((b.kind === 'missile' || b.kind === 'seeker_mine') && b.blastRadius) {
@@ -2649,8 +2708,10 @@ export class StillpointGame {
                   finalDmg * (b.kind === 'seeker_mine' ? 0.85 : 0.55),
                   splashCol,
                   false,
-                  b.kind === 'seeker_mine' ? 'shatter_mine' : 'swarm_missiles'
+                  srcKey,
+                  true
                 );
+                if (this.phase !== 'playing') return;
               }
             }
             if (b.kind === 'seeker_mine' && b.evolved && this.playerBullets.length < 180) {
@@ -2671,7 +2732,8 @@ export class StillpointGame {
                   color: '#f6c453',
                   homing: 9,
                   hitSet: new Set([e.id]),
-                  blastRadius: 34 * this.player.areaMult
+                  blastRadius: 34 * this.player.areaMult,
+                  sourceKey: 'shatter_mine'
                 });
               }
             }
@@ -2681,9 +2743,11 @@ export class StillpointGame {
             e,
             finalDmg,
             isCrit ? '#e5b34c' : b.color,
-            isCrit || b.kind === 'parry_shard',
-            this.bulletSourceKey(b.kind)
+            isCrit,
+            srcKey,
+            true
           );
+          if (this.phase !== 'playing') return;
           this.particles.burst(b.x, b.y, b.color, 3, 40, 120, 2, 0.2);
 
           // Prism Split relic: crits split 2 homing prism shards!
@@ -2713,17 +2777,9 @@ export class StillpointGame {
                 color: '#72d2ff',
                 homing: 8.5,
                 targetId: target?.id,
-                hitSet: new Set([e.id])
+                hitSet: new Set([e.id]),
+                sourceKey: 'core'
               });
-            }
-          }
-
-          // Executioner relic: crits below 35% HP arc lightning!
-          if (isCrit && this.player.relics.includes('executioner') && e.hp > 0 && e.hp / e.maxHp < 0.35) {
-            const chain = findNearestEnemy(e.x, e.y, this.enemies, 160, false, e.id);
-            if (chain) {
-              this.particles.arc(e.x, e.y, chain.x, chain.y, '#e5b34c', 2.4, 0.16);
-              this.damageEnemy(chain, finalDmg * 0.7, '#e5b34c');
             }
           }
 
@@ -2752,19 +2808,22 @@ export class StillpointGame {
                 color: b.color,
                 homing: 0,
                 hitSet: new Set([e.id]),
-                evolved: b.evolved
+                evolved: b.evolved,
+                sourceKey: b.sourceKey
               });
             }
             break;
           }
 
-          // Bank-Shot Rig Pick-10 module: single-target bolts bounce once to a nearby foe at 65% damage
+          // Bank-Shot Rig Pick-10 module: single-target bolts bounce once to a nearby foe at 70% damage
           if (
             this.player.modules.includes('ricochet_rig') &&
             !b.banked &&
             b.pierce === 1 &&
             b.kind !== 'scythe' &&
-            b.kind !== 'ricochet'
+            b.kind !== 'ricochet' &&
+            b.kind !== 'missile' &&
+            b.kind !== 'seeker_mine'
           ) {
             const next = findNearestEnemy(b.x, b.y, this.enemies, 280, false, e.id);
             if (next) {
@@ -2950,7 +3009,8 @@ export class StillpointGame {
             homing: 10,
             targetId: tgt?.id,
             hitSet: new Set(),
-            blastRadius: 34 * p.areaMult
+            blastRadius: 34 * p.areaMult,
+            sourceKey: 'core'
           });
         }
       }
@@ -3019,8 +3079,14 @@ export class StillpointGame {
     bridge.haptic('light');
 
     const daggers = p.weapons.find((w) => w.id === 'phase_daggers' && w.evolved);
-    if (daggers) {
-      spawnPlantedDagger(this.makeWeaponCtx(false, false), daggers, p.x, p.y);
+    if (daggers && this.playerBullets.length < 180) {
+      let planted = 0;
+      for (const pb of this.playerBullets) {
+        if (pb.kind === 'dagger_planted') planted++;
+      }
+      if (planted < 26) {
+        spawnPlantedDagger(this.makeWeaponCtx(false, false), daggers, p.x, p.y);
+      }
     }
   }
 
@@ -3164,6 +3230,8 @@ export class StillpointGame {
     this.phase = 'levelup';
     this.input.setEnabled(false);
     this.player.inStillpoint = false;
+    this.player.coreActiveThisHold = false;
+    this.player.missileLocks.length = 0;
     sound.setStillpointBlend(0);
     sound.playLevelUp();
     bridge.haptic('medium');
@@ -3206,13 +3274,15 @@ export class StillpointGame {
     rawDmg: number,
     color: string,
     isCrit = false,
-    sourceKey: WeaponId | 'core' = 'core'
+    sourceKey: WeaponId | 'core' = 'core',
+    alreadyCrit = false
   ): void => {
     if (enemy.hp <= 0) return;
     const prevHp = enemy.hp;
     const p = this.player;
     const bossScale = enemy.isBoss || enemy.isElite ? p.bossDmgMult : 1;
     const corrodeScale = enemy.corrodeTimer && enemy.corrodeTimer > 0 ? 1.25 : 1;
+    const chillScale = enemy.chillTimer && enemy.chillTimer > 0 ? p.slowDmgMult : 1;
     const catalystScale = enemy.catalystMark && enemy.catalystMark > 0 ? 1.15 : 1;
 
     // Point-Blank Choke Pick-10 module: +50% within 150px, -25% beyond 240px
@@ -3246,30 +3316,67 @@ export class StillpointGame {
         (enemy.isBoss ? 0.8 : 1)
       : 1;
 
-    // Cold-Start Chamber (1pt Loadout module): first weapon hit after leaving slow-mo is a +60% guaranteed crit!
+    // Unified crit resolution for all non-bullet weapons (beams, lightning, orbitals, novas, hazards)
+    let didCrit = alreadyCrit ? isCrit : false;
+    let critScale = 1;
+    if (!alreadyCrit && sourceKey !== 'core') {
+      const rolledCrit =
+        (this.coreId === 'overclock' && p.inStillpoint && p.coreActiveThisHold) ||
+        Math.random() < p.critChance;
+      if (rolledCrit) {
+        didCrit = true;
+        critScale = p.critMult;
+        if (p.modules.includes('chain_detonate')) {
+          enemy.primedTimer = 3.0;
+        }
+      }
+    }
+
+    // Cold-Start Chamber (1pt Loadout module): first weapon hit after leaving slow-mo is a +60% guaranteed crit
     let coldStartHit = false;
     let coldStartMult = 1;
     if (p.coldStartReady && sourceKey !== 'core') {
       p.coldStartReady = false;
       coldStartHit = true;
-      coldStartMult = 1.6 * (isCrit ? 1 : p.critMult);
-      isCrit = true;
+      coldStartMult = 1.6 * (didCrit ? 1 : p.critMult);
+      didCrit = true;
+      if (p.modules.includes('chain_detonate')) {
+        enemy.primedTimer = 3.0;
+      }
     }
 
     const dmg =
       rawDmg *
       bossScale *
       corrodeScale *
+      chillScale *
       catalystScale *
       rangeScale *
       redlineScale *
       gildedScale *
       stillpointScale *
+      critScale *
       coldStartMult;
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
     const dealt = Math.max(0, Math.min(prevHp, dmg));
     this.stats.weaponDamage[sourceKey] = (this.stats.weaponDamage[sourceKey] ?? 0) + dealt;
+
+    // Executioner relic: crits on targets below 35% HP chain lightning (works on killing crits & all weapons)
+    if (
+      didCrit &&
+      !this.inExecChain &&
+      p.relics.includes('executioner') &&
+      prevHp / Math.max(1, enemy.maxHp) < 0.35
+    ) {
+      const chain = findNearestEnemy(enemy.x, enemy.y, this.enemies, 165, false, enemy.id);
+      if (chain) {
+        this.inExecChain = true;
+        this.particles.arc(enemy.x, enemy.y, chain.x, chain.y, '#e5b34c', 2.4, 0.16);
+        this.damageEnemy(chain, dmg * 0.7, '#e5b34c', false, 'core', true);
+        this.inExecChain = false;
+      }
+    }
 
     // Treasure Hauler spills Shards on a real-time cooldown so DoTs/120Hz cannot farm it
     if (enemy.kind === 'hauler' && !(enemy.shardSpillCooldown && enemy.shardSpillCooldown > 0)) {
@@ -3291,8 +3398,8 @@ export class StillpointGame {
       this.handleEnemyKilled(enemy);
     } else if (coldStartHit) {
       this.particles.callout(enemy.x, enemy.y - enemy.radius - 8, `${Math.round(dmg)}!`, '#f6c453', 1.0, 0.5);
-    } else if (isCrit && Math.random() < 0.25) {
-      this.particles.callout(enemy.x, enemy.y - enemy.radius - 6, `${Math.round(dmg)}`, color, 0.85, 0.42);
+    } else if ((didCrit || isCrit) && Math.random() < 0.25) {
+      this.particles.callout(enemy.x, enemy.y - enemy.radius - 6, `${Math.round(dmg)}`, didCrit ? '#e5b34c' : color, 0.85, 0.42);
     }
   };
 
@@ -3325,6 +3432,7 @@ export class StillpointGame {
       this.player.weapons.some((w) => w.id === 'acid_sprayer' && w.evolved) &&
       this.hazards.length < 22
     ) {
+      const corrLv = this.player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
       this.hazards.push({
         id: this.nextEntityId++,
         kind: 'acid_pool',
@@ -3333,11 +3441,12 @@ export class StillpointGame {
         radius: 62 * this.player.areaMult,
         damagePerSec: 32 * this.player.damageMult,
         age: 0,
-        maxAge: 3.4,
+        maxAge: 3.4 * (1 + corrLv * 0.2),
         color: '#78d65c',
         collapsed: false,
         evolved: true,
-        pullStrength: 0
+        pullStrength: 0,
+        sourceKey: 'acid_sprayer'
       });
     }
 
@@ -3346,7 +3455,7 @@ export class StillpointGame {
       const chain = findNearestEnemy(enemy.x, enemy.y, this.enemies, 165, false, enemy.id);
       if (chain) {
         this.particles.arc(enemy.x, enemy.y, chain.x, chain.y, '#9cf6ff', 2.4, 0.16);
-        this.damageEnemy(chain, 32 * this.player.damageMult, '#9cf6ff');
+        this.damageEnemy(chain, 32 * this.player.damageMult, '#9cf6ff', false, 'arc_tether');
       }
     }
 
@@ -3373,7 +3482,8 @@ export class StillpointGame {
             maxAge: 0.7,
             color: '#7ee8ff',
             homing: 0,
-            hitSet: new Set([enemy.id])
+            hitSet: new Set([enemy.id]),
+            sourceKey: 'core'
           });
         }
       }
@@ -3582,8 +3692,9 @@ export class StillpointGame {
 
     // Scarce crate economy: Boss 1 = 0%, Boss 2 = 12% Salvage (6% Classified on 2+ Heat),
     // Final Boss / Sector Clear = 35% Salvage (scales up with Heat modifiers & No-Hit boss clear)
+    const finalBossThreshold = this.sectorId === 'singularity' ? 3 : 2;
     const isFinalBoss =
-      bossIndexCleared >= 2 ||
+      bossIndexCleared >= finalBossThreshold ||
       boss.kind === (this.sectorId === 'singularity' ? 'boss_leviathan' : 'boss_archon');
     const heat = this.save.activeHeat.length;
     const noHit = !this.enclosure.playerHitDuringBoss;
@@ -3696,28 +3807,8 @@ export class StillpointGame {
 
     p.hp = Math.max(0, p.hp - dmg);
 
-    const canTriggerFeedback = p.hitSfxCooldown <= 0;
-    if (canTriggerFeedback) {
-      p.hitSfxCooldown = 0.1;
-
-      // Capacitor Burst relic: taking damage retaliates with lightning to 8 nearby foes!
-      if (p.relics.includes('overcharge_shield')) {
-        const nearby = [...this.enemies]
-          .filter((e) => e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= 280)
-          .slice(0, 8);
-        for (const t of nearby) {
-          this.particles.arc(p.x, p.y, t.x, t.y, '#62a4f5', 2.4, 0.22);
-          this.damageEnemy(t, 42 * p.damageMult, '#62a4f5', true);
-        }
-      }
-
-      // Pyre ship passive: taking damage ignites a thermal fire ring!
-      if (this.vesselId === 'pyre' && p.hp > 0) {
-        this.triggerPyreThermalRing();
-      }
-    }
-
-    // Aegis Protocol (Last Stand) relic: cheat death once!
+    // Check Aegis Protocol (Last Stand) and lethal death BEFORE retaliation triggers
+    // so dying can never accidentally self-resurrect or overwrite Victory with Game Over.
     if (p.hp <= 0 && p.relics.includes('last_stand') && !p.lastStandUsed) {
       p.lastStandUsed = true;
       p.hp = Math.round(p.maxHp * 0.45);
@@ -3732,7 +3823,9 @@ export class StillpointGame {
       return;
     }
 
+    const canTriggerFeedback = p.hitSfxCooldown <= 0;
     if (canTriggerFeedback) {
+      p.hitSfxCooldown = 0.1;
       sound.playPlayerHit();
       bridge.haptic('error');
       this.addShake(11);
@@ -3741,7 +3834,31 @@ export class StillpointGame {
       this.particles.ripple(p.x, p.y, 140, 12, '#e34b42', 0.32);
     }
 
-    if (p.hp <= 0) this.handleGameOver();
+    if (p.hp <= 0) {
+      this.handleGameOver();
+      this.emitHud();
+      return;
+    }
+
+    if (canTriggerFeedback) {
+      // Capacitor Burst relic: taking non-lethal damage retaliates with lightning to 8 nearby foes
+      if (p.relics.includes('overcharge_shield')) {
+        const nearby = [...this.enemies]
+          .filter((e) => e.hp > 0 && Math.hypot(e.x - p.x, e.y - p.y) <= 280)
+          .slice(0, 8);
+        for (const t of nearby) {
+          this.particles.arc(p.x, p.y, t.x, t.y, '#62a4f5', 2.4, 0.22);
+          this.damageEnemy(t, 42 * p.damageMult, '#62a4f5', true);
+          if (this.phase !== 'playing') return;
+        }
+      }
+
+      // Pyre ship passive: taking non-lethal damage ignites a thermal fire ring
+      if (this.vesselId === 'pyre') {
+        this.triggerPyreThermalRing();
+      }
+    }
+
     this.emitHud();
   }
 
@@ -4062,5 +4179,3 @@ export class StillpointGame {
     });
   }
 }
-
-void CORES;

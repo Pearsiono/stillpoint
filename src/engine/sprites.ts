@@ -114,6 +114,7 @@ class SpriteBank {
     this.loadArt('pickup_relic_chest', './art/pickup_relic_chest.png');
     this.loadArt('pickup_magnet', './art/pickup_magnet.png');
     this.loadArt('pickup_xp_cell', './art/pickup_xp_cell.png', false);
+    this.loadArt('icon_shard', './art/icon_shard.png', false);
 
     // 4-frame hand-painted volumetric military explosion sequence
     this.loadArt('fx_exp_0', './art/fx_exp_0.png', false);
@@ -672,7 +673,7 @@ class SpriteBank {
   }
 
   private makeEnemyShellOrb(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
-    // Gritty directional molten incendiary tracer slug pointing RIGHT (+X) — ZERO glossy candy sphere!
+    // Gritty directional molten incendiary tracer slug pointing RIGHT (+X)
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
 
@@ -836,7 +837,7 @@ class SpriteBank {
   }
 
   private makePlayerBolt(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
-    // High-velocity kinetic railgun tracer streak pointing RIGHT (+X) — lethal military plasma round!
+    // High-velocity kinetic railgun tracer streak pointing RIGHT (+X)
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
 

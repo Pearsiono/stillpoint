@@ -211,16 +211,14 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   }
 
   if (ctx.justEnteredStillpoint) {
-    // Seeker Mines: entering Stillpoint remotely detonates every active mine at 2x blast radius!
-    const blastLv = player.passives.find((p) => p.id === 'blast_capacitor')?.level ?? 0;
-    const blastMult = 1 + blastLv * 0.18;
+    // Seeker Mines: entering Stillpoint remotely detonates every active mine at ~2x blast radius
     let minesDetonated = 0;
     for (let i = playerBullets.length - 1; i >= 0; i--) {
       const b = playerBullets[i];
       if (b.kind !== 'seeker_mine') continue;
       minesDetonated++;
-      const r = (b.blastRadius ?? 72) * 1.85 * blastMult;
-      const dmg = b.damage * 1.45 * blastMult;
+      const r = (b.blastRadius ?? 72) * 1.95;
+      const dmg = b.damage * 1.45;
       particles.explode(b.x, b.y, 1.3, '#ff5c38');
       particles.ripple(b.x, b.y, r * 1.2, 13, '#ff5c38', 0.36);
       for (const e of [...enemies]) {
@@ -247,7 +245,8 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
             color: '#f6c453',
             homing: 9,
             hitSet: new Set(),
-            blastRadius: 36 * player.areaMult
+            blastRadius: 36 * player.areaMult,
+            sourceKey: 'shatter_mine'
           });
         }
       }
@@ -258,7 +257,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
       particles.callout(player.x, player.y - 38, `DETONATE ×${minesDetonated}`, '#ff5c38', 1.1, 0.75);
     }
     for (const h of hazards) {
-      if (h.kind === 'crater') {
+      if (h.kind === 'crater' && (!h.sourceKey || h.sourceKey === 'void_mortars')) {
         h.kind = 'singularity';
         h.collapsed = true;
         h.pullStrength = 250;
@@ -317,7 +316,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
       fireNovaWave(ctx, radius, dmg, nova.evolved, true);
     }
 
-    // Swarm Missiles: unleash Macross lock-on barrage on touch-down!
+    // Swarm Missiles: launch lock-on barrage on touch-down
     const swarm = player.weapons.find((w) => w.id === 'swarm_missiles');
     if (swarm && player.missileLocks.length > 0) {
       launchLockedMissiles(ctx, swarm);
@@ -407,7 +406,12 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
   if ((hasHeavyOrd || isPrismHull) && playerBullets.length > startBulletLen) {
     for (let i = startBulletLen; i < playerBullets.length; i++) {
       const b = playerBullets[i];
-      if (b.kind !== 'mortar_shell' && b.kind !== 'scythe') {
+      if (
+        b.kind !== 'mortar_shell' &&
+        b.kind !== 'scythe' &&
+        b.kind !== 'missile' &&
+        b.kind !== 'seeker_mine'
+      ) {
         if (hasHeavyOrd) {
           b.pierce += 1;
           b.radius = Math.min(11, b.radius * 1.25);
@@ -432,8 +436,9 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
 
   if (player.inStillpoint) {
     w.cooldown = w.evolved ? 0.35 : Math.max(0.38, 0.56 - w.level * 0.03);
+    const opticLv = player.passives.find((p) => p.id === 'optic_relay')?.level ?? 0;
     const beamLen = 560;
-    const beamWidth = (w.evolved ? 18 : 11 + w.level * 1.4) * player.areaMult;
+    const beamWidth = (w.evolved ? 18 : 11 + w.level * 1.4) * player.areaMult * (1 + opticLv * 0.14);
     const dmg = (w.evolved ? 64 : 28 + w.level * 9) * player.damageMult;
     const offsets = w.evolved ? [-14, 14] : [0];
     const perpX = -Math.sin(aimAngle);
@@ -469,6 +474,7 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       ctx.damageShrinesAlongLine(sx, sy, ex, ey, beamWidth * 0.65, dmg);
 
       if (w.evolved && off === offsets[0]) {
+        const corrLv = player.passives.find((p) => p.id === 'corrosive_vat')?.level ?? 0;
         hazards.push({
           id: ctx.nextId(),
           kind: 'rift',
@@ -477,11 +483,12 @@ function updatePulseLance(ctx: WeaponWorldContext, w: OwnedWeapon): void {
           radius: 54 * player.areaMult,
           damagePerSec: 48 * player.damageMult,
           age: 0,
-          maxAge: 2.0,
+          maxAge: 2.0 * (1 + corrLv * 0.2),
           color: ctx.accentColor,
           collapsed: false,
           evolved: true,
-          pullStrength: 135
+          pullStrength: 135,
+          sourceKey: 'pulse_lance'
         });
       }
     }
@@ -547,7 +554,8 @@ function updateHaloBlades(ctx: WeaponWorldContext, w: OwnedWeapon): void {
         color: '#8ee06c',
         homing: 7,
         hitSet: new Set(),
-        evolved: true
+        evolved: true,
+        sourceKey: 'halo_blades'
       });
     }
   }
@@ -781,7 +789,7 @@ function updatePhaseDaggers(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   spawnPlantedDagger(ctx, w, player.x, player.y);
 }
 
-// NEW WEAPON 7: Chrono Scythe — Boomerang blades that lock into spinning bullet-shredding saws in Stillpoint!
+// Weapon 7: Chrono Scythe (boomerang blades that hover and shred in Stillpoint)
 function updateChronoScythe(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (w.cooldown > 0) return;
@@ -820,7 +828,7 @@ function updateChronoScythe(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 }
 
-// NEW WEAPON 8: Ricochet Shard — Bouncing needles that split on hit in Stillpoint!
+// Weapon 8: Ricochet Shard (bouncing needles that split on hit in Stillpoint)
 function updateRicochetShard(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (w.cooldown > 0) return;
@@ -858,7 +866,7 @@ function updateRicochetShard(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 }
 
-// NEW WEAPON 9: Nova Pulse — Thermal shockwave aura; charges mega burst during Stillpoint!
+// Weapon 9: Nova Pulse (thermal shockwave aura; charges burst during Stillpoint)
 function updateNovaPulse(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player } = ctx;
   if (player.inStillpoint) return; // Charges silently for release burst!
@@ -914,7 +922,7 @@ function fireNovaWave(
   ctx.damageShrinesInRadius(player.x, player.y, radius, dmg * (evolved ? 1.25 : 1));
 }
 
-// NEW WEAPON 10: Rail Pylons — Autonomous beacons linking with laser tripwires in Stillpoint!
+// Weapon 10: Rail Pylons (autonomous beacons linking with laser tripwires in Stillpoint)
 function updateRailTurret(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, pylons } = ctx;
   if (w.cooldown > 0) return;
@@ -953,8 +961,9 @@ function updateActivePylons(ctx: WeaponWorldContext, dtWorld: number, dtReal: nu
     py.fireTimer -= player.inStillpoint ? dtReal * 0.9 : dtWorld * player.fireRateMult;
     if (py.fireTimer <= 0) {
       if (player.inStillpoint && pylons.length >= 2) {
-        // Tripwire beam between pylons!
+        // Tripwire beam between pylons (avoid firing a duplicate reverse segment when only 2 pylons exist)
         py.fireTimer = 0.28;
+        if (pylons.length === 2 && i === 1) continue;
         const next = pylons[(i + 1) % pylons.length];
         lasers.push({
           x1: py.x,
@@ -996,7 +1005,8 @@ function updateActivePylons(ctx: WeaponWorldContext, dtWorld: number, dtReal: nu
             color: '#f6c453',
             homing: 0,
             hitSet: new Set(),
-            evolved: py.evolved
+            evolved: py.evolved,
+            sourceKey: 'rail_turret'
           });
         }
       }
@@ -1030,7 +1040,7 @@ export function spawnPlantedDagger(
   });
 }
 
-// NEW WEAPON 11: Cryo Ring — Chills & slows enemies; Stillpoint shatters chilled enemies!
+// Weapon 11: Cryo Ring (chills enemies; Stillpoint shatters chilled foes)
 export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets, hazards, particles } = ctx;
   if (ctx.justEnteredStillpoint) {
@@ -1042,6 +1052,7 @@ export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       if (e.hp <= 0 || !(e.chillTimer && e.chillTimer > 0)) continue;
       if (Math.hypot(e.x - player.x, e.y - player.y) <= range) {
         shattered++;
+        const burstR = (w.evolved ? 84 : 56) * player.areaMult;
         ctx.damageEnemy(e, shatterDmg, '#9be8ff', true, 'frost_nova');
         particles.burst(e.x, e.y, '#9be8ff', 9, 85, 220, 2.1, 0.3);
         hazards.push({
@@ -1050,15 +1061,26 @@ export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
           x: e.x,
           y: e.y,
           radius: 14,
-          maxRadius: (w.evolved ? 84 : 56) * player.areaMult,
+          maxRadius: burstR,
           damagePerSec: 0,
           age: 0,
           maxAge: 0.25,
           color: '#7ee8ff',
           collapsed: false,
           evolved: w.evolved,
-          pullStrength: 0
+          pullStrength: 0,
+          sourceKey: 'frost_nova'
         });
+        for (const other of [...enemies]) {
+          if (
+            other.id !== e.id &&
+            other.hp > 0 &&
+            Math.hypot(other.x - e.x, other.y - e.y) <= burstR + other.radius
+          ) {
+            other.chillTimer = Math.max(other.chillTimer ?? 0, 2.0);
+            ctx.damageEnemy(other, shatterDmg * 0.45, '#9be8ff', false, 'frost_nova');
+          }
+        }
       }
     }
     if (shattered > 0) {
@@ -1099,7 +1121,7 @@ export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 }
 
-// NEW WEAPON 12: Swarm Missiles — Curving rockets + Stillpoint lock-on Macross salvo!
+// Weapon 12: Swarm Missiles (homing rockets + Stillpoint lock-on salvo)
 function updateSwarmMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (player.inStillpoint) {
@@ -1181,7 +1203,7 @@ function launchLockedMissiles(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   player.missileLocks.length = 0;
 }
 
-// NEW WEAPON 13: Gravity Flail — Tethered spiked wrecking orb smashing & knocking waves back!
+// Weapon 13: Gravity Flail (tethered wrecking orb knocking waves back)
 function updateGravFlail(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, hazards, particles } = ctx;
   const tickInterval = player.inStillpoint ? 0.095 : 0.16;
@@ -1226,13 +1248,14 @@ function updateGravFlail(ctx: WeaponWorldContext, w: OwnedWeapon): void {
         color: '#e08538',
         collapsed: false,
         evolved: false,
-        pullStrength: 0
+        pullStrength: 0,
+        sourceKey: 'grav_flail'
       });
     }
   }
 }
 
-// NEW WEAPON 14: Caustic Jet — Corrosive acid spray leaving melt puddles (+25% dmg taken)
+// Weapon 14: Caustic Jet (corrosive acid spray leaving melt puddles)
 function updateAcidSprayer(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (w.cooldown > 0) return;
@@ -1274,7 +1297,7 @@ function updateAcidSprayer(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 }
 
-// NEW WEAPON 15: Helios Prism — Refracting laser beams splitting into multi-way rays in Stillpoint!
+// Weapon 15: Helios Prism (refracting laser beams splitting into multi-way rays in Stillpoint)
 function updateMirrorBeam(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, lasers, particles } = ctx;
   if (w.cooldown > 0) return;
@@ -1348,7 +1371,7 @@ function updateMirrorBeam(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   }
 }
 
-// NEW WEAPON 16: Seeker Mines — Hovering proximity mines that remotely double-blast on Stillpoint!
+// Weapon 16: Seeker Mines (hovering proximity mines that remotely double-blast on Stillpoint)
 function updateShatterMine(ctx: WeaponWorldContext, w: OwnedWeapon): void {
   const { player, enemies, playerBullets } = ctx;
   if (player.inStillpoint || w.cooldown > 0) return;

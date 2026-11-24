@@ -153,7 +153,6 @@ export class SoundEngine {
   private inBoss = false;
   private sectorId: SectorId = 'drift';
   private stillpointBlend = 0;
-  private lastShootAt = 0;
   private lastXpAt = 0;
   private xpStreak = 0;
   private lastGrazeAt = 0;
@@ -610,11 +609,14 @@ export class SoundEngine {
     osc.stop(now + 0.07);
   }
 
+  private lastShootByStyle: Record<string, number> = {};
+
   playShoot(style: 'pulse' | 'rail' | 'zap' | 'mortar' | 'dagger'): void {
     if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
     const t = performance.now();
-    if (style === 'pulse' && t - this.lastShootAt < 75) return;
-    this.lastShootAt = t;
+    const minGap = style === 'rail' ? 85 : style === 'pulse' ? 75 : style === 'mortar' ? 70 : style === 'zap' ? 55 : 50;
+    if (t - (this.lastShootByStyle[style] ?? 0) < minGap) return;
+    this.lastShootByStyle[style] = t;
 
     const now = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();

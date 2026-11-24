@@ -123,10 +123,11 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
 
         let contentController = WKUserContentController()
-        contentController.add(self, name: "haptics")
-        contentController.add(self, name: "storage")
-        contentController.add(self, name: "gameCenter")
-        contentController.add(self, name: "ads")
+        let weakBridge = WeakScriptMessageHandler(delegate: self)
+        contentController.add(weakBridge, name: "haptics")
+        contentController.add(weakBridge, name: "storage")
+        contentController.add(weakBridge, name: "gameCenter")
+        contentController.add(weakBridge, name: "ads")
         injectBootstrapScript(into: contentController)
 
         let config = WKWebViewConfiguration()
@@ -172,8 +173,20 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
         }
     }
 
+    private var isPresentingAd = false
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     func onAppBecameActive() {
-        guard appStoreServicesEnabled, !adsBootStarted else { return }
+        guard appStoreServicesEnabled else { return }
+        if adsBootStarted {
+            if rewardedAd == nil && !isLoadingAd && !isPresentingAd {
+                loadRewardedAd()
+            }
+            return
+        }
         adsBootStarted = true
         // Apple Guideline 5.1.2: request ATT only after app is active & rendered
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
@@ -218,6 +231,9 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
                     self.isLoadingAd = false
                     self.rewardedAd = nil
                     self.notifyAdReady(false)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) { [weak self] in
+                        self?.loadRewardedAd()
+                    }
                 }
             }
         }
@@ -228,12 +244,17 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
             deliverAdResult(ok: false, rewarded: false, reason: "Ads disabled")
             return
         }
+        guard presentedViewController == nil else {
+            deliverAdResult(ok: false, rewarded: false, reason: "Close current overlay first")
+            return
+        }
         guard let ad = rewardedAd else {
             loadRewardedAd()
-            deliverAdResult(ok: false, rewarded: false, reason: "No ad ready yet — try again in a moment")
+            deliverAdResult(ok: false, rewarded: false, reason: "No ad ready yet. Try again in a moment.")
             return
         }
         pendingRewardEarned = false
+        isPresentingAd = true
         notifyLifecycle("audio_began")
         ad.present(from: self) { [weak self] in
             self?.pendingRewardEarned = true
@@ -243,6 +264,7 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
     func adDidDismissFullScreenContent(_ ad: any FullScreenPresentingAd) {
         let earned = pendingRewardEarned
         pendingRewardEarned = false
+        isPresentingAd = false
         rewardedAd = nil
         notifyAdReady(false)
         notifyLifecycle("audio_ended")
@@ -252,6 +274,7 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
 
     func ad(_ ad: any FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         pendingRewardEarned = false
+        isPresentingAd = false
         rewardedAd = nil
         notifyAdReady(false)
         notifyLifecycle("audio_ended")
@@ -276,6 +299,9 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
     }
 
     func notifyLifecycle(_ event: String) {
+        if isPresentingAd && (event == "active" || event == "audio_ended") {
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             guard let wv = self?.webView else { return }
             let js = "window.__stillpointOnAppLifecycle && window.__stillpointOnAppLifecycle('\(event)');"
@@ -449,5 +475,21 @@ final class GameViewController: UIViewController, WKScriptMessageHandler, WKNavi
             return "\"\""
         }
         return String(arr.dropFirst().dropLast())
+    }
+}
+
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var delegate: WKScriptMessageHandler?
+
+    init(delegate: WKScriptMessageHandler) {
+        self.delegate = delegate
+        super.init()
+    }
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        delegate?.userContentController(userContentController, didReceive: message)
     }
 }

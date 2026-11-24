@@ -57,7 +57,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     unlockCost: 175,
     iconKey: 'nova_pulse',
     accent: '#e08538',
-    line: 'Reactor Stall lockout is 50% shorter; exiting slow-mo below 25% focus boosts Core exit burst by 25%'
+    line: 'Reactor Stall lockout is 50% shorter; exiting slow-mo below 25% focus triggers a +25% vent surge'
   },
   heavy_ordnance: {
     id: 'heavy_ordnance',
@@ -181,7 +181,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     unlockCost: 0,
     iconKey: 'shield',
     accent: '#62a4f5',
-    line: 'Moving builds up to 18 overshield; taking damage pauses recharge for 4s'
+    line: 'Moving builds up to 18 overshield (decays when stopped; damage pauses recharge 4s)'
   },
   surge_capacitor: {
     id: 'surge_capacitor',

@@ -584,6 +584,7 @@ export interface PlayerState {
   stallTimer: number;
   stallMaxTimer: number;
   coldStartReady: boolean;
+  coreActiveThisHold: boolean;
 }
 
 export type EnemyKind =
@@ -696,6 +697,7 @@ export interface PlayerBullet {
   hitResetTimer?: number;
   returnPhase?: boolean;
   banked?: boolean;
+  sourceKey?: WeaponId | 'core';
 }
 
 export interface RailPylon {
@@ -723,6 +725,7 @@ export interface HazardZone {
   collapsed: boolean;
   evolved: boolean;
   pullStrength: number;
+  sourceKey?: WeaponId | 'core';
 }
 
 export interface WorldNode {

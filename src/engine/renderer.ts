@@ -107,6 +107,10 @@ export class WastelandRenderer {
     this.worldScale = Math.max(0.86, Math.min(1.42, Math.min(scaleW, scaleH)));
   }
 
+  getWorldScale(): number {
+    return this.worldScale;
+  }
+
   render(state: RenderState): void {
     const ctx = this.ctx;
     const w = this.width;
@@ -171,6 +175,7 @@ export class WastelandRenderer {
       this.drawPlayerBullets(ctx, state.playerBullets, state.realTime);
       this.drawEnemyBullets(ctx, state.enemyBullets, state.realTime);
       this.drawParticles(ctx, state.particles);
+      this.drawPlayerHealthBar(ctx, state);
       this.drawCallouts(ctx, state.particles);
 
       if (state.showHint) {
@@ -802,7 +807,7 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    // Wake Mines — painted Metal Slug 6-prong industrial proximity mines with sensor sweep pulse!
+    // Wake Mines: painted 6-prong industrial proximity mines with sensor sweep pulse
     const mineArt = sprites.getArt('deploy_mine');
     const mineShadow = sprites.getShadow('deploy_mine');
     for (const m of state.mines) {
@@ -961,6 +966,7 @@ export class WastelandRenderer {
     const magArt = sprites.getArt('pickup_magnet');
     const magShadow = sprites.getShadow('pickup_magnet');
     const cellArt = sprites.getArt('pickup_xp_cell');
+    const shardArt = sprites.getArt('icon_shard');
 
     for (const p of pickups) {
       const bob = Math.sin(realTime * 5.5 + p.id) * 1.8;
@@ -983,8 +989,13 @@ export class WastelandRenderer {
         ctx.drawImage(magArt, p.x - 16, p.y - 16 + bob, 32, 32);
         continue;
       }
-      if (p.kind === 'xp_large' && cellArt) {
-        ctx.drawImage(cellArt, p.x - 13, p.y - 13 + bob, 26, 26);
+      if (p.kind === 'shard' && shardArt) {
+        ctx.drawImage(shardArt, p.x - 11, p.y - 11 + bob, 22, 22);
+        continue;
+      }
+      if ((p.kind === 'xp_small' || p.kind === 'xp_mid' || p.kind === 'xp_large') && cellArt) {
+        const sz = p.kind === 'xp_large' ? 25 : p.kind === 'xp_mid' ? 20 : 15;
+        ctx.drawImage(cellArt, p.x - sz / 2, p.y - sz / 2 + bob, sz, sz);
         continue;
       }
 
@@ -1144,13 +1155,10 @@ export class WastelandRenderer {
 
     if (shipArt) {
       ctx.drawImage(shipArt, -shipSize / 2, -shipSize / 2, shipSize, shipSize);
-      if (player.hitFlash > 0.1) {
+      if (player.hitFlash > 0.15) {
         ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = player.hitFlash * 0.7;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(0, 0, 18, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.globalAlpha = player.hitFlash * 0.55;
+        ctx.drawImage(shipArt, -shipSize / 2, -shipSize / 2, shipSize, shipSize);
       }
     } else {
       ctx.fillStyle = skin.hullFill;
@@ -1189,8 +1197,67 @@ export class WastelandRenderer {
     ctx.restore();
   }
 
+  private drawPlayerHealthBar(ctx: CanvasRenderingContext2D, state: RenderState): void {
+    const { player, realTime } = state;
+    const blend = player.stillpointBlend;
+    const hpRatio = Math.max(0, Math.min(1, player.hp / Math.max(1, player.maxHp)));
+    const totalShield = Math.max(0, player.shield + player.kineticOvershield);
+    const maxShieldTotal = Math.max(
+      1,
+      player.maxShield + (player.modules.includes('kinetic_shield') ? 18 : 0)
+    );
+    const shieldRatio = totalShield > 0 ? Math.max(0, Math.min(1, totalShield / maxShieldTotal)) : 0;
+    const hasShieldStrip = totalShield > 0.25;
+
+    const barW = 46;
+    const hpH = 4.5;
+    const shH = hasShieldStrip ? 2.5 : 0;
+    const gap = hasShieldStrip ? 1 : 0;
+    const totalH = hpH + shH + gap;
+    const bx = player.x - barW / 2;
+    const by = player.y + 37 + blend * 4;
+
+    ctx.save();
+    // Dark gunmetal recessed housing + warm oxidized rim
+    ctx.fillStyle = 'rgba(11, 10, 8, 0.88)';
+    ctx.fillRect(bx - 1.5, by - 1.5, barW + 3, totalH + 3);
+    ctx.strokeStyle =
+      hpRatio <= 0.3
+        ? `rgba(255, 92, 71, ${0.55 + 0.35 * Math.sin(realTime * 14)})`
+        : 'rgba(236, 227, 211, 0.32)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 1.5, by - 1.5, barW + 3, totalH + 3);
+
+    // Shield + overshield strip perched cleanly above Hull track when active
+    let hpY = by;
+    if (hasShieldStrip) {
+      ctx.fillStyle = 'rgba(28, 36, 42, 0.9)';
+      ctx.fillRect(bx, by, barW, shH);
+      ctx.fillStyle = '#9be0f8';
+      ctx.fillRect(bx, by, barW * shieldRatio, shH);
+      hpY = by + shH + gap;
+    }
+
+    // Hull integrity bar
+    ctx.fillStyle = 'rgba(32, 18, 16, 0.92)';
+    ctx.fillRect(bx, hpY, barW, hpH);
+    if (hpRatio > 0) {
+      const lowPulse = hpRatio <= 0.3 ? 0.5 + 0.5 * Math.sin(realTime * 14) : 0;
+      ctx.fillStyle =
+        player.hitFlash > 0.28
+          ? '#f5efe2'
+          : hpRatio <= 0.3
+            ? lowPulse > 0.5
+              ? '#ff6148'
+              : '#c73228'
+            : '#df4b42';
+      ctx.fillRect(bx, hpY, barW * hpRatio, hpH);
+    }
+    ctx.restore();
+  }
+
   private drawOrbitalWeapons(ctx: CanvasRenderingContext2D, state: RenderState): void {
-    // 1. Halo Sawblades — painted Metal Slug industrial rotary saw-discs with silhouette shadow!
+    // 1. Halo Sawblades: painted industrial rotary saw-discs with silhouette shadow
     const bladeArt = sprites.getArt('deploy_halo_blade');
     const bladeShadow = sprites.getShadow('deploy_halo_blade');
     const blades = getHaloBladesPositions(state.player);
@@ -1238,7 +1305,7 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    // 2. Prism Drones — painted autonomous wingman combat rigs with grounded shadows & exhaust!
+    // 2. Prism Drones: painted autonomous wingman combat rigs with grounded shadows & exhaust
     const droneArt = sprites.getArt('deploy_prism_drone');
     const droneShadow = sprites.getShadow('deploy_prism_drone');
     const drones = getPrismDronePositions(state.player);
@@ -1274,7 +1341,7 @@ export class WastelandRenderer {
       ctx.restore();
     }
 
-    // 3. Gravity Flail — forged dark-inked heavy chain + painted spiked gravity mace head!
+    // 3. Gravity Flail: forged dark-inked heavy chain + painted spiked gravity mace head
     const flailArt = sprites.getArt('deploy_grav_flail');
     const flailShadow = sprites.getShadow('deploy_grav_flail');
     const flails = getGravityFlailPositions(state.player);
@@ -1377,13 +1444,10 @@ export class WastelandRenderer {
         ctx.save();
         ctx.rotate(rot);
         ctx.drawImage(art, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
-        if (e.hitFlash > 0.1) {
+        if (e.hitFlash > 0.15) {
           ctx.globalCompositeOperation = 'lighter';
-          ctx.globalAlpha = e.hitFlash * 0.65;
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(0, 0, e.radius * 0.88, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.globalAlpha = e.hitFlash * 0.55;
+          ctx.drawImage(art, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
         }
         ctx.restore();
       } else {
@@ -1455,11 +1519,13 @@ export class WastelandRenderer {
       }
 
       if (e.isElite || e.kind === 'hauler') {
-        ctx.strokeStyle = '#e5b34c';
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.arc(0, 0, e.radius + 6, 0, Math.PI * 2);
-        ctx.stroke();
+        if (e.isElite) {
+          ctx.strokeStyle = '#e5b34c';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(0, 0, e.radius + 6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
         const bw = e.radius * 2.3;
         const ratio = Math.max(0, e.hp / e.maxHp);
@@ -1544,10 +1610,7 @@ export class WastelandRenderer {
       if (boss.hitFlash > 0.15) {
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = boss.hitFlash * 0.45;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(0, 0, boss.radius * 1.05, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.drawImage(art, -size / 2, -size / 2, size, size);
       }
       ctx.restore();
     } else {
@@ -1860,20 +1923,14 @@ export class WastelandRenderer {
         }
         ctx.translate(b.x, b.y);
         ctx.rotate(rot);
-        // Chunky flickering Metal-Slug rocket flame plume!
-        ctx.fillStyle = '#ff6b26';
+        // Tight incandescent rocket nozzle spark (smoke puffs trail behind)
+        ctx.fillStyle = '#ff9838';
         ctx.beginPath();
-        ctx.moveTo(-4, sz * 0.36);
-        ctx.lineTo(0, sz * 0.36 + 11 * flicker);
-        ctx.lineTo(4, sz * 0.36);
-        ctx.closePath();
+        ctx.arc(0, sz * 0.38, 2.6 * flicker, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = '#fff5bd';
         ctx.beginPath();
-        ctx.moveTo(-2.2, sz * 0.36);
-        ctx.lineTo(0, sz * 0.36 + 6.5 * flicker);
-        ctx.lineTo(2.2, sz * 0.36);
-        ctx.closePath();
+        ctx.arc(0, sz * 0.36, 1.4, 0, Math.PI * 2);
         ctx.fill();
 
         if (missileArt) {
@@ -2068,16 +2125,6 @@ export class WastelandRenderer {
         ctx.beginPath();
         ctx.arc(p.x, p.y, r * 1.3, 0, Math.PI * 2);
         ctx.fill();
-      } else if (p.shape === 'shard') {
-        // Fine dark scorched metal fleck (never a bright cartoon triangle!)
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rot ?? 0);
-        const len = Math.min(4.2, p.size * 0.72);
-        const wid = Math.max(1.0, len * 0.36);
-        ctx.fillStyle = '#3a3633';
-        ctx.fillRect(-len * 0.5, -wid * 0.5, len, wid);
-        ctx.fillStyle = 'rgba(255, 198, 128, 0.55)';
-        ctx.fillRect(-len * 0.3, -wid * 0.5, len * 0.45, wid * 0.45);
       } else if (p.shape === 'ring') {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 2.0 * p.alpha + 0.5;

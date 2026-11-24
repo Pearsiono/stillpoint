@@ -46,7 +46,7 @@ export const CORES: Record<CoreId, CoreDef> = {
   singularity_lance: {
     id: 'singularity_lance',
     name: 'Rail Collapse',
-    shortDesc: 'Charges a massive railbeam in slow-mo, fires on resume',
+    shortDesc: 'Charges a heavy railbeam in slow-mo, fires on resume',
     accent: '#ff7b47',
     unlockCost: 290
   },
@@ -88,7 +88,7 @@ export const DRAFT_CURSES: Record<DraftCurseId, { id: DraftCurseId; label: strin
 
 export const DRAFT_CURSE_IDS = Object.keys(DRAFT_CURSES) as DraftCurseId[];
 
-// Wildcard Relics — build warpers with clean skill loops & real tradeoffs!
+// Wildcard Relics: build warpers with clean skill loops and real tradeoffs
 export const RELICS: Record<RelicId, RelicDef> = {
   glass_prism: {
     id: 'glass_prism',

@@ -102,6 +102,8 @@ export class InputController {
     window.addEventListener('blur', () => {
       this.pointerDown = false;
       this.activePointerId = null;
+      this.pendingDirectDx = 0;
+      this.pendingDirectDy = 0;
       this.keys.clear();
     });
   }

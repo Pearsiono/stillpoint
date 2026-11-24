@@ -703,12 +703,16 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
         break;
       }
       case 'hauler': {
-        // Golden Treasure Hauler races laterally across arena; hunt it down before it escapes!
-        if (e.vx === 0 && e.vy === 0) {
+        // Golden Treasure Hauler races laterally across arena; initialize velocity once so stun never reverses it
+        if (e.patternIndex === 0) {
+          e.patternIndex = 1;
           const dir = e.x < player.x ? 1 : -1;
           e.vx = dir * e.speed;
           e.vy = (Math.random() - 0.5) * 40;
           e.angle = Math.atan2(e.vy, e.vx);
+        } else if (e.vx === 0 && e.vy === 0) {
+          e.vx = Math.cos(e.angle) * e.speed;
+          e.vy = Math.sin(e.angle) * e.speed;
         }
         if (e.stateTimer > 15) {
           e.hp = 0; // Escaped!

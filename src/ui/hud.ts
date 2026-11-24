@@ -13,8 +13,6 @@ export function formatTime(sec: number): string {
 export class HudView {
   private root: HTMLDivElement;
   private xpFill: HTMLDivElement;
-  private hpFill: HTMLDivElement;
-  private shieldFill: HTMLDivElement;
   private focusFill: HTMLDivElement;
   private lvTag: HTMLSpanElement;
   private slotsWrap: HTMLDivElement;
@@ -37,10 +35,6 @@ export class HudView {
         <div class="hud-top">
           <div class="hud-left">
             <div class="bar-stack">
-              <div class="hp-bar">
-                <div class="hp-fill" id="hud-hp" style="width:100%"></div>
-                <div class="shield-fill" id="hud-shield" style="width:0%"></div>
-              </div>
               <div class="focus-bar">
                 <div class="focus-fill" id="hud-focus" style="width:100%"></div>
               </div>
@@ -73,8 +67,6 @@ export class HudView {
     container.appendChild(this.root);
 
     this.xpFill = this.root.querySelector('#hud-xp')!;
-    this.hpFill = this.root.querySelector('#hud-hp')!;
-    this.shieldFill = this.root.querySelector('#hud-shield')!;
     this.focusFill = this.root.querySelector('#hud-focus')!;
     this.lvTag = this.root.querySelector('#hud-lv')!;
     this.slotsWrap = this.root.querySelector('#hud-slots')!;
@@ -96,11 +88,6 @@ export class HudView {
   update(h: HudSnapshot): void {
     const xpPct = Math.min(100, (h.xp / Math.max(1, h.xpToNext)) * 100);
     this.xpFill.style.width = `${xpPct.toFixed(1)}%`;
-
-    const hpPct = Math.max(0, Math.min(100, (h.hp / Math.max(1, h.maxHp)) * 100));
-    this.hpFill.style.width = `${hpPct.toFixed(1)}%`;
-    const shieldPct = Math.max(0, Math.min(100, (h.shield / Math.max(1, h.maxHp)) * 100));
-    this.shieldFill.style.width = `${shieldPct.toFixed(1)}%`;
 
     const focusPct = Math.max(0, Math.min(100, (h.charge / Math.max(1, h.maxCharge)) * 100));
     this.focusFill.style.width = `${h.stalled ? Math.max(18, focusPct) : focusPct}%`;

@@ -238,24 +238,24 @@ class NativeBridge {
       });
     }
     return new Promise((resolve) => {
-      this.pendingAdResolve = resolve;
-      const safetyTimer = window.setTimeout(() => {
-        if (this.pendingAdResolve === resolve) {
+      let safetyTimer = 0;
+      const wrappedResolve = (res: RewardedAdResult) => {
+        window.clearTimeout(safetyTimer);
+        resolve(res);
+      };
+      this.pendingAdResolve = wrappedResolve;
+      safetyTimer = window.setTimeout(() => {
+        if (this.pendingAdResolve === wrappedResolve) {
           this.pendingAdResolve = null;
           resolve({ ok: false, rewarded: false, reason: 'Ad timed out' });
         }
       }, 65000);
-      const orig = resolve;
-      this.pendingAdResolve = (res) => {
-        window.clearTimeout(safetyTimer);
-        orig(res);
-      };
       try {
         window.webkit?.messageHandlers?.ads?.postMessage({ action: 'showRewarded' });
       } catch {
         window.clearTimeout(safetyTimer);
         this.pendingAdResolve = null;
-        orig({ ok: false, rewarded: false, reason: 'Unavailable' });
+        resolve({ ok: false, rewarded: false, reason: 'Unavailable' });
       }
     });
   }
