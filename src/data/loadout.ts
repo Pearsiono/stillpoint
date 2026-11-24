@@ -3,6 +3,7 @@ import { MetaSave, ModuleCategory, ModuleDef, ModuleId } from '../types';
 export const BASE_LOADOUT_POINTS = 10;
 
 export const STARTER_UNLOCKED_MODULES: ModuleId[] = [
+  'quick_draw',
   'point_blank',
   'snap_focus',
   'afterburner_mines',
@@ -18,6 +19,16 @@ export const DEFAULT_PRESETS: [ModuleId[], ModuleId[], ModuleId[]] = [
 // Playstyle-defining Pick-10 modules: every choice alters strategy & tradeoffs instead of flat stat sticks
 export const MODULES: Record<ModuleId, ModuleDef> = {
   // Combat Style
+  quick_draw: {
+    id: 'quick_draw',
+    name: 'Cold-Start Chamber',
+    category: 'combat',
+    points: 1,
+    unlockCost: 0,
+    iconKey: 'pulse_lance',
+    accent: '#e5b34c',
+    line: 'First hit after leaving slow-mo deals +60% damage and is a guaranteed crit'
+  },
   point_blank: {
     id: 'point_blank',
     name: 'Point-Blank Choke',
@@ -80,6 +91,16 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
   },
 
   // Movement & Focus Loops
+  salvage_magnet: {
+    id: 'salvage_magnet',
+    name: 'Salvage Coil',
+    category: 'movement',
+    points: 1,
+    unlockCost: 85,
+    iconKey: 'graze_conduit',
+    accent: '#45e8d8',
+    line: '+45% pickup magnet radius and XP pulls 35% faster'
+  },
   afterburner_mines: {
     id: 'afterburner_mines',
     name: 'Wake Mines',
@@ -132,6 +153,26 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
   },
 
   // Defense & Status Tricks
+  field_patch: {
+    id: 'field_patch',
+    name: 'Field Welder',
+    category: 'tactics',
+    points: 1,
+    unlockCost: 95,
+    iconKey: 'shield',
+    accent: '#8ee06c',
+    line: 'Leveling up repairs +6 HP and restores +8 shield'
+  },
+  overclock_draft: {
+    id: 'overclock_draft',
+    name: 'Spare Requisition',
+    category: 'tactics',
+    points: 1,
+    unlockCost: 110,
+    iconKey: 'overclock_core',
+    accent: '#f0bc42',
+    line: 'Start every run with +2 extra draft rerolls (0 if Locked Draft is equipped)'
+  },
   kinetic_shield: {
     id: 'kinetic_shield',
     name: 'Kinetic Barrier',
@@ -227,17 +268,21 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
 };
 
 export const MODULE_ORDER: ModuleId[] = [
+  'quick_draw',
   'point_blank',
   'snap_focus',
   'emergency_vent',
   'heavy_ordnance',
   'ricochet_rig',
   'specialist_lock',
+  'salvage_magnet',
   'afterburner_mines',
   'momentum_drive',
   'graze_spark',
   'exit_vortex',
   'focus_surge',
+  'field_patch',
+  'overclock_draft',
   'kinetic_shield',
   'surge_capacitor',
   'emp_shell',

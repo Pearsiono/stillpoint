@@ -555,7 +555,7 @@ export class StillpointGame {
       level: 1,
       xp: 0,
       xpToNext: 84,
-      rerolls: hasMod('risk_strict') ? 0 : 1,
+      rerolls: hasMod('risk_strict') ? 0 : 1 + (hasMod('overclock_draft') ? 2 : 0),
       grazeCombo: 0,
       grazeComboTimer: 0,
       grazeHealCounter: 0,
@@ -615,7 +615,8 @@ export class StillpointGame {
       haloOrbitAngle: 0,
       droneOrbitAngle: 0,
       stallTimer: 0,
-      stallMaxTimer: 2.4
+      stallMaxTimer: 2.4,
+      coldStartReady: false
     };
 
     this.recomputePlayerStats();
@@ -779,7 +780,8 @@ export class StillpointGame {
     this.player.bossDmgMult = 1 + tgtLv * 0.16;
     this.player.corePowerMult = 1 + coreLv * 0.2;
     this.player.grazeRadius = v.stats.grazeRadius + grazeLv * 14;
-    this.player.magnetRadius = 74 + grazeLv * 18;
+    this.player.magnetRadius =
+      (74 + grazeLv * 18) * (hasMod('salvage_magnet') ? 1.45 : 1.0);
     const execCrit = this.player.pacts.includes('execution') ? 0.25 : 0;
     this.player.critChance = 0.05 + (this.vesselId === 'vesper' ? 0.08 : 0) + edgeLv * 0.1 + execCrit;
     this.player.critMult = 1.75 + opticLv * 0.15;
@@ -978,6 +980,9 @@ export class StillpointGame {
       ) {
         ventBoost = true;
         this.particles.callout(player.x, player.y - 38, 'EMERGENCY VENT', '#e08538', 1.02, 0.65);
+      }
+      if (player.modules.includes('quick_draw') && player.stillpointTimeHeld >= 0.12) {
+        player.coldStartReady = true;
       }
       sound.playStillpointExit();
       this.activateStillpointCoreExit(ventBoost);
@@ -1639,7 +1644,6 @@ export class StillpointGame {
     const dmg = 54 * p.damageMult * p.corePowerMult * (amplified ? 1.5 : 1);
     sound.playShoot('mortar');
     this.particles.explode(d.x, d.y, amplified ? 1.45 : 1.15, amplified ? '#f6c453' : '#cf7dff');
-    this.particles.shatter(d.x, d.y, amplified ? '#f6c453' : '#cf7dff', 8, 1.2);
     this.particles.ripple(d.x, d.y, blastR * 1.2, 14, amplified ? '#f6c453' : '#cf7dff', 0.4);
     for (const e of [...this.enemies]) {
       if (e.hp > 0 && Math.hypot(e.x - d.x, e.y - d.y) <= blastR + e.radius) {
@@ -1724,7 +1728,6 @@ export class StillpointGame {
       }
       if (triggered) {
         this.mines.splice(i, 1);
-        this.particles.shatter(m.x, m.y, '#ff7b47', 9, 1.1);
         this.particles.explode(m.x, m.y, 1.15, '#ff7b47');
         this.particles.ripple(m.x, m.y, m.radius * 1.15, 11, '#ff7b47', 0.32);
         sound.playShoot('mortar');
@@ -2092,7 +2095,6 @@ export class StillpointGame {
       m.timer -= dtWorld;
       if (m.timer <= 0) {
         this.particles.explode(m.x, m.y, 1.3, '#ff6a26');
-        this.particles.shatter(m.x, m.y, '#ff6a26', 6, 1.05);
         this.particles.ripple(m.x, m.y, m.radius * 1.5, 10, '#ff6a26', 0.35);
         sound.playShoot('mortar');
         const dp = Math.hypot(this.player.x - m.x, this.player.y - m.y);
@@ -2213,7 +2215,7 @@ export class StillpointGame {
             continue;
           }
           this.spawnXp(e.x, e.y, e.xpValue);
-          this.particles.shatter(e.x, e.y, e.accent, 4, 0.8);
+          this.particles.explode(e.x, e.y, 0.72, '#ff8a34');
           this.enemies.splice(i, 1);
         }
         for (const pk of this.pickups) {
@@ -2767,7 +2769,7 @@ export class StillpointGame {
   private shatterShrine(shrine: WorldNode): void {
     sound.playBossDefeat();
     bridge.haptic('success');
-    this.particles.shatter(shrine.x, shrine.y, '#e5b34c', 12, 1.3);
+    this.particles.explode(shrine.x, shrine.y, 1.3, '#f0b842');
     this.particles.ripple(shrine.x, shrine.y, 200, 14, '#e5b34c', 0.45);
     this.spawnXp(shrine.x - 10, shrine.y - 6, 30);
     this.spawnXp(shrine.x + 10, shrine.y + 6, 30);
@@ -3036,7 +3038,8 @@ export class StillpointGame {
 
       if (pk.magnetized) {
         const d = Math.sqrt(d2) || 1;
-        const spd = 400 + (p.inStillpoint ? 90 : 0);
+        const spd =
+          (400 + (p.inStillpoint ? 90 : 0)) * (p.modules.includes('salvage_magnet') ? 1.35 : 1.0);
         const dtMove = p.inStillpoint ? dtReal * 0.75 : dtReal;
         pk.x += (dx / d) * spd * dtMove;
         pk.y += (dy / d) * spd * dtMove;
@@ -3120,6 +3123,13 @@ export class StillpointGame {
       p.xp -= p.xpToNext;
       p.level++;
       p.xpToNext = this.nextLevelXp(p.level);
+      if (p.modules.includes('field_patch')) {
+        p.hp = Math.min(p.maxHp, p.hp + 6);
+        if (!p.modules.includes('blood_pact')) {
+          p.shield = Math.min(p.maxShield, p.shield + 8);
+        }
+        this.particles.callout(p.x, p.y - 30, '+6 HP', '#8ee06c', 0.9, 0.65);
+      }
       this.openUpgradeDraft(false);
     }
   }
@@ -3210,6 +3220,16 @@ export class StillpointGame {
         (enemy.isBoss ? 0.8 : 1)
       : 1;
 
+    // Cold-Start Chamber (1pt Loadout module): first weapon hit after leaving slow-mo is a +60% guaranteed crit!
+    let coldStartHit = false;
+    let coldStartMult = 1;
+    if (p.coldStartReady && sourceKey !== 'core') {
+      p.coldStartReady = false;
+      coldStartHit = true;
+      coldStartMult = 1.6 * (isCrit ? 1 : p.critMult);
+      isCrit = true;
+    }
+
     const dmg =
       rawDmg *
       bossScale *
@@ -3217,7 +3237,8 @@ export class StillpointGame {
       rangeScale *
       redlineScale *
       gildedScale *
-      stillpointScale;
+      stillpointScale *
+      coldStartMult;
     enemy.hp -= dmg;
     enemy.hitFlash = 1;
     const dealt = Math.max(0, Math.min(prevHp, dmg));
@@ -3241,6 +3262,8 @@ export class StillpointGame {
 
     if (enemy.hp <= 0) {
       this.handleEnemyKilled(enemy);
+    } else if (coldStartHit) {
+      this.particles.callout(enemy.x, enemy.y - enemy.radius - 8, `${Math.round(dmg)}!`, '#f6c453', 1.0, 0.5);
     } else if (isCrit && Math.random() < 0.25) {
       this.particles.callout(enemy.x, enemy.y - enemy.radius - 6, `${Math.round(dmg)}`, color, 0.85, 0.42);
     }
@@ -3346,7 +3369,7 @@ export class StillpointGame {
       const r = 106 * this.player.areaMult;
       const blastDmg = Math.min(260, Math.max(24, enemy.maxHp * 0.22));
       this.particles.ripple(enemy.x, enemy.y, r, 12, '#e05fa8', 0.32);
-      this.particles.shatter(enemy.x, enemy.y, '#e05fa8', 6, 1.0);
+      this.particles.explode(enemy.x, enemy.y, 1.0, '#e05fa8');
       for (const other of [...this.enemies]) {
         if (other.id !== enemy.id && other.hp > 0 && Math.hypot(other.x - enemy.x, other.y - enemy.y) <= r + other.radius) {
           this.damageEnemy(other, blastDmg, '#e05fa8', true);
@@ -3422,15 +3445,8 @@ export class StillpointGame {
     this.particles.explode(
       enemy.x,
       enemy.y,
-      enemy.isBoss ? 2.1 : enemy.isElite || enemy.kind === 'hauler' ? 1.35 : 0.82,
+      enemy.isBoss ? 2.1 : enemy.isElite || enemy.kind === 'hauler' ? 1.35 : 0.84,
       enemy.isBoss ? '#ff9638' : '#ff9842'
-    );
-    this.particles.shatter(
-      enemy.x,
-      enemy.y,
-      '#58534d',
-      enemy.isBoss ? 14 : enemy.isElite || enemy.kind === 'hauler' ? 7 : 3,
-      enemy.isBoss ? 1.15 : enemy.isElite ? 0.85 : 0.58
     );
 
     if (enemy.kind === 'splitter') {
@@ -3692,7 +3708,8 @@ export class StillpointGame {
       sound.playPlayerHit();
       bridge.haptic('error');
       this.addShake(11);
-      this.particles.shatter(p.x, p.y, '#e34b42', 8, 1);
+      this.particles.burst(p.x, p.y, '#ff6a42', 10, 75, 205, 2.2, 0.28);
+      this.particles.smokePuff(p.x, p.y, 0, -14, 6.5, 0.38);
       this.particles.ripple(p.x, p.y, 140, 12, '#e34b42', 0.32);
     }
 

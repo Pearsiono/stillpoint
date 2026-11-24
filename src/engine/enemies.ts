@@ -571,7 +571,7 @@ export function updateEnemies(ctx: EnemyWorldContext, dtWorld: number): void {
               5.2
             );
           }
-          ctx.particles.shatter(e.x, e.y, e.accent, 8, 1);
+          ctx.particles.explode(e.x, e.y, e.isElite ? 1.2 : 1.0, '#ff7832');
           e.hp = 0;
         }
         break;

@@ -222,7 +222,6 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
       const r = (b.blastRadius ?? 72) * 1.85 * blastMult;
       const dmg = b.damage * 1.45 * blastMult;
       particles.explode(b.x, b.y, 1.3, '#ff5c38');
-      particles.shatter(b.x, b.y, '#ff5c38', 8, 1.2);
       particles.ripple(b.x, b.y, r * 1.2, 13, '#ff5c38', 0.36);
       for (const e of [...enemies]) {
         if (e.hp > 0 && Math.hypot(e.x - b.x, e.y - b.y) <= r + e.radius) {
@@ -1018,7 +1017,7 @@ export function updateFrostNova(ctx: WeaponWorldContext, w: OwnedWeapon): void {
       if (Math.hypot(e.x - player.x, e.y - player.y) <= range) {
         shattered++;
         ctx.damageEnemy(e, shatterDmg, '#9be8ff', true, 'frost_nova');
-        particles.shatter(e.x, e.y, '#9be8ff', 7, 1.15);
+        particles.burst(e.x, e.y, '#9be8ff', 9, 85, 220, 2.1, 0.3);
         hazards.push({
           id: ctx.nextId(),
           kind: 'frost_burst',

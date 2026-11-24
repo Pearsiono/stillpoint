@@ -296,17 +296,21 @@ export interface MetaUpgradeDef {
 export type ModuleCategory = 'combat' | 'movement' | 'tactics' | 'risk';
 
 export type ModuleId =
+  | 'quick_draw'
   | 'point_blank'
   | 'snap_focus'
   | 'emergency_vent'
   | 'heavy_ordnance'
   | 'ricochet_rig'
   | 'specialist_lock'
+  | 'salvage_magnet'
   | 'afterburner_mines'
   | 'momentum_drive'
   | 'graze_spark'
   | 'exit_vortex'
   | 'focus_surge'
+  | 'field_patch'
+  | 'overclock_draft'
   | 'kinetic_shield'
   | 'surge_capacitor'
   | 'emp_shell'
@@ -575,6 +579,7 @@ export interface PlayerState {
   // Reactor Stall lockout after greedily draining Focus all the way to 0%
   stallTimer: number;
   stallMaxTimer: number;
+  coldStartReady: boolean;
 }
 
 export type EnemyKind =

@@ -2069,18 +2069,15 @@ export class WastelandRenderer {
         ctx.arc(p.x, p.y, r * 1.3, 0, Math.PI * 2);
         ctx.fill();
       } else if (p.shape === 'shard') {
+        // Fine dark scorched metal fleck (never a bright cartoon triangle!)
         ctx.translate(p.x, p.y);
         ctx.rotate(p.rot ?? 0);
-        ctx.fillStyle = p.color;
-        ctx.strokeStyle = '#141418';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(p.size, 0);
-        ctx.lineTo(-p.size * 0.6, -p.size * 0.55);
-        ctx.lineTo(-p.size * 0.35, p.size * 0.65);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+        const len = Math.min(4.2, p.size * 0.72);
+        const wid = Math.max(1.0, len * 0.36);
+        ctx.fillStyle = '#3a3633';
+        ctx.fillRect(-len * 0.5, -wid * 0.5, len, wid);
+        ctx.fillStyle = 'rgba(255, 198, 128, 0.55)';
+        ctx.fillRect(-len * 0.3, -wid * 0.5, len * 0.45, wid * 0.45);
       } else if (p.shape === 'ring') {
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 2.0 * p.alpha + 0.5;
