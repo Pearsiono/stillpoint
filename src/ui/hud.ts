@@ -1,6 +1,6 @@
 import { HudSnapshot } from '../engine/game';
 import { UpgradeChoice } from '../types';
-import { artIconImg, rarityForLevel } from './artIcons';
+import { artIconImg, rarityForLevel, relicBadgeSvg, relicGenericSvg } from './artIcons';
 import { svgIcon } from './icons';
 
 export function formatTime(sec: number): string {
@@ -135,14 +135,15 @@ export class HudView {
       const pHtml = h.passives
         .map((p) => {
           const tier = rarityForLevel(p.level, false);
-          return `<span class="r-frame hud-slot ${tier}">${artIconImg(p.id, 16)}<span class="slot-lv">${p.level}</span></span>`;
+          return `<span class="r-frame hud-slot passive-slot ${tier}">${artIconImg(p.id, 22)}<span class="slot-lv">${p.level}</span></span>`;
         })
         .join('');
+      const sep1 = wHtml && pHtml ? '<span class="hud-slot-sep"></span>' : '';
       const rHtml =
         h.relics.length > 0
-          ? `<span class="r-frame hud-slot epic">${artIconImg('core', 16)}<span class="slot-lv">${h.relics.length}</span></span>`
+          ? `<span class="r-frame hud-slot relic-slot gold">${relicGenericSvg(21)}<span class="slot-lv">${h.relics.length}</span></span>`
           : '';
-      this.slotsWrap.innerHTML = wHtml + pHtml + rHtml;
+      this.slotsWrap.innerHTML = wHtml + sep1 + pHtml + rHtml;
     }
 
     const bossKey = h.boss
@@ -198,18 +199,23 @@ export function renderUpgradeDraftHtml(
         c.level && c.maxLevel
           ? `<div class="pips">${Array.from({ length: c.maxLevel }, (_, i) => `<span class="pip ${i < c.level! ? 'on' : ''}"></span>`).join('')}</div>`
           : '';
-      const tag =
+      const kindLabel =
         c.kind === 'evolution'
           ? 'Evolve'
           : c.kind === 'relic'
             ? 'Relic'
-            : c.isOverclocked
-              ? '+2 LV'
-              : c.isNew && !c.pairIconKey
-                ? 'New'
-                : '';
+            : c.kind === 'heal'
+              ? 'Repair'
+              : c.kind === 'passive'
+                ? 'Stat'
+                : 'Weapon';
+      const tag = c.isOverclocked
+        ? '+2 LV'
+        : c.isNew && !c.pairIconKey
+          ? `New ${kindLabel}`
+          : kindLabel;
       const pairHtml = c.pairIconKey
-        ? `<span class="pair-badge" title="Evolution pair">+${artIconImg(c.pairIconKey, 13)}</span>`
+        ? `<span class="pair-badge" title="Evolution pair">+${artIconImg(c.pairIconKey, 14)}</span>`
         : '';
       const cardClass =
         c.kind === 'evolution'
@@ -218,7 +224,19 @@ export function renderUpgradeDraftHtml(
             ? 'relic'
             : c.isOverclocked
               ? 'cursed'
-              : '';
+              : c.kind === 'passive'
+                ? 'passive'
+                : '';
+      const iconBoxClass =
+        c.kind === 'passive'
+          ? 'passive-box'
+          : c.kind === 'relic'
+            ? 'relic-box'
+            : '';
+      const iconHtml =
+        c.kind === 'relic' && c.relicId
+          ? relicBadgeSvg(c.relicId, 44)
+          : artIconImg(c.iconKey, c.kind === 'passive' ? 44 : 36);
       const titleColor =
         c.kind === 'evolution'
           ? '#ff7c76'
@@ -226,18 +244,25 @@ export function renderUpgradeDraftHtml(
             ? 'var(--gold)'
             : c.isOverclocked
               ? '#f28a52'
-              : 'var(--ink)';
+              : c.kind === 'passive'
+                ? '#d8e6e2'
+                : 'var(--ink)';
+      const tagStyle = c.isOverclocked
+        ? 'color:#f47a72'
+        : c.kind === 'passive'
+          ? 'color:var(--accent)'
+          : '';
       return `
         <button class="draft-card ${cardClass}" data-choice="${c.id}">
-          <div class="r-frame draft-icon-box ${tier}">
-            ${artIconImg(c.iconKey, 36)}
+          <div class="r-frame draft-icon-box ${iconBoxClass} ${tier}">
+            ${iconHtml}
           </div>
           <div class="draft-body">
             <div class="draft-top">
               <span class="draft-name" style="color:${titleColor}">${c.title}</span>
               <span class="draft-tag-wrap">
                 ${pairHtml}
-                ${tag ? `<span class="draft-tag" style="${c.isOverclocked ? 'color:#f47a72' : ''}">${tag}</span>` : ''}
+                <span class="draft-tag" style="${tagStyle}">${tag}</span>
               </span>
             </div>
             <div class="draft-line">${c.line}</div>

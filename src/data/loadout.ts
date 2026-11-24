@@ -25,7 +25,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'combat',
     points: 1,
     unlockCost: 0,
-    iconKey: 'pulse_lance',
+    iconKey: 'singularity_lance',
     accent: '#e5b34c',
     line: 'First hit after leaving slow-mo deals +60% damage and is a guaranteed crit'
   },
@@ -55,7 +55,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'combat',
     points: 2,
     unlockCost: 175,
-    iconKey: 'nova_pulse',
+    iconKey: 'siphon',
     accent: '#e08538',
     line: 'Reactor Stall lockout is 50% shorter; exiting slow-mo below 25% focus triggers a +25% vent surge'
   },
@@ -97,7 +97,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'movement',
     points: 1,
     unlockCost: 85,
-    iconKey: 'graze_conduit',
+    iconKey: 'magnet',
     accent: '#45e8d8',
     line: '+45% pickup magnet radius and XP pulls 35% faster'
   },
@@ -159,7 +159,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'tactics',
     points: 1,
     unlockCost: 95,
-    iconKey: 'shield',
+    iconKey: 'heal',
     accent: '#8ee06c',
     line: 'Leveling up repairs +6 HP and restores +8 shield'
   },
@@ -169,7 +169,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'tactics',
     points: 1,
     unlockCost: 110,
-    iconKey: 'overclock_core',
+    iconKey: 'overclock',
     accent: '#f0bc42',
     line: 'Start every run with +2 extra draft rerolls (0 if Locked Draft is equipped)'
   },
@@ -189,7 +189,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'tactics',
     points: 2,
     unlockCost: 185,
-    iconKey: 'graze_conduit',
+    iconKey: 'chrono_echo',
     accent: '#5cd6d0',
     line: 'Grazing enemy shots restores +40% more focus; passive movement focus recharge is 20% slower'
   },
@@ -199,7 +199,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'tactics',
     points: 3,
     unlockCost: 195,
-    iconKey: 'reactive_plating',
+    iconKey: 'aegis_dome',
     accent: '#82c4e8',
     line: '+20 starting shield; breaking shield erases nearby bullets and stuns foes (10s CD)'
   },
@@ -229,7 +229,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'tactics',
     points: 2,
     unlockCost: 180,
-    iconKey: 'halo_blades',
+    iconKey: 'catalyst_surge',
     accent: '#e05fa8',
     line: 'Crits prime foes for 3s; killing primed targets blasts nearby foes for 22% max HP'
   },
@@ -241,7 +241,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'risk',
     points: -2,
     unlockCost: 110,
-    iconKey: 'chrono_scythe',
+    iconKey: 'berserk',
     accent: '#d4423b',
     line: '-30% max HP for +2 loadout points'
   },
@@ -251,7 +251,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'risk',
     points: -2,
     unlockCost: 110,
-    iconKey: 'targeting_array',
+    iconKey: 'shatter_mine',
     accent: '#cf512a',
     line: '+40% focus drain for +2 loadout points'
   },
@@ -261,7 +261,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     category: 'risk',
     points: -2,
     unlockCost: 90,
-    iconKey: 'overclock_core',
+    iconKey: 'blink',
     accent: '#d97134',
     line: '0 rerolls and 2 draft choices for +2 loadout points'
   }

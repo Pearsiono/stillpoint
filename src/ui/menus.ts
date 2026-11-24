@@ -85,10 +85,12 @@ import {
   bossArtForSector,
   coreIconImg,
   crateArtUrl,
+  passiveNumeral,
   rarityForCore,
   rarityForLevel,
   rarityForVessel,
   rarityForWeapon,
+  relicBadgeSvg,
   sectorBannerUrl,
   shipArtUrl
 } from './artIcons';
@@ -597,7 +599,7 @@ export class OverlayController {
                   <div class="ledger-body">
                     <div class="ledger-title" style="color:${w.accent}">${w.name}</div>
                     <div class="ledger-sub">${w.shortDesc}</div>
-                    <div class="ledger-meta">Evo: ${w.evolvedName} (${catalyst.name})</div>
+                    <div class="ledger-meta">Evo: ${w.evolvedName} (${passiveNumeral(w.catalystPassive)} · ${catalyst.name})</div>
                   </div>
                   <span class="buy-pill ${canBuy ? 'ready' : ''}">
                     ${unlocked ? (selected ? svgIcon('check', 13, '#dfa436') : 'Equip') : `${artIconImg('shard', 11)}${w.unlockCost}`}
@@ -2686,7 +2688,7 @@ export class OverlayController {
           const hasPair = ownedPassiveIds.has(def.catalystPassive);
           const pairText = w.evolved
             ? `<div class="pause-weapon-pair gold">★ ${def.evolvedName}</div>`
-            : `<div class="pause-weapon-pair ${hasPair ? 'ready' : ''}">${artIconImg(pair.id, 12)} <span>${hasPair ? `Pair ready: ${pair.name}` : `Evolves w/ ${pair.name}`}</span></div>`;
+            : `<div class="pause-weapon-pair ${hasPair ? 'ready' : ''}">${artIconImg(pair.id, 15)} <span>${hasPair ? `Pair ready: ${pair.name}` : `Evolves w/ ${pair.name}`}</span></div>`;
           return `
             <div class="pause-weapon-row ${w.evolved ? 'evolved' : ''}">
               <span class="r-frame ${rarityForLevel(w.level, w.evolved)}" style="width:28px;height:28px">
@@ -2708,7 +2710,7 @@ export class OverlayController {
               ${build.relics
                 .map(
                   (rid) =>
-                    `<span class="r-frame gold" style="width:24px;height:24px" title="${RELICS[rid].name}">${artIconImg(RELICS[rid].iconKey, 15)}</span>`
+                    `<span class="r-frame relic-slot gold" style="width:26px;height:26px" title="${RELICS[rid].name}">${relicBadgeSvg(rid, 22)}</span>`
                 )
                 .join('')}
             </div>`
@@ -2821,7 +2823,7 @@ export class OverlayController {
     const relicStrip = st.relics
       .map(
         (rid) =>
-          `<span class="r-frame gold" style="width:26px;height:26px">${artIconImg(RELICS[rid].iconKey, 16)}</span>`
+          `<span class="r-frame relic-slot gold" style="width:28px;height:28px">${relicBadgeSvg(rid, 24)}</span>`
       )
       .join('');
 
