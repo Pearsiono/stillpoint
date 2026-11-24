@@ -115,6 +115,12 @@ class SpriteBank {
     this.loadArt('pickup_magnet', './art/pickup_magnet.png');
     this.loadArt('pickup_xp_cell', './art/pickup_xp_cell.png', false);
 
+    // 4-frame hand-painted volumetric military explosion sequence
+    this.loadArt('fx_exp_0', './art/fx_exp_0.png', false);
+    this.loadArt('fx_exp_1', './art/fx_exp_1.png', false);
+    this.loadArt('fx_exp_2', './art/fx_exp_2.png', false);
+    this.loadArt('fx_exp_3', './art/fx_exp_3.png', false);
+
     // Preload painterly seamless terrain floor tiles & rendered wreckage props!
     for (const sec of ['drift', 'helix', 'furnace', 'singularity']) {
       this.loadArt(`tile_${sec}`, `./art/tile_${sec}.jpg`, false);
@@ -666,258 +672,266 @@ class SpriteBank {
   }
 
   private makeEnemyShellOrb(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
-    // Crisp dark-ink-rimmed arcade plasma shell (high contrast Metal Slug readability!)
+    // Gritty directional molten incendiary tracer slug pointing RIGHT (+X) — ZERO glossy candy sphere!
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
 
-    // Subtle heat halo
-    const aura = ctx.createRadialGradient(half, half, half * 0.25, half, half, half);
-    aura.addColorStop(0, mid + '78');
-    aura.addColorStop(0.68, outer + '44');
-    aura.addColorStop(1, outer + '00');
-    ctx.fillStyle = aura;
-    ctx.beginPath();
-    ctx.arc(half, half, half, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Bold comic-ink dark outer contour
-    const r = half * 0.56;
-    ctx.fillStyle = '#14080a';
-    ctx.beginPath();
-    ctx.arc(half, half, r + 2.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Rich shaded metallic-plasma shell body
-    const body = ctx.createRadialGradient(half - r * 0.28, half - r * 0.28, 1, half, half, r);
-    body.addColorStop(0, core);
-    body.addColorStop(0.42, mid);
-    body.addColorStop(1, outer);
-    ctx.fillStyle = body;
-    ctx.beginPath();
-    ctx.arc(half, half, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Sharp specular highlight + hot center core
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(half - r * 0.22, half - r * 0.22, r * 0.36, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(255, 250, 232, 0.72)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(half, half, r * 0.72, -Math.PI * 0.85, -Math.PI * 0.2);
-    ctx.stroke();
-    return c;
-  }
-
-  private makeDirectionalDiamond(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
-    // Pointing RIGHT (+X) so renderer can rotate straight by atan2(vy, vx)!
-    const [c, ctx] = this.createCanvas(size);
-    const half = size / 2;
-
-    const aura = ctx.createRadialGradient(half, half, 2, half, half, half);
-    aura.addColorStop(0, mid + '75');
-    aura.addColorStop(0.65, outer + '28');
+    // Soft scorching thermal bloom (no sharp sticker edge)
+    const aura = ctx.createRadialGradient(half + 2, half, 1, half, half, half * 0.96);
+    aura.addColorStop(0, mid + 'aa');
+    aura.addColorStop(0.45, outer + '66');
     aura.addColorStop(1, outer + '00');
     ctx.fillStyle = aura;
     ctx.fillRect(0, 0, size, size);
 
     ctx.save();
     ctx.translate(half, half);
-    const rx = half * 0.76;
-    const ry = half * 0.44;
+
+    // Short fiery cinder wake streaming behind the round
+    const wake = ctx.createLinearGradient(-half * 0.9, 0, half * 0.2, 0);
+    wake.addColorStop(0, outer + '00');
+    wake.addColorStop(0.55, outer + '99');
+    wake.addColorStop(1, mid);
+    ctx.fillStyle = wake;
     ctx.beginPath();
-    ctx.moveTo(rx, 0);
-    ctx.lineTo(0, -ry);
-    ctx.lineTo(-rx * 0.75, 0);
-    ctx.lineTo(0, ry);
-    ctx.closePath();
-
-    // Thick dark comic-ink casing outline
-    ctx.lineWidth = 4.2;
-    ctx.strokeStyle = '#140c0a';
-    ctx.stroke();
-
-    const g = ctx.createLinearGradient(-rx * 0.6, -ry, rx, ry);
-    g.addColorStop(0, outer);
-    g.addColorStop(0.5, mid);
-    g.addColorStop(1, core);
-    ctx.fillStyle = g;
-    ctx.fill();
-
-    // Top bright facet bevel & blazing core spear
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.beginPath();
-    ctx.moveTo(rx * 0.9, 0);
-    ctx.lineTo(0, -ry * 0.85);
-    ctx.lineTo(-rx * 0.55, 0);
+    ctx.moveTo(half * 0.2, -half * 0.24);
+    ctx.lineTo(-half * 0.92, -half * 0.06);
+    ctx.lineTo(-half * 0.92, half * 0.06);
+    ctx.lineTo(half * 0.2, half * 0.24);
     ctx.closePath();
     ctx.fill();
 
+    // Stubby scorched gunmetal rear sabot collar
+    ctx.fillStyle = '#2c2220';
+    ctx.fillRect(-half * 0.34, -half * 0.22, half * 0.24, half * 0.44);
+
+    // Glowing molten incendiary warhead body (emissive center-hot, matte heat gradient)
+    const warG = ctx.createRadialGradient(half * 0.16, 0, 1, half * 0.08, 0, half * 0.46);
+    warG.addColorStop(0, core);
+    warG.addColorStop(0.42, '#ff9838');
+    warG.addColorStop(0.78, mid);
+    warG.addColorStop(1, outer);
+    ctx.fillStyle = warG;
+    ctx.beginPath();
+    ctx.moveTo(half * 0.62, 0);
+    ctx.quadraticCurveTo(half * 0.34, -half * 0.34, -half * 0.24, -half * 0.26);
+    ctx.lineTo(-half * 0.36, 0);
+    ctx.lineTo(-half * 0.24, half * 0.26);
+    ctx.quadraticCurveTo(half * 0.34, half * 0.34, half * 0.62, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Blazing incandescent center core (centered, NOT a plastic marble dot!)
     ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.moveTo(rx * 0.62, 0);
-    ctx.lineTo(0, -ry * 0.36);
-    ctx.lineTo(-rx * 0.32, 0);
-    ctx.lineTo(0, ry * 0.36);
-    ctx.closePath();
+    ctx.ellipse(half * 0.18, 0, half * 0.24, half * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     return c;
   }
 
-  private makeDirectionalNeedle(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
-    // Sleek inked dart/needle pointing RIGHT (+X)
+  private makeDirectionalDiamond(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+    // Gritty forged incendiary brass-steel flechette bolt pointing RIGHT (+X)
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
 
-    const aura = ctx.createRadialGradient(half, half, 2, half, half, half);
-    aura.addColorStop(0, mid + '70');
-    aura.addColorStop(0.6, outer + '22');
+    const aura = ctx.createRadialGradient(half + 2, half, 1, half, half, half * 0.92);
+    aura.addColorStop(0, mid + '88');
+    aura.addColorStop(0.55, outer + '38');
     aura.addColorStop(1, outer + '00');
     ctx.fillStyle = aura;
     ctx.fillRect(0, 0, size, size);
 
     ctx.save();
     ctx.translate(half, half);
-    const tip = half * 0.84;
-    const tail = -half * 0.76;
-    const fin = half * 0.34;
 
+    // Tapered exhaust streak
+    const wake = ctx.createLinearGradient(-half * 0.94, 0, 0, 0);
+    wake.addColorStop(0, outer + '00');
+    wake.addColorStop(1, mid + 'aa');
+    ctx.fillStyle = wake;
     ctx.beginPath();
-    ctx.moveTo(tip, 0);
-    ctx.lineTo(-half * 0.15, -fin);
-    ctx.lineTo(tail, -fin * 0.45);
-    ctx.lineTo(tail * 0.62, 0);
-    ctx.lineTo(tail, fin * 0.45);
-    ctx.lineTo(-half * 0.15, fin);
+    ctx.moveTo(0, -half * 0.18);
+    ctx.lineTo(-half * 0.94, 0);
+    ctx.lineTo(0, half * 0.18);
+    ctx.closePath();
+    ctx.fill();
+
+    // Matte forged metallic warhead
+    const rx = half * 0.78;
+    const ry = half * 0.32;
+    ctx.beginPath();
+    ctx.moveTo(rx, 0);
+    ctx.lineTo(0, -ry);
+    ctx.lineTo(-half * 0.45, -ry * 0.45);
+    ctx.lineTo(-half * 0.28, 0);
+    ctx.lineTo(-half * 0.45, ry * 0.45);
+    ctx.lineTo(0, ry);
     ctx.closePath();
 
-    ctx.lineWidth = 4.0;
-    ctx.strokeStyle = '#14080e';
-    ctx.stroke();
-
-    const g = ctx.createLinearGradient(tail, 0, tip, 0);
-    g.addColorStop(0, outer);
-    g.addColorStop(0.55, mid);
+    const g = ctx.createLinearGradient(-half * 0.45, 0, rx, 0);
+    g.addColorStop(0, '#3a2c24');
+    g.addColorStop(0.35, outer);
+    g.addColorStop(0.75, mid);
     g.addColorStop(1, core);
     ctx.fillStyle = g;
     ctx.fill();
+    ctx.strokeStyle = 'rgba(20, 14, 12, 0.72)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
 
-    // Hot glowing spine
+    // Hot white-gold center energy spine
     ctx.strokeStyle = core;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 2.1;
     ctx.beginPath();
-    ctx.moveTo(tail * 0.45, 0);
-    ctx.lineTo(tip * 0.75, 0);
+    ctx.moveTo(-half * 0.18, 0);
+    ctx.lineTo(rx * 0.78, 0);
+    ctx.stroke();
+    ctx.restore();
+    return c;
+  }
+
+  private makeDirectionalNeedle(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
+    // Razor-sharp AP railgun tracer spike pointing RIGHT (+X)
+    const [c, ctx] = this.createCanvas(size);
+    const half = size / 2;
+
+    const aura = ctx.createRadialGradient(half + 4, half, 1, half, half, half * 0.92);
+    aura.addColorStop(0, mid + '85');
+    aura.addColorStop(0.55, outer + '2c');
+    aura.addColorStop(1, outer + '00');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, size, size);
+
+    ctx.save();
+    ctx.translate(half, half);
+    const tip = half * 0.9;
+    const tail = -half * 0.9;
+    const fin = half * 0.2;
+
+    const g = ctx.createLinearGradient(tail, 0, tip, 0);
+    g.addColorStop(0, outer + '00');
+    g.addColorStop(0.32, outer + 'cc');
+    g.addColorStop(0.72, mid);
+    g.addColorStop(1, core);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(tip, 0);
+    ctx.lineTo(half * 0.15, -fin);
+    ctx.lineTo(tail, -fin * 0.25);
+    ctx.lineTo(tail, fin * 0.25);
+    ctx.lineTo(half * 0.15, fin);
+    ctx.closePath();
+    ctx.fill();
+
+    // Blazing kinetic core wire
+    ctx.strokeStyle = core;
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.moveTo(-half * 0.35, 0);
+    ctx.lineTo(tip * 0.92, 0);
     ctx.stroke();
     ctx.restore();
     return c;
   }
 
   private makePlayerBolt(size: number, mid: string, outer: string, core: string): HTMLCanvasElement {
-    // Chunky Metal-Slug brass-and-plasma tracer slug pointing RIGHT (+X)
+    // High-velocity kinetic railgun tracer streak pointing RIGHT (+X) — lethal military plasma round!
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
 
-    const aura = ctx.createRadialGradient(half + 2, half, 2, half, half, half);
-    aura.addColorStop(0, mid + '70');
-    aura.addColorStop(0.58, outer + '26');
+    const aura = ctx.createRadialGradient(half + 4, half, 1, half, half, half * 0.9);
+    aura.addColorStop(0, mid + '7a');
+    aura.addColorStop(0.52, outer + '2a');
     aura.addColorStop(1, outer + '00');
     ctx.fillStyle = aura;
     ctx.fillRect(0, 0, size, size);
 
     ctx.save();
     ctx.translate(half, half);
-    const tip = half * 0.78;
-    const rear = -half * 0.68;
-    const w = half * 0.28;
+    const tip = half * 0.88;
+    const rear = -half * 0.86;
+    const w = half * 0.17;
 
-    // Tapered inked slug silhouette
+    // Tapered ionized tracer wake
+    const wake = ctx.createLinearGradient(rear, 0, tip, 0);
+    wake.addColorStop(0, mid + '00');
+    wake.addColorStop(0.35, outer + 'cc');
+    wake.addColorStop(0.78, mid);
+    wake.addColorStop(1, core);
+    ctx.fillStyle = wake;
     ctx.beginPath();
     ctx.moveTo(tip, 0);
-    ctx.quadraticCurveTo(tip * 0.4, -w * 1.1, rear * 0.35, -w);
-    ctx.lineTo(rear, -w * 0.55);
-    ctx.lineTo(rear, w * 0.55);
-    ctx.lineTo(rear * 0.35, w);
-    ctx.quadraticCurveTo(tip * 0.4, w * 1.1, tip, 0);
+    ctx.lineTo(half * 0.12, -w * 1.15);
+    ctx.lineTo(rear, -w * 0.28);
+    ctx.lineTo(rear, w * 0.28);
+    ctx.lineTo(half * 0.12, w * 1.15);
     ctx.closePath();
-
-    ctx.lineWidth = 4.2;
-    ctx.strokeStyle = '#111618';
-    ctx.stroke();
-
-    const g = ctx.createLinearGradient(rear, 0, tip, 0);
-    g.addColorStop(0, '#c89b44');
-    g.addColorStop(0.26, outer);
-    g.addColorStop(0.65, mid);
-    g.addColorStop(1, core);
-    ctx.fillStyle = g;
     ctx.fill();
 
-    // Hot white plasma ridge
+    // Subtle machined tungsten/brass sabot band near base of round
+    ctx.fillStyle = '#a88749';
+    ctx.fillRect(-half * 0.16, -w * 0.72, half * 0.18, w * 1.44);
+
+    // Searing incandescent core needle
     ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.ellipse(half * 0.14, 0, half * 0.42, w * 0.46, 0, 0, Math.PI * 2);
+    ctx.moveTo(tip * 0.95, 0);
+    ctx.lineTo(half * 0.1, -w * 0.52);
+    ctx.lineTo(-half * 0.42, 0);
+    ctx.lineTo(half * 0.1, w * 0.52);
+    ctx.closePath();
     ctx.fill();
     ctx.restore();
     return c;
   }
 
   private makeHeavyOrb(size: number): HTMLCanvasElement {
-    // Riveted dark-iron collar enclosing a blazing molten crimson-gold plasma core!
+    // Scorched dark-iron slag-core artillery shell cracking open with molten volcanic plasma!
     const [c, ctx] = this.createCanvas(size);
     const half = size / 2;
 
-    const aura = ctx.createRadialGradient(half, half, half * 0.2, half, half, half);
-    aura.addColorStop(0, 'rgba(255, 190, 72, 0.85)');
-    aura.addColorStop(0.55, 'rgba(255, 58, 44, 0.45)');
-    aura.addColorStop(1, 'rgba(140, 12, 16, 0)');
+    const aura = ctx.createRadialGradient(half, half, half * 0.18, half, half, half);
+    aura.addColorStop(0, 'rgba(255, 178, 66, 0.9)');
+    aura.addColorStop(0.5, 'rgba(224, 58, 32, 0.52)');
+    aura.addColorStop(1, 'rgba(110, 14, 12, 0)');
     ctx.fillStyle = aura;
     ctx.beginPath();
     ctx.arc(half, half, half, 0, Math.PI * 2);
     ctx.fill();
 
-    const r = half * 0.64;
-    // Heavy dark inked rim
-    ctx.fillStyle = '#14080a';
-    ctx.beginPath();
-    ctx.arc(half, half, r + 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Armored iron outer ring with 4 molten thermal notches
-    ctx.fillStyle = '#4a3532';
+    const r = half * 0.58;
+    // Blazing molten magma interior
+    const coreG = ctx.createRadialGradient(half, half, 1, half, half, r * 0.96);
+    coreG.addColorStop(0, '#fffce0');
+    coreG.addColorStop(0.4, '#ffae38');
+    coreG.addColorStop(0.8, '#d9321c');
+    coreG.addColorStop(1, '#4a120e');
+    ctx.fillStyle = coreG;
     ctx.beginPath();
     ctx.arc(half, half, r, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#ffbe4f';
-    ctx.lineWidth = 3.2;
+    // 4 weathered dark charcoal-iron armor containment shell plates framing glowing magma fissures
+    ctx.fillStyle = '#2d2725';
+    ctx.strokeStyle = '#141110';
+    ctx.lineWidth = 1.6;
     for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      const a0 = (i * Math.PI) / 2 + 0.22;
+      const a1 = a0 + Math.PI / 2 - 0.44;
       ctx.beginPath();
-      ctx.moveTo(half + Math.cos(a) * (r * 0.5), half + Math.sin(a) * (r * 0.5));
-      ctx.lineTo(half + Math.cos(a) * (r * 1.04), half + Math.sin(a) * (r * 1.04));
+      ctx.arc(half, half, r * 1.04, a0, a1);
+      ctx.arc(half, half, r * 0.58, a1, a0, true);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
     }
 
-    // Incandescent molten core
-    const g = ctx.createRadialGradient(half - r * 0.18, half - r * 0.18, 1, half, half, r * 0.74);
-    g.addColorStop(0, '#fffce6');
-    g.addColorStop(0.36, '#ffc854');
-    g.addColorStop(0.76, '#ff3b30');
-    g.addColorStop(1, '#7a0c12');
-    ctx.fillStyle = g;
+    // Center glowing molten core eye
+    ctx.fillStyle = '#fff9d6';
     ctx.beginPath();
-    ctx.arc(half, half, r * 0.74, 0, Math.PI * 2);
+    ctx.arc(half, half, r * 0.34, 0, Math.PI * 2);
     ctx.fill();
-
-    ctx.strokeStyle = '#14080a';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(half, half, r * 0.74, 0, Math.PI * 2);
-    ctx.stroke();
     return c;
   }
 

@@ -34,11 +34,11 @@ export const BUNDLED_NEWS: NewsEntry[] = [
     version: '1.0.0',
     title: 'v1.0.0 Launch Release',
     summary:
-      'Full 1.0 release featuring Brink Shockwave and Bullet Pressure slow-mo risk/reward, painted Metal-Slug combat hardware and arcade FX, Direct Drag controls, and per-sector synth soundtracks.',
+      'Full 1.0 release featuring tightened Stillpoint Focus economy with Reactor Stall risk, painted gritty industrial combat hardware and explosions, Direct Drag controls, and per-sector synth soundtracks.',
     bullets: [
-      'Brink Shockwave & Bullet Pressure: enter Stillpoint right as a shot scrapes your hull to trigger an electric pushback shockwave and Focus refund; hold inside live bullet curtains to build Overpressure, or suffer a Reactor Stall if Focus bottoms out at 0%.',
-      'Added Brink Capacitor and Pressure Vent Pick-10 Loadout modules.',
-      'Full Combat Visual Overhaul: painted industrial sprites for every deployed turret, drone, sawblade, flail, mine, missile, mortar, kunai, scythe, and pickup, plus inked arcade bullets, multi-layered lasers, and chunky fireball explosions.',
+      'Stillpoint & Reactor Stall: slower Focus recharge rewards smart slow-mo budgeting and aggressive bullet grazing, while draining Focus to 0% triggers a 2.4s Reactor Stall lockout.',
+      'Added Emergency Vent and Thermal Siphon Pick-10 Loadout modules.',
+      'Full Combat Visual Overhaul: painted industrial sprites for every deployed turret, drone, sawblade, flail, mine, missile, mortar, kunai, scythe, and pickup, plus gritty tracer ordnance, multi-layered lasers, and 4-frame volumetric explosions.',
       'Added Direct 1:1 Drag alongside Floating Stick, Pause Build Inspector with Evolution hints, and Run-End Damage Breakdown bars.',
       'Composed 4 distinct synth soundtracks for Ash Flats, Sunken Metro, Slag Foundry, and The Monolith.',
       'Added optional Armory Scanner Boost (+50% crate odds for 3 runs, max 2/day), iCloud save sync, and Game Center leaderboards.'

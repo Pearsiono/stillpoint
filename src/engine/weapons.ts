@@ -183,8 +183,6 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     ? 0.85 + player.momentumMoveTime * 0.55
     : 1;
   const bastionStillMult = ctx.vesselId === 'bastion' && inStillpoint ? 1.25 : 1;
-  const overpressureMult =
-    player.overpressureTimer > 0 ? 1 + 0.1 + player.overpressurePower * 0.16 : 1;
   const totalRateMult =
     player.fireRateMult *
     overclockMult *
@@ -192,8 +190,7 @@ export function updateWeapons(ctx: WeaponWorldContext, dtWorld: number, dtReal: 
     frenzyMult *
     berserkMult *
     momentumMult *
-    bastionStillMult *
-    overpressureMult;
+    bastionStillMult;
 
   // Integrate continuous orbital phases so Stillpoint transitions never snap blade/drone angles
   const orbSpin = player.relics.includes('orbital_overdrive') ? 1.35 : 1.0;

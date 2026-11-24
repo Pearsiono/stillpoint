@@ -111,8 +111,7 @@ export interface PauseBuildInfo {
   coreId: CoreId;
   heatCount: number;
   elapsed: number;
-  brinkShocks: number;
-  pressureReleases: number;
+  grazes: number;
   weapons: OwnedWeapon[];
   passives: OwnedPassive[];
   relics: RelicId[];
@@ -1429,11 +1428,11 @@ export class OverlayController {
         ]
       },
       {
-        title: 'Brink Shock & Bullet Pressure',
+        title: 'Focus Budget & Reactor Stall',
         points: [
-          '<strong>Brink Shockwave:</strong> Lift into Stillpoint right as an enemy shot scrapes your hull to unleash an electric shockwave that shoves enemies back and refunds Focus.',
-          '<strong>Bullet Pressure:</strong> Holding Stillpoint near live bullets siphons their energy into your reactor. Touch back down cleanly to trigger an <strong>Overpressure</strong> weapon surge and amplified Core exit.',
-          '<strong>Reactor Stall:</strong> Never drain Focus to <strong>0%</strong>! Bottoming out stalls your reactor for 2.4s, locking out slow-motion and losing banked Pressure.'
+          '<strong>Focus is earned by moving and grazing.</strong> Skimming close to incoming fire refills Focus faster and builds Momentum toward <strong>Surge ×4</strong>.',
+          '<strong>Avoid Reactor Stall:</strong> Do not drain Focus all the way to <strong>0%</strong>. Bottoming out stalls your reactor for 2.4s, locking out slow-motion and slowing Focus recovery.',
+          '<strong>Touch back down cleanly</strong> before empty to preserve momentum and stay ready for the next bullet storm.'
         ]
       },
       {
@@ -1456,7 +1455,7 @@ export class OverlayController {
           </div>
           <div class="manual-steps">
             <button class="manual-step-pill ${this.manualPage === 0 ? 'active' : ''}" data-mpage="0">01 · Core</button>
-            <button class="manual-step-pill ${this.manualPage === 1 ? 'active' : ''}" data-mpage="1">02 · Brink</button>
+            <button class="manual-step-pill ${this.manualPage === 1 ? 'active' : ''}" data-mpage="1">02 · Focus</button>
             <button class="manual-step-pill ${this.manualPage === 2 ? 'active' : ''}" data-mpage="2">03 · Builds</button>
           </div>
           <div class="manual-card">
@@ -2638,7 +2637,7 @@ export class OverlayController {
             <div class="pause-stat-pill"><span>DMG</span><strong>${Math.round(build.damageMult * 100)}%</strong></div>
             <div class="pause-stat-pill"><span>RATE</span><strong>${Math.round(build.fireRateMult * 100)}%</strong></div>
             <div class="pause-stat-pill"><span>CRIT</span><strong>${Math.round(build.critChance * 100)}%</strong></div>
-            <div class="pause-stat-pill"><span>BRINK</span><strong>${build.brinkShocks}</strong></div>
+            <div class="pause-stat-pill"><span>GRAZE</span><strong>${build.grazes}</strong></div>
           </div>
           <div class="pause-weapon-list">${weaponRows}</div>
           ${relicRow}
@@ -2708,8 +2707,6 @@ export class OverlayController {
       kills: 0,
       grazes: 0,
       bestGrazeCombo: 0,
-      brinkShocks: 0,
-      pressureReleases: 0,
       bossesDefeated: 0,
       shardsEarned: 0,
       cratesEarned: 0,
@@ -2822,8 +2819,8 @@ export class OverlayController {
               </div>
             </div>
             <div class="summary-cell">
-              <span class="mono" style="font-size:10px;font-weight:800;color:#7bf7ff">BRINK</span>
-              <span class="summary-num" style="color:#7bf7ff">${st.brinkShocks}${st.pressureReleases > 0 ? ` · ${st.pressureReleases}P` : ''}</span>
+              <span class="mono" style="font-size:10px;font-weight:800;color:var(--gold)">MAX</span>
+              <span class="summary-num" style="color:var(--gold)">×${st.bestGrazeCombo}</span>
             </div>
             <div class="summary-cell">
               <span class="mono" style="font-size:10px;font-weight:800;color:var(--muted)">BOSS</span>

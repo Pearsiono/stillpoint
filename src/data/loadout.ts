@@ -38,15 +38,15 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     accent: '#4cb5ab',
     line: 'First 0.8s of slow-mo deals +70% damage; holding longer deals -25%'
   },
-  brink_capacitor: {
-    id: 'brink_capacitor',
-    name: 'Brink Capacitor',
+  emergency_vent: {
+    id: 'emergency_vent',
+    name: 'Emergency Vent',
     category: 'combat',
     points: 2,
     unlockCost: 175,
-    iconKey: 'arc_tether',
-    accent: '#64d8ff',
-    line: '20% tighter Brink window, but Brink Shockwave has +40% radius and pushback and refunds +6 extra focus'
+    iconKey: 'nova_pulse',
+    accent: '#e08538',
+    line: 'Reactor Stall lockout is 50% shorter; exiting slow-mo below 25% focus boosts Core exit burst by 25%'
   },
   heavy_ordnance: {
     id: 'heavy_ordnance',
@@ -142,15 +142,15 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
     accent: '#62a4f5',
     line: 'Moving builds up to 18 overshield; taking damage pauses recharge for 4s'
   },
-  pressure_vent: {
-    id: 'pressure_vent',
-    name: 'Pressure Vent',
+  surge_capacitor: {
+    id: 'surge_capacitor',
+    name: 'Thermal Siphon',
     category: 'tactics',
     points: 3,
     unlockCost: 225,
-    iconKey: 'core',
-    accent: '#f0a942',
-    line: 'Bullet Pressure charges 45% faster and Reactor Stall lasts 45% less; slow-mo drains 15% faster'
+    iconKey: 'graze_conduit',
+    accent: '#5cd6d0',
+    line: 'Grazing enemy shots restores +35% more focus; passive movement focus recharge is 20% slower'
   },
   emp_shell: {
     id: 'emp_shell',
@@ -229,7 +229,7 @@ export const MODULES: Record<ModuleId, ModuleDef> = {
 export const MODULE_ORDER: ModuleId[] = [
   'point_blank',
   'snap_focus',
-  'brink_capacitor',
+  'emergency_vent',
   'heavy_ordnance',
   'ricochet_rig',
   'specialist_lock',
@@ -239,7 +239,7 @@ export const MODULE_ORDER: ModuleId[] = [
   'exit_vortex',
   'focus_surge',
   'kinetic_shield',
-  'pressure_vent',
+  'surge_capacitor',
   'emp_shell',
   'cryo_shatter',
   'blood_pact',

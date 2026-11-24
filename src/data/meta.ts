@@ -226,19 +226,19 @@ export const MILESTONES: MilestoneDef[] = [
     })
   },
   {
-    id: 'brink_15',
-    name: 'Dead-Stop',
-    goalText: '15 Brink shocks',
-    rewardShards: 120,
-    check: (s) => ({ current: s.totalBrinkShocks, target: 15, done: s.totalBrinkShocks >= 15 })
+    id: 'graze_20',
+    name: 'Untouchable',
+    goalText: '20× graze combo',
+    rewardShards: 140,
+    check: (s) => ({ current: s.bestSingleParry, target: 20, done: s.bestSingleParry >= 20 })
   },
   {
-    id: 'pressure_10',
-    name: 'Eye of the Storm',
-    goalText: '10 full Pressure exits',
+    id: 'slayer_2000',
+    name: 'Wasteland Scourge',
+    goalText: '2,000 kills',
     rewardShards: 180,
     rewardLabel: '+1 crate',
-    check: (s) => ({ current: s.totalPressureReleases, target: 10, done: s.totalPressureReleases >= 10 })
+    check: (s) => ({ current: s.totalKills, target: 2000, done: s.totalKills >= 2000 })
   },
   {
     id: 'heat_clear_2',
@@ -285,8 +285,6 @@ export function createDefaultSave(): MetaSave {
     totalKills: 0,
     totalParries: 0,
     totalGrazes: 0,
-    totalBrinkShocks: 0,
-    totalPressureReleases: 0,
     heatClears: 0,
     bossesCleared: 0,
     evolutionsCrafted: 0,
@@ -379,7 +377,11 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
     }
 
     const remapMod = (id: unknown): unknown =>
-      id === 'deadeye_sync' ? 'brink_capacitor' : id === 'shock_sync' ? 'pressure_vent' : id;
+      id === 'deadeye_sync' || id === 'brink_capacitor'
+        ? 'emergency_vent'
+        : id === 'shock_sync' || id === 'pressure_vent'
+          ? 'surge_capacitor'
+          : id;
 
     const unlockedModules = Array.isArray(parsed.unlockedModules)
       ? Array.from(
@@ -480,14 +482,6 @@ export function parseMetaSaveJson(raw: string): MetaSave | null {
         typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt)
           ? parsed.savedAt
           : Date.now(),
-      totalBrinkShocks:
-        typeof parsed.totalBrinkShocks === 'number' && Number.isFinite(parsed.totalBrinkShocks)
-          ? Math.max(0, Math.floor(parsed.totalBrinkShocks))
-          : 0,
-      totalPressureReleases:
-        typeof parsed.totalPressureReleases === 'number' && Number.isFinite(parsed.totalPressureReleases)
-          ? Math.max(0, Math.floor(parsed.totalPressureReleases))
-          : 0,
       heatClears:
         typeof parsed.heatClears === 'number' && Number.isFinite(parsed.heatClears)
           ? Math.max(0, Math.floor(parsed.heatClears))
@@ -895,7 +889,7 @@ export function evaluateMilestones(save: MetaSave): string[] {
       save.shards += m.rewardShards;
       notices.push(`${m.name} (+${m.rewardShards})`);
 
-      if (m.id === 'no_hit_boss' || m.id === 'pressure_10') {
+      if (m.id === 'no_hit_boss' || m.id === 'slayer_2000') {
         save.standardCrates += 1;
       }
       if (

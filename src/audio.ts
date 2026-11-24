@@ -767,67 +767,6 @@ export class SoundEngine {
     this.playNoiseTick(0.14, 0.25, now, false);
   }
 
-  playBrinkShock(): void {
-    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
-    const now = this.ctx.currentTime;
-    // High-voltage electric snap crackle + punchy shockwave sub-thump
-    this.playNoiseTick(0.055, 0.34, now, true);
-    const sub = this.ctx.createOscillator();
-    const sg = this.ctx.createGain();
-    sub.type = 'sine';
-    sub.frequency.setValueAtTime(165, now);
-    sub.frequency.exponentialRampToValueAtTime(42, now + 0.2);
-    sg.gain.setValueAtTime(0.42, now);
-    sg.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-    sub.connect(sg);
-    sg.connect(this.sfxGain);
-    sub.start(now);
-    sub.stop(now + 0.23);
-
-    // Crisp electric arc harmonics
-    [880, 1318.5, 1760].forEach((hz, idx) => {
-      if (!this.ctx || !this.sfxGain) return;
-      const osc = this.ctx.createOscillator();
-      const flt = this.ctx.createBiquadFilter();
-      const g = this.ctx.createGain();
-      osc.type = idx === 0 ? 'sawtooth' : 'triangle';
-      flt.type = 'bandpass';
-      flt.frequency.value = hz * 1.4;
-      flt.Q.value = 2.4;
-      const st = now + idx * 0.022;
-      osc.frequency.setValueAtTime(hz, st);
-      osc.frequency.exponentialRampToValueAtTime(hz * 0.72, st + 0.16);
-      g.gain.setValueAtTime(0.2, st);
-      g.gain.exponentialRampToValueAtTime(0.001, st + 0.18);
-      osc.connect(flt);
-      flt.connect(g);
-      g.connect(this.sfxGain);
-      osc.start(st);
-      osc.stop(st + 0.2);
-    });
-  }
-
-  playPressureRelease(full: boolean): void {
-    if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
-    const now = this.ctx.currentTime;
-    this.playNoiseTick(full ? 0.09 : 0.05, full ? 0.22 : 0.14, now, true);
-    const notes = full ? [440, 659.25, 880] : [440, 659.25];
-    notes.forEach((hz, idx) => {
-      if (!this.ctx || !this.sfxGain) return;
-      const osc = this.ctx.createOscillator();
-      const g = this.ctx.createGain();
-      osc.type = 'triangle';
-      const st = now + idx * 0.028;
-      osc.frequency.setValueAtTime(hz, st);
-      g.gain.setValueAtTime(full ? 0.19 : 0.13, st);
-      g.gain.exponentialRampToValueAtTime(0.001, st + 0.24);
-      osc.connect(g);
-      g.connect(this.sfxGain);
-      osc.start(st);
-      osc.stop(st + 0.26);
-    });
-  }
-
   playReactorStall(): void {
     if (!this.ctx || !this.sfxGain || !this.sfxEnabled) return;
     const now = this.ctx.currentTime;

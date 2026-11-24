@@ -111,11 +111,6 @@ export class HudView {
     this.timerEl.textContent = h.endlessMode ? `∞ ${formatTime(h.elapsed)}` : formatTime(h.elapsed);
     this.scoreEl.textContent = h.score.toLocaleString();
 
-    const pressureSuffix = h.overpressureActive
-      ? h.overpressurePower >= 0.92
-        ? 'Pressure Max'
-        : 'Overpressure'
-      : '';
     if (h.stalled) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = '#ff6a55';
@@ -123,11 +118,7 @@ export class HudView {
     } else if (h.surgeActive) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = '#f6c453';
-      this.comboEl.textContent = pressureSuffix ? `Surge ×4  ${pressureSuffix}` : 'Surge ×4';
-    } else if (pressureSuffix) {
-      this.comboEl.style.display = 'block';
-      this.comboEl.style.color = '#f6c453';
-      this.comboEl.textContent = h.surgeTier >= 2 ? `×${h.surgeTier}  ${pressureSuffix}` : pressureSuffix;
+      this.comboEl.textContent = 'Surge ×4';
     } else if (h.surgeTier >= 2) {
       this.comboEl.style.display = 'block';
       this.comboEl.style.color = 'var(--accent)';
